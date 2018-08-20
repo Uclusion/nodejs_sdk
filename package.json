@@ -1,27 +1,21 @@
 {
-  "name": "uclusion_sdk",
+  "name": "uclusion_node_sdk",
   "description": "SDK for the uclusion idea market system. All methods are supported, and each method closely corresponds the given api endpoints",
   "keywords": [
     "uclusion"
   ],
   "version": "0.0.1",
-  "main": "index.js",
+  "main": "src/uclusion.js",
   "dependencies": {
     "amazon-cognito-identity-js": "^2.0.11",
-    "esm": "^3.0.74"
+    "esm": "^3.0.74",
+    "node-fetch": "latest",
+    "uclusion_sdk": "file:../javascript_sdk"
   },
   "devDependencies": {
-    "babel": "latest",
-    "babel-core": "^6.26.3",
-    "babel-polyfill": "latest",
-    "babel-preset-es2015": "^6.24.1",
-    "express": "^4.16.3",
-    "ghooks": "latest",
-    "mocha": "^5.2.0",
-    "polyfill": "latest"
+    "mocha": "^5.2.0"
   },
   "scripts": {
-    "test": "mocha -r esm --recursive test",
-    "build": "webpack"
+    "test": "mocha -r esm --recursive test"
   }
 }

@@ -1,13 +1,19 @@
 import assert from 'assert'
 
-import uclusion from '../src/uclusion.js';
+import {uclusion, CognitoAuthorizer} from "../src/uclusion";
 
-const configuration = {
-    baseURL:  'https://dev.api.uclusion.com/v1',
+const authorizerConfiguration = {
     username: 'testeruclusion@gmail.com',
     password: 'Uclusi0n_test',
     poolId: 'us-west-2_Z3vZuhzd2',
     clientId: '2off68ct2ntku805jt7sip0j1b'
+};
+
+const authorizer = new CognitoAuthorizer(authorizerConfiguration);
+
+const configuration = {
+    baseURL:  'https://dev.api.uclusion.com/v1',
+    authorizer: authorizer
 };
 const marketOptions = {
     name : 'Default',
