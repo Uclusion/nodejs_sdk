@@ -46,7 +46,7 @@ function Uclusion() {
             };
             // console.log(apiClient.user);
             return apiClient;
-        }));
+        });
     };
 
     /**

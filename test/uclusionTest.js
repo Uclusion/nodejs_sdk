@@ -39,7 +39,7 @@ let marketIdList = [];
 describe('uclusion', () => {
     describe('#doLogin and update user', () => {
         it('should login and pull without error', () => {
-            let userId = '6636f2b2-d1a0-4ed7-ad98-0427a6e7e483';
+            let userId = '033a2435-d6b2-49a2-923a-3057e9ffd26e';
             let promise = uclusion.constructClient(configuration);
             let globalClient;
             promise.then((client) => {
@@ -60,7 +60,7 @@ describe('uclusion', () => {
     });
     describe('#doCreate, update, grant, and follow market', () => {
         it('should create market without error', () => {
-            let userId = '6636f2b2-d1a0-4ed7-ad98-0427a6e7e483';
+            let userId = '033a2435-d6b2-49a2-923a-3057e9ffd26e';
             let promise = uclusion.constructClient(configuration);
             let globalClient;
             let globalMarketId;
@@ -107,7 +107,7 @@ describe('uclusion', () => {
     });
     describe('#doCreateInvestible, ', () => {
         it('should create investible without error', () => {
-            let userId = '6636f2b2-d1a0-4ed7-ad98-0427a6e7e483';
+            let userId = '033a2435-d6b2-49a2-923a-3057e9ffd26e';
             let promise = uclusion.constructClient(configuration);
             let globalClient;
             let globalInvestibleId;
@@ -140,7 +140,7 @@ describe('uclusion', () => {
     });
     describe('#doInvestment', () => {
         it('should create investment without error', () => {
-            let userId = '6636f2b2-d1a0-4ed7-ad98-0427a6e7e483';
+            let userId = '033a2435-d6b2-49a2-923a-3057e9ffd26e';
             let promise = uclusion.constructClient(configuration);
             let globalClient;
             let globalMarketId;
@@ -211,7 +211,7 @@ describe('uclusion', () => {
         });
         describe('#doList and resolve category', () => {
             it('should list without error', () => {
-                let userId = '6636f2b2-d1a0-4ed7-ad98-0427a6e7e483';
+                let userId = '033a2435-d6b2-49a2-923a-3057e9ffd26e';
                 let promise = uclusion.constructClient(configuration);
                 let globalClient;
                 let globalMarketId;
