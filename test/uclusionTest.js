@@ -183,7 +183,7 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
-                return globalUserClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
+                return globalClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
             }).then((response) => {
                 return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
             }).then((response) => {
@@ -266,7 +266,7 @@ describe('uclusion', () => {
                     return globalUserClient.users.get(userId);
                 }).then((response) => {
                     globalUserTeamId = response.team_id;
-                    return globalUserClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
+                    return globalClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
                 }).then((response) => {
                     return globalUserClient.markets.createInvestment(globalMarketId, globalInvestibleId, 1000);
                 }).then((response) => {
