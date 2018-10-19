@@ -103,7 +103,7 @@ describe('uclusion', () => {
                 assert(market.name === 'fish', 'Name is incorrect');
                 assert(market.description === 'this is a fish market', 'Description is incorrect');
                 assert(market.trending_window === 5, 'Trending window is incorrect, should be 5');
-                return globalClient.markets.grant(globalMarketId, userId, 1000);
+                return globalClient.markets.grant(globalMarketId, adminUserId, 1000);
             }).then((response) => {
                 return globalClient.markets.followMarket(globalMarketId, false);
             }).then((response) => {
@@ -111,8 +111,8 @@ describe('uclusion', () => {
                 return globalClient.markets.getMarket(globalMarketId);
             }
             ).then((market) => {
-                assert(market.unspent === 1000, 'Quantity is incorrect, should be 11000');
-                return globalClient.users.get(userId);
+                assert(market.unspent === 1000, 'Quantity is incorrect, should be 1000');
+                return globalClient.users.get(adminUserId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.following === true, 'Following should be true');
@@ -178,12 +178,12 @@ describe('uclusion', () => {
                 return globalUserClient.investibles.create('salmon', 'good on bagels', ['fish', 'water']);
             }).then((response) => {
                 globalInvestibleId = response.id;
-                return globalClient.markets.grant(globalMarketId, userId, 10000);
-            }).then((response) => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
                 return globalClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
+            }).then((response) => {
+                return globalClient.markets.grantAddExistingUserToMarket(globalMarketId, globalUserTeamId, userId, 10000, false);
             }).then((response) => {
                 return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
             }).then((response) => {
@@ -198,13 +198,13 @@ describe('uclusion', () => {
                 //console.log(response);
                 assert(investible.quantity === 1000, 'get investible quantity should return 1000');
                 assert(investible.following === true, 'get investible following should be true');
-                return globalUserClient.users.get(userId);
+                return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.quantity === 9000, 'Quantity should be 9000');
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
-                return globalUserClient.users.get(userId);
+                return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 //console.log(userPresence);
@@ -231,7 +231,7 @@ describe('uclusion', () => {
             ).then((investible) => {
                 //console.log(investible);
                 assert(investible.closed === true, 'investible should be closed');
-                assert(investible.marked_resolved_by === userId, 'resolved by user id is incorrect');
+                assert(investible.marked_resolved_by === adminUserId, 'resolved by user id is incorrect');
                 return globalClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
@@ -258,8 +258,6 @@ describe('uclusion', () => {
                     return client.markets.createMarket(fishOptions);
                 }).then((response) => {
                     globalMarketId = response.market_id;
-                    return globalClient.markets.grant(globalMarketId, userId, 10000);
-                }).then((response) => {
                     return globalUserClient.investibles.create('salmon', 'good on bagels', ['fish', 'water']);
                 }).then((response) => {
                     globalInvestibleId = response.id;
@@ -268,7 +266,9 @@ describe('uclusion', () => {
                     globalUserTeamId = response.team_id;
                     return globalClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
                 }).then((response) => {
-                    return globalUserClient.markets.createInvestment(globalMarketId, globalInvestibleId, 1000);
+                    return globalClient.markets.grantAddExistingUserToMarket(globalMarketId, globalUserTeamId, userId, 10000, false);
+                }).then((response) => {
+                    return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
                 }).then((response) => {
                     investmentId = response.id;
                     marketInvestibleId = response.investible_id;
