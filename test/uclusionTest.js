@@ -103,7 +103,7 @@ describe('uclusion', () => {
                 assert(market.name === 'fish', 'Name is incorrect');
                 assert(market.description === 'this is a fish market', 'Description is incorrect');
                 assert(market.trending_window === 5, 'Trending window is incorrect, should be 5');
-                return globalClient.users.grant(globalMarketId, adminUserId, 1000);
+                return globalClient.users.grant(adminUserId, globalMarketId, 1000);
             }).then((response) => {
                 return globalClient.markets.followMarket(globalMarketId, false);
             }).then((response) => {
@@ -156,7 +156,7 @@ describe('uclusion', () => {
             });
         });
     });
-    describe('#doInvestment', () => {
+   describe('#doInvestment', () => {
         it('should create investment without error', () => {
             let promise = uclusion.constructClient(adminConfiguration);
             let userPromise = uclusion.constructClient(userConfiguration);
@@ -181,7 +181,7 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
-                return globalClient.teams.bind(globalMarketId, globalUserTeamId, false);
+                return globalClient.teams.bind(globalUserTeamId, globalMarketId, false);
             }).then((response) => {
                 return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
             }).then((response) => {
@@ -190,7 +190,7 @@ describe('uclusion', () => {
                 investmentId = response.id;
                 marketInvestibleId = response.investible_id;
                 assert(response.quantity === 1000, 'investment quantity should be 1000');
-                return globalUserClient.investibles.followInvestible(globalMarketId, marketInvestibleId, false);
+                return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
                 return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
@@ -226,20 +226,20 @@ describe('uclusion', () => {
                 //console.log(market);
                 assert(market.open_investments === 0, 'open investments should be 0');
                 assert(market.unspent === 10000, 'unspent should be 10000');
-                return globalClient.markets.resolveInvestible(globalMarketId, marketInvestibleId);
+                return globalClient.investibles.resolve(marketInvestibleId);
             }).then((result) => globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId)
             ).then((investible) => {
                 //console.log(investible);
                 assert(investible.closed === true, 'investible should be closed');
                 assert(investible.marked_resolved_by === adminUserId, 'resolved by user id is incorrect');
-                return globalClient.investibles.delete(globalInvestibleId);
+                return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function(error) {
                 console.log(error);
             });
         });
-        describe('#doList', () => {
+         describe('#doList', () => {
             it('should list without error', () => {
                 let promise = uclusion.constructClient(adminConfiguration);
                 let userPromise = uclusion.constructClient(userConfiguration);
@@ -264,12 +264,13 @@ describe('uclusion', () => {
                     return globalUserClient.users.get(userId);
                 }).then((response) => {
                     globalUserTeamId = response.team_id;
-                    return globalClient.teams.bind(globalMarketId, globalUserTeamId, false);
+                    return globalClient.teams.bind(globalUserTeamId, globalMarketId, false);
                 }).then((response) => {
                     return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
                 }).then((response) => {
                     return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
                 }).then((response) => {
+                    //console.log(response);
                     investmentId = response.id;
                     marketInvestibleId = response.investible_id;
                     assert(response.quantity === 1000, 'investment quantity should be 1000');
@@ -289,7 +290,11 @@ describe('uclusion', () => {
                 }).then((result) => {
                     return globalUserClient.markets.listInvestibleInvestments(globalMarketId, marketInvestibleId, 5, 20, '2015-01-22T03:23:26Z');
                 }).then((response) => {
-                    return globalClient.investibles.delete(globalInvestibleId);
+                    //console.log('globalInvestibleId '+globalInvestibleId);
+                    return globalUserClient.investibles.delete(globalInvestibleId);
+                }).then((response) => {
+                    //console.log('marketInvestibleId '+marketInvestibleId);
+                    return globalClient.investibles.delete(marketInvestibleId);
                 }).then((response) => {
                     return globalClient.markets.deleteMarket(globalMarketId);
                 }).catch(function (error) {
