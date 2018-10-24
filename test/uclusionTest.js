@@ -90,7 +90,7 @@ describe('uclusion', () => {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 globalMarketId = response.market_id;
-                return globalClient.markets.getMarket(response.market_id);
+                return globalClient.markets.get(response.market_id);
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
                 assert(market.description === 'This is default.', 'Description is incorrect');
@@ -98,7 +98,7 @@ describe('uclusion', () => {
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
                 assert(market.manual_roi === false, 'Roi is incorrect, should be false');
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
-            }).then((response) => globalClient.markets.getMarket(globalMarketId)
+            }).then((response) => globalClient.markets.get(globalMarketId)
             ).then((market) => {
                 assert(market.name === 'fish', 'Name is incorrect');
                 assert(market.description === 'this is a fish market', 'Description is incorrect');
@@ -108,7 +108,7 @@ describe('uclusion', () => {
                 return globalClient.markets.followMarket(globalMarketId, false);
             }).then((response) => {
                 assert(response.following === true, 'Following incorrect, should be true');
-                return globalClient.markets.getMarket(globalMarketId);
+                return globalClient.markets.get(globalMarketId);
             }
             ).then((market) => {
                 assert(market.unspent === 1000, 'Quantity is incorrect, should be 1000');
@@ -221,7 +221,7 @@ describe('uclusion', () => {
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(_arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
                 assert(investible.quantity === 0, 'get market investible quantity incorrect');
-                return globalUserClient.markets.getMarket(globalMarketId);
+                return globalUserClient.markets.get(globalMarketId);
             }).then((market) => {
                 //console.log(market);
                 assert(market.open_investments === 0, 'open investments should be 0');
