@@ -103,7 +103,7 @@ describe('uclusion', () => {
                 assert(market.name === 'fish', 'Name is incorrect');
                 assert(market.description === 'this is a fish market', 'Description is incorrect');
                 assert(market.trending_window === 5, 'Trending window is incorrect, should be 5');
-                return globalClient.markets.grant(globalMarketId, adminUserId, 1000);
+                return globalClient.users.grant(globalMarketId, adminUserId, 1000);
             }).then((response) => {
                 return globalClient.markets.followMarket(globalMarketId, false);
             }).then((response) => {
@@ -181,16 +181,16 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
-                return globalClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
+                return globalClient.teams.bindTeam(globalMarketId, globalUserTeamId, false);
             }).then((response) => {
-                return globalClient.markets.grantAddExistingUserToMarket(globalMarketId, globalUserTeamId, userId, 10000, false);
+                return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
             }).then((response) => {
                 return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
             }).then((response) => {
                 investmentId = response.id;
                 marketInvestibleId = response.investible_id;
                 assert(response.quantity === 1000, 'investment quantity should be 1000');
-                return globalUserClient.markets.followInvestible(globalMarketId, marketInvestibleId, false);
+                return globalUserClient.investibles.followInvestible(globalMarketId, marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
                 return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
@@ -209,7 +209,7 @@ describe('uclusion', () => {
                 let userPresence = user.market_presence;
                 //console.log(userPresence);
                 assert(userPresence.quantity === 10000, 'Quantity should be 10000');
-                return globalUserClient.markets.updateMarketInvestible(globalMarketId, marketInvestibleId, updateFish);
+                return globalUserClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name, updateFish.description, updateFish.category_list);
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
@@ -264,9 +264,9 @@ describe('uclusion', () => {
                     return globalUserClient.users.get(userId);
                 }).then((response) => {
                     globalUserTeamId = response.team_id;
-                    return globalClient.markets.bindTeam(globalMarketId, globalUserTeamId, false);
+                    return globalClient.teams.bindTeam(globalMarketId, globalUserTeamId, false);
                 }).then((response) => {
-                    return globalClient.markets.grantAddExistingUserToMarket(globalMarketId, globalUserTeamId, userId, 10000, false);
+                    return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
                 }).then((response) => {
                     return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
                 }).then((response) => {
@@ -275,7 +275,7 @@ describe('uclusion', () => {
                     assert(response.quantity === 1000, 'investment quantity should be 1000');
                     return globalUserClient.markets.listCategories(globalMarketId);
                 }).then((result) => {
-                    return globalUserClient.markets.listInvestibleTemplates(globalMarketId);
+                    return globalUserClient.investibles.listTemplates();
                 }).then((result) => {
                     return globalUserClient.markets.listInvestiblePresences(globalMarketId);
                 }).then((result) => {
