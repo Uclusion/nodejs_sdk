@@ -181,7 +181,7 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
-                return globalClient.teams.bindTeam(globalMarketId, globalUserTeamId, false);
+                return globalClient.teams.bind(globalMarketId, globalUserTeamId, false);
             }).then((response) => {
                 return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
             }).then((response) => {
@@ -264,7 +264,7 @@ describe('uclusion', () => {
                     return globalUserClient.users.get(userId);
                 }).then((response) => {
                     globalUserTeamId = response.team_id;
-                    return globalClient.teams.bindTeam(globalMarketId, globalUserTeamId, false);
+                    return globalClient.teams.bind(globalMarketId, globalUserTeamId, false);
                 }).then((response) => {
                     return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
                 }).then((response) => {
