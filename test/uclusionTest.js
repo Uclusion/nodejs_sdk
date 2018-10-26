@@ -33,7 +33,6 @@ const userConfiguration = {
 const marketOptions = {
     name : 'Default',
     description: 'This is default.',
-    follow_default: false,
     trending_window: 2,
     manual_roi: false
 };
@@ -45,7 +44,6 @@ const updateOptions = {
 const fishOptions = {
     name : 'fish',
     description: 'this is a fish market',
-    follow_default: false,
     trending_window: 5,
     manual_roi: false,
 };
@@ -94,7 +92,6 @@ describe('uclusion', () => {
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
                 assert(market.description === 'This is default.', 'Description is incorrect');
-                assert(market.follow_default === false, 'Follow is incorrect, should be false');
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
                 assert(market.manual_roi === false, 'Roi is incorrect, should be false');
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
