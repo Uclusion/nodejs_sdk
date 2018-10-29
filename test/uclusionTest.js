@@ -273,7 +273,7 @@ describe('uclusion', () => {
                     assert(response.quantity === 1000, 'investment quantity should be 1000');
                     return globalUserClient.markets.listCategories(globalMarketId);
                 }).then((result) => {
-                    return globalUserClient.investibles.listTemplates();
+                    return globalUserClient.investibles.listTemplates(100);
                 }).then((result) => {
                     return globalUserClient.markets.listInvestiblePresences(globalMarketId);
                 }).then((result) => {
