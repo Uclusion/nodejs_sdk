@@ -85,7 +85,7 @@ describe('uclusion', () => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
             let globalMarketId;
-            promise.then((client) => {
+            return promise.then((client) => {
                 globalClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -126,7 +126,7 @@ describe('uclusion', () => {
             let promise = uclusion.constructClient(userConfiguration);
             let globalClient;
             let globalInvestibleId;
-            promise.then((client) => {
+            return promise.then((client) => {
                 globalClient = client;
                 return client.investibles.create('salmon', 'good on bagels', ['fish', 'water']);
             }).then((response) => {
@@ -162,7 +162,7 @@ describe('uclusion', () => {
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
-            userPromise.then((client) => {
+            return userPromise.then((client) => {
                 globalUserClient = client;
                 return promise;
             }).then((client) => {
@@ -243,7 +243,7 @@ describe('uclusion', () => {
                 let marketInvestibleId;
                 let investmentId;
                 let globalUserTeamId;
-                userPromise.then((client) => {
+                return userPromise.then((client) => {
                     globalUserClient = client;
                     return promise;
                 }).then((client) => {
