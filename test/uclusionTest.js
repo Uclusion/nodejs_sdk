@@ -1,8 +1,5 @@
 import assert from 'assert'
-const chai = require ('chai');
-const should = chai.should();
-const asPromised = require('chai-as-promised');
-chai.use(asPromised);
+
 import {uclusion, CognitoAuthorizer} from "../src/uclusion";
 
 const adminAuthorizerConfiguration = {
@@ -63,10 +60,10 @@ const userId = '0404c4f1-600a-4788-ac8d-f5556ae2e573';
 let marketIdList = [];
 describe('uclusion', () => {
     describe('#doLogin and update user', () => {
-        it('should login and pull without error', () => {
+        it('should login and pull without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
-            return promise.then((client) => {
+            await promise.then((client) => {
                 globalClient = client;
                 return client.users.update('Daniel');
             }).then((response) => {
@@ -77,15 +74,15 @@ describe('uclusion', () => {
                 assert(adminUserId === user.id, 'Fetched user did not match me');
                 assert(user.name === 'Daniel', 'Name not updated properly');
                 return globalClient.users.update('Default');
-            }).should.be.fulfilled;
-        });
+            });
+        }).timeout(10000);
     });
     describe('#doCreate, update, grant, and follow market', () => {
-        it('should create market without error', () => {
+        it('should create market without error', async() => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
             let globalMarketId;
-            return promise.then((client) => {
+            await promise.then((client) => {
                 globalClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -118,15 +115,15 @@ describe('uclusion', () => {
                 assert(userPresence.quantity === 1000, 'Quantity should be 1000')
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
-            }).should.be.fulfilled;
-        });
+            })
+        }).timeout(5000);
     });
     describe('#doCreateInvestible, ', () => {
-        it('should create investible without error', () => {
+        it('should create investible without error', async () => {
             let promise = uclusion.constructClient(userConfiguration);
             let globalClient;
             let globalInvestibleId;
-            return promise.then((client) => {
+            await promise.then((client) => {
                 globalClient = client;
                 return client.investibles.create('salmon', 'good on bagels', ['fish', 'water']);
             }).then((response) => {
@@ -148,11 +145,11 @@ describe('uclusion', () => {
                 assert(investible.description === 'good for sandwich', 'description not passed on correctly');
                 assert(_arrayEquals(investible.category_list, ['can', 'sandwich']), 'category list not passed on correctly');
                 return globalClient.investibles.delete(globalInvestibleId);
-            }).should.be.fulfilled;
-        });
+            })
+        }).timeout(5000);
     });
    describe('#doInvestment', () => {
-        it('should create investment without error', () => {
+        it('should create investment without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
             let userPromise = uclusion.constructClient(userConfiguration);
             let globalClient;
@@ -162,7 +159,7 @@ describe('uclusion', () => {
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
-            return userPromise.then((client) => {
+            await userPromise.then((client) => {
                 globalUserClient = client;
                 return promise;
             }).then((client) => {
@@ -230,10 +227,10 @@ describe('uclusion', () => {
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
-            }).should.be.fulfilled;
-        });
-         describe('#doList', () => {
-            it('should list without error', () => {
+            });
+        }).timeout(5000);
+        describe('#doList', () => {
+            it('should list without error', async () => {
                 let promise = uclusion.constructClient(adminConfiguration);
                 let userPromise = uclusion.constructClient(userConfiguration);
                 let globalClient;
@@ -243,7 +240,7 @@ describe('uclusion', () => {
                 let marketInvestibleId;
                 let investmentId;
                 let globalUserTeamId;
-                return userPromise.then((client) => {
+                await userPromise.then((client) => {
                     globalUserClient = client;
                     return promise;
                 }).then((client) => {
@@ -290,8 +287,8 @@ describe('uclusion', () => {
                     return globalClient.investibles.delete(marketInvestibleId);
                 }).then((response) => {
                     return globalClient.markets.deleteMarket(globalMarketId);
-                }).should.be.fulfilled;
-            });
+                })
+            }).timeout(5000);
         });
     });
 });
