@@ -228,7 +228,7 @@ describe('uclusion', () => {
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             });
-        }).timeout(5000);
+        }).timeout(10000);
         describe('#doList', () => {
             it('should list without error', async () => {
                 let promise = uclusion.constructClient(adminConfiguration);
@@ -288,7 +288,7 @@ describe('uclusion', () => {
                 }).then((response) => {
                     return globalClient.markets.deleteMarket(globalMarketId);
                 })
-            }).timeout(5000);
+            }).timeout(10000);
         });
     });
 });
