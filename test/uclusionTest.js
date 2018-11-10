@@ -75,7 +75,7 @@ describe('uclusion', () => {
                 assert(user.name === 'Daniel', 'Name not updated properly');
                 return globalClient.users.update('Default');
             });
-        }).timeout(10000);
+        }).timeout(30000);
     });
     describe('#doCreate, update, grant, and follow market', () => {
         it('should create market without error', async() => {
@@ -116,7 +116,7 @@ describe('uclusion', () => {
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             })
-        }).timeout(5000);
+        }).timeout(30000);
     });
     describe('#doCreateInvestible, ', () => {
         it('should create investible without error', async () => {
@@ -146,7 +146,7 @@ describe('uclusion', () => {
                 assert(_arrayEquals(investible.category_list, ['can', 'sandwich']), 'category list not passed on correctly');
                 return globalClient.investibles.delete(globalInvestibleId);
             })
-        }).timeout(5000);
+        }).timeout(30000);
     });
    describe('#doInvestment', () => {
         it('should create investment without error', async () => {
@@ -228,7 +228,7 @@ describe('uclusion', () => {
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             });
-        }).timeout(10000);
+        }).timeout(30000);
         describe('#doList', () => {
             it('should list without error', async () => {
                 let promise = uclusion.constructClient(adminConfiguration);
@@ -288,7 +288,7 @@ describe('uclusion', () => {
                 }).then((response) => {
                     return globalClient.markets.deleteMarket(globalMarketId);
                 })
-            }).timeout(10000);
+            }).timeout(30000);
         });
     });
 });
