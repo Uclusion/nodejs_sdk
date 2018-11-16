@@ -16,6 +16,7 @@
     "mocha": "^5.2.0"
   },
   "scripts": {
+    "pretest": "npm install",
     "test": "mocha -r esm --recursive test"
   }
 }
