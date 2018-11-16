@@ -73,5 +73,15 @@ export function CognitoAuthorizer(configuration){
               //console.log("My token:" + token);
               return token
             });
-    };
+    };CognitoAuthorizer
+
+    /**
+     * Simple reauthorizer that just calls authorize again
+     * @param resolve the function to call when the auth token is ready
+     * @param reject the function to call when authorization fails
+     * @returns {*}
+     */
+    this.reauthorize = (resolve, reject) => {
+        return this.authorize(resolve, reject);
+    }
 }
