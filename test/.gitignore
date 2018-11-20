@@ -1,2 +1,5 @@
 # Test results directory
 nodejs/
+
+#Ignore files in coverage directory
+coverage/
