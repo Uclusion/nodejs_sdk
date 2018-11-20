@@ -13,10 +13,11 @@
     "uclusion_sdk": "0.0.1"
   },
   "devDependencies": {
-    "mocha": "^5.2.0"
+    "mocha": "^5.2.0",
+    "mocha-junit-reporter": "^1.18.0"
   },
   "scripts": {
     "pretest": "npm install",
-    "test": "mocha -r esm --recursive test"
+    "test": "mocha -r esm --recursive --reporter mocha-junit-reporter --reporter-options mochaFile=test/nodejs/test-results.xml test"
   }
 }
