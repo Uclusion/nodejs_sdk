@@ -4,6 +4,8 @@ import { CognitoUserPool, CognitoUserAttribute, CognitoUser, AuthenticationDetai
 
 export function CognitoAuthorizer(configuration){
 
+    this.storedToken = null;
+
     /**
      * Initializes the congnito user system with the given pool ID and client id.
      * With the initialized pool you can authenticate your user, and then pass the
@@ -70,10 +72,15 @@ export function CognitoAuthorizer(configuration){
             return sessionPromise;
           }).then((session) => {
               const token = session.getIdToken().getJwtToken();
-              //console.log("My token:" + token);
+              this.storedToken = token;
               return token
             });
-    };CognitoAuthorizer
+    };
+
+    this.getToken = () => {
+        //console.log("Returning token:" + this.storedToken);
+        return this.storedToken;
+    };
 
     /**
      * Simple reauthorizer that just calls authorize again
@@ -82,6 +89,7 @@ export function CognitoAuthorizer(configuration){
      * @returns {*}
      */
     this.reauthorize = (resolve, reject) => {
+        //console.log("My Stored invalid token:" + this.storedToken);
         return this.authorize(resolve, reject);
     }
 }
