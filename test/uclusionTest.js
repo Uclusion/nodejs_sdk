@@ -73,6 +73,9 @@ describe('uclusion', () => {
                 assert(adminUserId === user.id, 'Fetched user did not match me');
                 assert(user.name === 'Daniel', 'Name not updated properly');
                 return globalClient.users.update('Default');
+            }).catch(function(error) {
+                console.log(error);
+                throw error;
             });
         }).timeout(30000);
     });
@@ -114,7 +117,10 @@ describe('uclusion', () => {
                 assert(userPresence.quantity === 1000, 'Quantity should be 1000')
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
-            })
+            }).catch(function(error) {
+                console.log(error);
+                throw error;
+            });
         }).timeout(30000);
     });
     describe('#doCreateInvestible, ', () => {
@@ -144,7 +150,10 @@ describe('uclusion', () => {
                 assert(investible.description === 'good for sandwich', 'description not passed on correctly');
                 assert(_arrayEquals(investible.category_list, ['can', 'sandwich']), 'category list not passed on correctly');
                 return globalClient.investibles.delete(globalInvestibleId);
-            })
+            }).catch(function(error) {
+                console.log(error);
+                throw error;
+            });
         }).timeout(30000);
     });
    describe('#doInvestment', () => {
@@ -158,7 +167,7 @@ describe('uclusion', () => {
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
-            userPromise.then((client) => {
+            await userPromise.then((client) => {
                 globalUserClient = client;
                 return promise;
             }).then((client) => {
@@ -226,6 +235,9 @@ describe('uclusion', () => {
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
+            }).catch(function(error) {
+                console.log(error);
+                throw error;
             });
         }).timeout(30000);
         describe('#doList', () => {
@@ -284,7 +296,10 @@ describe('uclusion', () => {
                     return globalClient.investibles.delete(marketInvestibleId);
                 }).then((response) => {
                     return globalClient.markets.deleteMarket(globalMarketId);
-                })
+                }).catch(function(error) {
+                    console.log(error);
+                    throw error;
+                });
             }).timeout(30000);
         });
     });
