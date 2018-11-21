@@ -222,16 +222,28 @@ describe('uclusion', () => {
                 assert(_arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
                 assert(investible.quantity === 0, 'get market investible quantity incorrect');
                 return globalUserClient.markets.get(globalMarketId);
-            //}).then((market) => {
+            }).then((market) => {
                 //console.log(market);
-                //assert(market.open_investments === 0, 'open investments should be 0');
-                //assert(market.unspent === 10000, 'unspent should be 10000');
-                //return globalClient.investibles.resolve(marketInvestibleId);
+                assert(market.active_investments === 0, 'active investments should be 0');
+                assert(market.users_in === 3, 'Counting team user there are three users in this market');
+                assert(market.team_count === 1, 'One team in this market');
+                assert(market.unspent === 10000, 'unspent should be 10000');
+                let stateOptions = {
+                    open_for_investment: false,
+                    open_for_refunds: false,
+                    open_for_editing: false,
+                    is_active: false,
+                    stage: 'CLOSED'
+                };
+                return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((result) => globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId)
             ).then((investible) => {
                 //console.log(investible);
-                //assert(investible.closed === true, 'investible should be closed');
-                //assert(investible.marked_resolved_by === adminUserId, 'resolved by user id is incorrect');
+                assert(investible.stage === 'CLOSED', 'investible stage should be closed');
+                assert(investible.open_for_investment === false, 'open_for_investment false');
+                assert(investible.open_for_refunds === false, 'open_for_refunds false');
+                assert(investible.open_for_editing === false, 'open_for_editing false');
+                assert(investible.is_active === false, 'is_active false');
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
