@@ -130,25 +130,22 @@ describe('uclusion', () => {
             let globalInvestibleId;
             await promise.then((client) => {
                 globalClient = client;
-                return client.investibles.create('salmon', 'good on bagels', ['fish', 'water']);
+                return client.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 //console.log(response);
                 globalInvestibleId = response.id;
                 assert(response.name === 'salmon', 'name not passed on correctly');
                 assert(response.description === 'good on bagels', 'description not passed on correctly');
-                assert(_arrayEquals(response.category_list, ['fish', 'water']), 'category list not passed on correctly');
-                return globalClient.investibles.update(globalInvestibleId, 'tuna', 'good for sandwich', ['can', 'sandwich']);
+                return globalClient.investibles.update(globalInvestibleId, 'tuna', 'good for sandwich');
             }).then((response) => {
                 //console.log(response);
                 assert(response.name === 'tuna', 'name not passed on correctly');
                 assert(response.description === 'good for sandwich', 'description not passed on correctly');
-                assert(_arrayEquals(response.category_list, ['can', 'sandwich']), 'update category list not correct');
                 return globalClient.investibles.get(globalInvestibleId);
             }).then((investible) => {
                 //console.log(investible);
                 assert(investible.name === 'tuna', 'name not passed on correctly');
                 assert(investible.description === 'good for sandwich', 'description not passed on correctly');
-                assert(_arrayEquals(investible.category_list, ['can', 'sandwich']), 'category list not passed on correctly');
                 return globalClient.investibles.delete(globalInvestibleId);
             }).catch(function(error) {
                 console.log(error);
@@ -175,7 +172,7 @@ describe('uclusion', () => {
                 return client.markets.createMarket(fishOptions);
             }).then((response) => {
                 globalMarketId = response.market_id;
-                return globalUserClient.investibles.create('salmon', 'good on bagels', ['fish', 'water']);
+                return globalUserClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 globalInvestibleId = response.id;
                 return globalUserClient.users.get(userId);
@@ -185,7 +182,11 @@ describe('uclusion', () => {
             }).then((response) => {
                 return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
             }).then((response) => {
-                return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
+                return globalClient.investibles.createCategory('fish', globalMarketId);
+            }).then((response) => {
+                return globalClient.investibles.createCategory('water', globalMarketId);
+            }).then((response) => {
+                return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 1000, ['fish', 'water']);
             }).then((response) => {
                 investmentId = response.id;
                 marketInvestibleId = response.investible_id;
@@ -198,6 +199,7 @@ describe('uclusion', () => {
                 //console.log(response);
                 assert(investible.quantity === 1000, 'get investible quantity should return 1000');
                 assert(investible.following === true, 'get investible following should be true');
+                assert(_arrayEquals(investible.category_list, ['fish', 'water']), 'category list not passed on correctly');
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
@@ -209,6 +211,10 @@ describe('uclusion', () => {
                 let userPresence = user.market_presence;
                 //console.log(userPresence);
                 assert(userPresence.quantity === 10000, 'Quantity should be 10000');
+                return globalClient.investibles.createCategory('poison', globalMarketId);
+            }).then((response) => {
+                return globalClient.investibles.createCategory('chef', globalMarketId);
+            }).then((response) => {
                 return globalUserClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name, updateFish.description, updateFish.category_list);
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
@@ -271,7 +277,7 @@ describe('uclusion', () => {
                     return client.markets.createMarket(fishOptions);
                 }).then((response) => {
                     globalMarketId = response.market_id;
-                    return globalUserClient.investibles.create('salmon', 'good on bagels', ['fish', 'water']);
+                    return globalUserClient.investibles.create('salmon', 'good on bagels');
                 }).then((response) => {
                     globalInvestibleId = response.id;
                     return globalUserClient.users.get(userId);
@@ -281,7 +287,11 @@ describe('uclusion', () => {
                 }).then((response) => {
                     return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
                 }).then((response) => {
-                    return globalUserClient.markets.createInvestment(globalMarketId, globalUserTeamId, globalInvestibleId, 1000);
+                    return globalClient.investibles.createCategory('fish', globalMarketId);
+                }).then((response) => {
+                    return globalClient.investibles.createCategory('water', globalMarketId);
+                }).then((response) => {
+                    return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 1000, ['fish', 'water']);
                 }).then((response) => {
                     //console.log(response);
                     investmentId = response.id;
