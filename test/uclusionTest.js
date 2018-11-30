@@ -39,13 +39,17 @@ const marketOptions = {
 const updateOptions = {
     name : 'fish',
     description: 'this is a fish market',
-    trending_window: 5
+    trending_window: 5,
+    initial_next_stage: 'fishy',
+    initial_next_stage_threshold: 1
 };
 const fishOptions = {
     name : 'fish',
     description: 'this is a fish market',
     trending_window: 5,
     manual_roi: false,
+    initial_next_stage: 'fishing',
+    initial_next_stage_threshold: 0
 };
 const updateFish = {
     name : 'pufferfish',
@@ -95,12 +99,16 @@ describe('uclusion', () => {
                 assert(market.description === 'This is default.', 'Description is incorrect');
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
                 assert(market.manual_roi === false, 'Roi is incorrect, should be false');
+                assert(market.initial_next_stage_threshold === 0, 'Initial next stage threshold is incorrect, should be 0');
+                assert(market.initial_next_stage === 'fishing', 'Initial next stage is incorrect, should be fishing');
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
             }).then((response) => globalClient.markets.get(globalMarketId)
             ).then((market) => {
                 assert(market.name === 'fish', 'Name is incorrect');
                 assert(market.description === 'this is a fish market', 'Description is incorrect');
                 assert(market.trending_window === 5, 'Trending window is incorrect, should be 5');
+                assert(market.initial_next_stage_threshold === 1, 'Initial next stage threshold is incorrect, should be 1');
+                assert(market.initial_next_stage === 'fishy', 'Initial next stage is incorrect, should be fishy');
                 return globalClient.users.grant(adminUserId, globalMarketId, 1000);
             }).then((response) => {
                 return globalClient.markets.followMarket(globalMarketId, false);
@@ -198,6 +206,8 @@ describe('uclusion', () => {
             }).then((investible) => {
                 //console.log(response);
                 assert(investible.quantity === 1000, 'get investible quantity should return 1000');
+                assert(investible.next_stage_threshold === 0, 'get investible next threshold should return 0');
+                assert(investible.next_stage === 'fishing', 'get investible next stage should return fishing');
                 assert(investible.following === true, 'get investible following should be true');
                 assert(_arrayEquals(investible.category_list, ['fish', 'water']), 'category list not passed on correctly');
                 return globalUserClient.users.get(userId, globalMarketId);
@@ -239,13 +249,17 @@ describe('uclusion', () => {
                     open_for_refunds: false,
                     open_for_editing: false,
                     is_active: false,
-                    stage: 'CLOSED'
+                    stage: 'REVIEWED',
+                    next_stage: 'CLOSED',
+                    next_stage_threshold: 10
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((result) => globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId)
             ).then((investible) => {
                 //console.log(investible);
-                assert(investible.stage === 'CLOSED', 'investible stage should be closed');
+                assert(investible.stage === 'REVIEWED', 'investible stage should be reviewed');
+                assert(investible.next_stage === 'CLOSED', 'investible next stage should be closed');
+                assert(investible.next_stage_threshold === 10, 'investible next stage threshold should be 10');
                 assert(investible.open_for_investment === false, 'open_for_investment false');
                 assert(investible.open_for_refunds === false, 'open_for_refunds false');
                 assert(investible.open_for_editing === false, 'open_for_editing false');
