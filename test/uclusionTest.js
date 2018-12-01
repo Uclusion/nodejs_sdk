@@ -34,7 +34,8 @@ const marketOptions = {
     name : 'Default',
     description: 'This is default.',
     trending_window: 2,
-    manual_roi: false
+    manual_roi: false,
+    initial_next_stage: 'globaling',
 };
 const updateOptions = {
     name : 'fish',
@@ -100,7 +101,7 @@ describe('uclusion', () => {
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
                 assert(market.manual_roi === false, 'Roi is incorrect, should be false');
                 assert(market.initial_next_stage_threshold === 0, 'Initial next stage threshold is incorrect, should be 0');
-                assert(market.initial_next_stage === 'fishing', 'Initial next stage is incorrect, should be fishing');
+                assert(market.initial_next_stage === 'globaling', 'Initial next stage is incorrect, should be globaling');
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
             }).then((response) => globalClient.markets.get(globalMarketId)
             ).then((market) => {
