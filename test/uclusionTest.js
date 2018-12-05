@@ -211,6 +211,14 @@ describe('uclusion', () => {
                 assert(investible.next_stage === 'fishing', 'get investible next stage should return fishing');
                 assert(investible.following === true, 'get investible following should be true');
                 assert(_arrayEquals(investible.category_list, ['fish', 'water']), 'category list not passed on correctly');
+                return globalUserClient.investibles.createComment(marketInvestibleId, 'title of my comment', 'body of my comment');
+            }).then((comment) => {
+                assert(comment.title === 'title of my comment', 'comment title incorrect');
+                assert(comment.body === 'body of my comment', 'comment body incorrect');
+                return globalUserClient.investibles.updateComment(comment.id, 'new title', 'new body');
+            }).then((comment) => {
+                assert(comment.title === 'new title', 'updated comment title incorrect');
+                assert(comment.body === 'new body', 'updated comment body incorrect');
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
@@ -312,6 +320,8 @@ describe('uclusion', () => {
                     investmentId = response.id;
                     marketInvestibleId = response.investible_id;
                     assert(response.quantity === 1000, 'investment quantity should be 1000');
+                    return globalUserClient.investibles.listComments(marketInvestibleId, 100);
+                }).then((response) => {
                     return globalUserClient.markets.listCategories(globalMarketId);
                 }).then((result) => {
                     return globalUserClient.investibles.listTemplates(100);
