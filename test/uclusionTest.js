@@ -57,6 +57,10 @@ const updateFish = {
     description: 'possibly poisonous',
     category_list: ['poison', 'chef']
 };
+const roleOptions = {
+    default_role: 'MarketUser',
+    lead_role: 'MarketAdmin'
+};
 
 const adminUserId = '03e134fb-44bc-42d2-a499-316f7260da35';
 const userId = '0404c4f1-600a-4788-ac8d-f5556ae2e573';
@@ -187,9 +191,9 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
-                return globalClient.teams.bind(globalUserTeamId, globalMarketId, 1000);
+                return globalClient.teams.bind(globalUserTeamId, globalMarketId, 1000, roleOptions);
             }).then((response) => {
-                return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
+                return globalClient.users.grant(userId, globalMarketId, 10000);
             }).then((response) => {
                 return globalClient.investibles.createCategory('fish', globalMarketId);
             }).then((response) => {
@@ -250,9 +254,9 @@ describe('uclusion', () => {
             }).then((market) => {
                 //console.log(market);
                 assert(market.active_investments === 0, 'active investments should be 0');
-                assert(market.users_in === 3, 'Counting team user there are three users in this market');
+                assert(market.users_in === 4, 'Counting team user there are three users in this market');
                 assert(market.team_count === 1, 'One team in this market');
-                assert(market.unspent === 10000, 'unspent should be 10000');
+                assert(market.unspent === 11000, 'unspent should be 11000');
                 let stateOptions = {
                     open_for_investment: false,
                     open_for_refunds: false,
@@ -306,9 +310,9 @@ describe('uclusion', () => {
                     return globalUserClient.users.get(userId);
                 }).then((response) => {
                     globalUserTeamId = response.team_id;
-                    return globalClient.teams.bind(globalUserTeamId, globalMarketId, 1000);
+                    return globalClient.teams.bind(globalUserTeamId, globalMarketId, 1000, roleOptions);
                 }).then((response) => {
-                    return globalClient.users.grantAddExistingUserToMarket(userId, globalMarketId, globalUserTeamId, 10000, false);
+                    return globalClient.users.grant(userId, globalMarketId, 10000);
                 }).then((response) => {
                     return globalClient.investibles.createCategory('fish', globalMarketId);
                 }).then((response) => {
