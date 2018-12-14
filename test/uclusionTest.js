@@ -191,26 +191,26 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
-                return globalClient.teams.bind(globalUserTeamId, globalMarketId, 1000, roleOptions);
+                return globalClient.teams.bind(globalUserTeamId, globalMarketId, roleOptions);
             }).then((response) => {
-                return globalClient.users.grant(userId, globalMarketId, 10000);
+                return globalClient.users.grant(userId, globalMarketId, 9000);
             }).then((response) => {
                 return globalClient.investibles.createCategory('fish', globalMarketId);
             }).then((response) => {
                 return globalClient.investibles.createCategory('water', globalMarketId);
             }).then((response) => {
-                return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 1000, ['fish', 'water']);
+                return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 2000, ['fish', 'water']);
             }).then((response) => {
                 investmentId = response.id;
                 marketInvestibleId = response.investible_id;
-                assert(response.quantity === 1000, 'investment quantity should be 1000');
+                assert(response.quantity === 2000, 'investment quantity should be 2000');
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
                 return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
             }).then((investible) => {
                 //console.log(response);
-                assert(investible.quantity === 1000, 'get investible quantity should return 1000');
+                assert(investible.quantity === 2000, 'get investible quantity should return 2000');
                 assert(investible.next_stage_threshold === 0, 'get investible next threshold should return 0');
                 assert(investible.next_stage === 'fishing', 'get investible next stage should return fishing');
                 assert(investible.following === true, 'get investible following should be true');
@@ -226,7 +226,7 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                assert(userPresence.quantity === 9000, 'Quantity should be 9000');
+                assert(userPresence.quantity === 8000, 'Quantity should be 8000');
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
                 return globalUserClient.users.get(userId, globalMarketId);
@@ -254,9 +254,9 @@ describe('uclusion', () => {
             }).then((market) => {
                 //console.log(market);
                 assert(market.active_investments === 0, 'active investments should be 0');
-                assert(market.users_in === 4, 'Counting team user there are three users in this market');
+                assert(market.users_in === 4, 'Counting team users there are four users in this market');
                 assert(market.team_count === 1, 'One team in this market');
-                assert(market.unspent === 11000, 'unspent should be 11000');
+                assert(market.unspent === 10000, 'unspent should be 10000');
                 let stateOptions = {
                     open_for_investment: false,
                     open_for_refunds: false,
@@ -310,7 +310,7 @@ describe('uclusion', () => {
                     return globalUserClient.users.get(userId);
                 }).then((response) => {
                     globalUserTeamId = response.team_id;
-                    return globalClient.teams.bind(globalUserTeamId, globalMarketId, 1000, roleOptions);
+                    return globalClient.teams.bind(globalUserTeamId, globalMarketId, roleOptions);
                 }).then((response) => {
                     return globalClient.users.grant(userId, globalMarketId, 10000);
                 }).then((response) => {
