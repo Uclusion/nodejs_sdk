@@ -284,7 +284,7 @@ describe('uclusion', () => {
                 console.log(error);
                 throw error;
             });
-        }).timeout(30000);
+        }).timeout(60000);
         describe('#doList', () => {
             it('should list without error', async () => {
                 let promise = uclusion.constructClient(adminConfiguration);
