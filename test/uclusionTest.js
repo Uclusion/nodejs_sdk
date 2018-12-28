@@ -226,14 +226,14 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                assert(userPresence.quantity === 8000, 'Quantity should be 8000');
+                assert(userPresence.quantity === 8500, 'Quantity should be 8500 instead of ' + userPresence.quantity);
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 //console.log(userPresence);
-                assert(userPresence.quantity === 10000, 'Quantity should be 10000');
+                assert(userPresence.quantity === 10500, 'Quantity should be 10500 instead of ' + userPresence.quantity);
                 return globalClient.investibles.createCategory('poison', globalMarketId);
             }).then((response) => {
                 return globalClient.investibles.createCategory('chef', globalMarketId);
@@ -256,7 +256,7 @@ describe('uclusion', () => {
                 assert(market.active_investments === 0, 'active investments should be 0');
                 assert(market.users_in === 4, 'Counting team users there are four users in this market');
                 assert(market.team_count === 1, 'One team in this market');
-                assert(market.unspent === 10000, 'unspent should be 10000');
+                assert(market.unspent === 10500, 'unspent should be 10500 instead of ' + market.unspent);
                 let stateOptions = {
                     open_for_investment: false,
                     open_for_refunds: false,
