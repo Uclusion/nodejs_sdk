@@ -350,9 +350,14 @@ describe('uclusion', () => {
                 }).then((result) => {
                     return globalUserClient.markets.listCategoriesInvestibles(globalMarketId, 'fish', 5, 20);
                 }).then((response) => {
+                    // Long sleep to give stages async processing time to complete
                     return sleep(15000);
                 }).then((response) => {
-                    //console.log('globalInvestibleId '+globalInvestibleId);
+                    return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
+                }).then((investible) => {
+                    assert(investible.stage === 'NEEDS_REVIEW', 'investible stage should be NEEDS_REVIEW');
+                    assert(investible.next_stage === 'REVIEW_COMPLETE', 'investible next stage should be REVIEW_COMPLETE');
+                    assert(investible.next_stage_threshold === 0, 'investible next stage threshold should be 0');
                     return globalUserClient.investibles.delete(globalInvestibleId);
                 }).then((response) => {
                     //console.log('marketInvestibleId '+marketInvestibleId);
@@ -372,7 +377,7 @@ function sleep(ms){
     return new Promise(resolve=>{
         setTimeout(resolve,ms);
     })
-};
+}
 
 let _arrayEquals = (arr1, arr2) => {
     if(arr1.length !== arr2.length)
