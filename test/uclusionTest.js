@@ -52,6 +52,10 @@ const fishOptions = {
     initial_next_stage: 'fishing',
     initial_next_stage_threshold: 0
 };
+const butterOptions = {
+    name : 'butter',
+    description: 'this is a butter market'
+};
 const updateFish = {
     name : 'pufferfish',
     description: 'possibly poisonous',
@@ -307,10 +311,10 @@ describe('uclusion', () => {
                     return promise;
                 }).then((client) => {
                     globalClient = client;
-                    return client.markets.createMarket(fishOptions);
+                    return client.markets.createMarket(butterOptions);
                 }).then((response) => {
                     globalMarketId = response.market_id;
-                    return globalUserClient.investibles.create('salmon', 'good on bagels');
+                    return globalUserClient.investibles.create('butter', 'good on bagels');
                 }).then((response) => {
                     globalInvestibleId = response.id;
                     return globalUserClient.users.get(userId);
@@ -320,16 +324,16 @@ describe('uclusion', () => {
                 }).then((response) => {
                     return globalClient.users.grant(userId, globalMarketId, 10000);
                 }).then((response) => {
-                    return globalClient.investibles.createCategory('fish', globalMarketId);
+                    return globalClient.investibles.createCategory('salted', globalMarketId);
                 }).then((response) => {
-                    return globalClient.investibles.createCategory('water', globalMarketId);
+                    return globalClient.investibles.createCategory('unsalted', globalMarketId);
                 }).then((response) => {
-                    return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 1000, ['fish', 'water']);
+                    return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 6001, ['salted', 'unsalted']);
                 }).then((response) => {
                     //console.log(response);
                     investmentId = response.id;
                     marketInvestibleId = response.investible_id;
-                    assert(response.quantity === 1000, 'investment quantity should be 1000');
+                    assert(response.quantity === 6001, 'investment quantity should be 6001 instead of ' + response.quantity);
                     return globalUserClient.investibles.listComments(marketInvestibleId, 100);
                 }).then((response) => {
                     return globalUserClient.markets.listCategories(globalMarketId);
@@ -346,6 +350,8 @@ describe('uclusion', () => {
                 }).then((result) => {
                     return globalUserClient.markets.listCategoriesInvestibles(globalMarketId, 'fish', 5, 20);
                 }).then((response) => {
+                    return sleep(15000);
+                }).then((response) => {
                     //console.log('globalInvestibleId '+globalInvestibleId);
                     return globalUserClient.investibles.delete(globalInvestibleId);
                 }).then((response) => {
@@ -357,10 +363,16 @@ describe('uclusion', () => {
                     console.log(error);
                     throw error;
                 });
-            }).timeout(30000);
+            }).timeout(60000);
         });
     });
 });
+
+function sleep(ms){
+    return new Promise(resolve=>{
+        setTimeout(resolve,ms);
+    })
+};
 
 let _arrayEquals = (arr1, arr2) => {
     if(arr1.length !== arr2.length)
