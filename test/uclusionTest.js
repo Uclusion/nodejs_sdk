@@ -61,10 +61,6 @@ const updateFish = {
     description: 'possibly poisonous',
     category_list: ['poison', 'chef']
 };
-const roleOptions = {
-    default_role: 'MarketUser',
-    lead_role: 'MarketAdmin'
-};
 
 const adminUserId = '03e134fb-44bc-42d2-a499-316f7260da35';
 const userId = '0404c4f1-600a-4788-ac8d-f5556ae2e573';
@@ -195,7 +191,7 @@ describe('uclusion', () => {
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
-                return globalClient.teams.bind(globalUserTeamId, globalMarketId, roleOptions);
+                return globalClient.teams.bind(globalUserTeamId, globalMarketId);
             }).then((response) => {
                 return globalClient.users.grant(userId, globalMarketId, 9000);
             }).then((response) => {
@@ -320,7 +316,7 @@ describe('uclusion', () => {
                     return globalUserClient.users.get(userId);
                 }).then((response) => {
                     globalUserTeamId = response.team_id;
-                    return globalClient.teams.bind(globalUserTeamId, globalMarketId, roleOptions);
+                    return globalClient.teams.bind(globalUserTeamId, globalMarketId);
                 }).then((response) => {
                     return globalClient.users.grant(userId, globalMarketId, 10000);
                 }).then((response) => {
