@@ -201,9 +201,10 @@ describe('uclusion', () => {
             }).then((response) => {
                 return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 2000, ['fish', 'water']);
             }).then((response) => {
-                investmentId = response.id;
-                marketInvestibleId = response.investible_id;
-                assert(response.quantity === 2000, 'investment quantity should be 2000');
+                let investment = response.investment;
+                investmentId = investment.id;
+                marketInvestibleId = investment.investible_id;
+                assert(investment.quantity === 2000, 'investment quantity should be 2000');
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
@@ -326,10 +327,10 @@ describe('uclusion', () => {
                 }).then((response) => {
                     return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 6001, ['salted', 'unsalted']);
                 }).then((response) => {
-                    //console.log(response);
-                    investmentId = response.id;
-                    marketInvestibleId = response.investible_id;
-                    assert(response.quantity === 6001, 'investment quantity should be 6001 instead of ' + response.quantity);
+                    let investment = response.investment;
+                    investmentId = investment.id;
+                    marketInvestibleId = investment.investible_id;
+                    assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                     return globalUserClient.investibles.listComments(marketInvestibleId, 100);
                 }).then((response) => {
                     return globalUserClient.markets.listCategories(globalMarketId);
