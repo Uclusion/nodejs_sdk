@@ -62,3 +62,6 @@ typings/
 
 # No intellij crap
 .idea
+
+# ignore package-lock.json
+package-lock.json
