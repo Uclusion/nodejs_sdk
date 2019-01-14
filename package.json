@@ -20,6 +20,7 @@
   "scripts": {
     "pretest": "npm install",
     "test": "nyc mocha -r esm --recursive --reporter mocha-junit-reporter --reporter-options mochaFile=test/nodejs/test-results.xml test",
+    "testStage": "nyc mocha -r esm --recursive --reporter mocha-junit-reporter --reporter-options mochaFile=testStage/nodejs/test-results.xml testStage",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }
 }

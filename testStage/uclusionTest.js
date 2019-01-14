@@ -3,39 +3,39 @@ import {CognitoAuthorizer} from "../src/uclusion";
 const adminAuthorizerConfiguration = {
     username: 'testeruclusion@gmail.com',
     password: 'Uclusi0n_test',
-    poolId: 'us-west-2_Z3vZuhzd2',
-    clientId: '2off68ct2ntku805jt7sip0j1b'
+    poolId: 'us-west-2_A7IFY7Aow',
+    clientId: '97v8rj9ibk9rv5thpncf01p1p'
 };
 
 const adminAuthorizer = new CognitoAuthorizer(adminAuthorizerConfiguration);
 
 const adminConfiguration = {
-    baseURL:  'https://dev.api.uclusion.com/v1',
+    baseURL:  'https://stage.api.uclusion.com/v1',
     authorizer: adminAuthorizer
 };
 
 const userAuthorizerConfiguration = {
     username: '827hooshang@gmail.com',
     password: 'Uclusi0n_test',
-    poolId: 'us-west-2_Z3vZuhzd2',
-    clientId: '2off68ct2ntku805jt7sip0j1b'
+    poolId: 'us-west-2_A7IFY7Aow',
+    clientId: '97v8rj9ibk9rv5thpncf01p1p'
 };
 
 const userAuthorizer = new CognitoAuthorizer(userAuthorizerConfiguration);
 
 const userConfiguration = {
-    baseURL:  'https://dev.api.uclusion.com/v1',
+    baseURL:  'https://stage.api.uclusion.com/v1',
     authorizer: userAuthorizer
 };
 
-const adminUserId = '03e134fb-44bc-42d2-a499-316f7260da35';
-const userId = '0404c4f1-600a-4788-ac8d-f5556ae2e573';
+const adminUserId = '69967f7c-29e6-4abd-b03b-a6f074fea820';
+const userId = '51627faa-95b3-471d-abef-22b70fafb148';
 
 describe('uclusion', () => {
     require('../tests/usersTest.js')(adminConfiguration, adminUserId);
     require('../tests/marketsTest.js')(adminConfiguration, adminUserId);
     require('../tests/investiblesTest.js')(userConfiguration);
-    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, userId, 4);
+    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, userId, 6);
     require('../tests/listsTest.js')(adminConfiguration, userConfiguration, userId);
 });
 

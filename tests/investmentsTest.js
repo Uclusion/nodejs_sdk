@@ -1,7 +1,7 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 
-module.exports = function(adminConfiguration, userConfiguration, userId) {
+module.exports = function(adminConfiguration, userConfiguration, userId, numUsers) {
     const fishOptions = {
         name : 'fish',
         description: 'this is a fish market',
@@ -109,7 +109,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             }).then((market) => {
                 //console.log(market);
                 assert(market.active_investments === 0, 'active investments should be 0');
-                assert(market.users_in === 4, 'Counting team users there are four users in this market');
+                assert(market.users_in === numUsers, 'Counting team users there are ' + numUsers + ' users in this market');
                 assert(market.team_count === 1, 'One team in this market');
                 assert(market.unspent === 9450, 'unspent should be 9450 instead of ' + market.unspent);
                 let stateOptions = {
