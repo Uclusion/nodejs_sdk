@@ -14,6 +14,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             let globalUserClient;
             let globalMarketId;
             let globalInvestibleId;
+            let globalCSMInvestibleId;
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
@@ -28,6 +29,15 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 return globalUserClient.investibles.create('butter', 'good on bagels');
             }).then((response) => {
                 globalInvestibleId = response.id;
+                return globalClient.investibles.create('peanut butter', 'good with jelly');
+            }).then((response) => {
+                globalCSMInvestibleId = response.id;
+                return globalClient.investibles.createCategory('sandwich', globalMarketId);
+            }).then((response) => {
+                return globalClient.investibles.bindToMarket(globalCSMInvestibleId, globalMarketId, ['sandwich']);
+            }).then((investible) => {
+                assert(investible.name === 'peanut butter', 'name not passed on correctly');
+                assert(investible.quantity === 0, 'market investible quantity incorrect');
                 return globalUserClient.users.get(userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
@@ -73,6 +83,8 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             }).then((response) => {
                 //console.log('marketInvestibleId '+marketInvestibleId);
                 return globalClient.investibles.delete(marketInvestibleId);
+            }).then((response) => {
+                return globalClient.investibles.delete(globalCSMInvestibleId);
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function(error) {
