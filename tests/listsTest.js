@@ -62,6 +62,9 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 return globalUserClient.investibles.listTemplates(100);
             }).then((result) => {
                 return globalUserClient.markets.listInvestiblePresences(globalMarketId);
+            }).then((response) => {
+                // Long sleep to give stages async processing time to complete
+                return sleep(15000);
             }).then((result) => {
                 return globalUserClient.markets.listTrending(globalMarketId, '2015-01-22T03:23:26Z');
             }).then((result) => {
@@ -70,9 +73,6 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 return globalUserClient.markets.listInvestibles(globalMarketId, 'hello', 5, 20);
             }).then((result) => {
                 return globalUserClient.markets.listCategoriesInvestibles(globalMarketId, 'fish', 5, 20);
-            }).then((response) => {
-                // Long sleep to give stages async processing time to complete
-                return sleep(15000);
             }).then((response) => {
                 return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
             }).then((investible) => {
