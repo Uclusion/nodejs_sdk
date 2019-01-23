@@ -13,9 +13,12 @@ module.exports = function(adminConfiguration, adminUserId) {
                 assert(response.success_message === 'User updated', 'User update was not successful');
                 return globalClient.users.get(adminUserId);
             }).then((user) => {
-                //console.log(user);
                 assert(adminUserId === user.id, 'Fetched user did not match me');
                 assert(user.name === 'Daniel', 'Name not updated properly');
+                return globalClient.teams.mine();
+            }).then((teams) => {
+                //console.log(user);
+                assert(teams[0].num_users === 2, 'number of users in admin team is wrong');
                 return globalClient.users.update('Default');
             }).catch(function(error) {
                 console.log(error);
