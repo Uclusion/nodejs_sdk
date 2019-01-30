@@ -86,6 +86,8 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             }).then((response) => {
                 return globalClient.investibles.delete(globalCSMInvestibleId);
             }).then((response) => {
+                return globalClient.investibles.deleteCategory('sandwich', globalMarketId);
+            }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function(error) {
                 console.log(error);
