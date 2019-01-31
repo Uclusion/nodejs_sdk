@@ -15,6 +15,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             let globalMarketId;
             let globalInvestibleId;
             let globalCSMInvestibleId;
+            let globalCSMMarketInvestibleId;
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
@@ -36,6 +37,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             }).then((response) => {
                 return globalClient.investibles.bindToMarket(globalCSMInvestibleId, globalMarketId, ['sandwich']);
             }).then((investible) => {
+                globalCSMMarketInvestibleId = investible.id;
                 assert(investible.name === 'peanut butter', 'name not passed on correctly');
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
                 return globalUserClient.users.get(userId);
@@ -84,10 +86,16 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 //console.log('marketInvestibleId '+marketInvestibleId);
                 return globalClient.investibles.delete(marketInvestibleId);
             }).then((response) => {
+                assert(response.success_message === 'Investible deleted', 'Investible delete not successful');
                 return globalClient.investibles.delete(globalCSMInvestibleId);
             }).then((response) => {
+                assert(response.success_message === 'Investible deleted', 'Investible delete not successful');
+                return globalClient.investibles.delete(globalCSMMarketInvestibleId);
+            }).then((response) => {
+                assert(response.success_message === 'Investible deleted', 'Investible delete not successful');
                 return globalClient.investibles.deleteCategory('sandwich', globalMarketId);
             }).then((response) => {
+                assert(response.success_message === 'Category deleted', 'Category delete not successful');
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function(error) {
                 console.log(error);
