@@ -66,21 +66,28 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 return globalUserClient.markets.listInvestiblePresences(globalMarketId);
             }).then((response) => {
                 // Long sleep to give stages async processing time to complete
-                return sleep(15000);
-            }).then((result) => {
-                return globalUserClient.markets.listTrending(globalMarketId, '2015-01-22T03:23:26Z');
+                return sleep(20000);
             }).then((result) => {
                 return globalUserClient.markets.listUserInvestments(globalMarketId, userId, 20);
             }).then((result) => {
-                return globalUserClient.markets.listInvestibles(globalMarketId, 'hello', 5, 20);
-            }).then((result) => {
-                return globalUserClient.markets.listCategoriesInvestibles(globalMarketId, 'fish', 5, 20);
-            }).then((response) => {
-                return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
-            }).then((investible) => {
+                return globalUserClient.markets.listInvestibles(globalMarketId);
+            }).then((investibles) => {
+                let investible = investibles.find(obj => {
+                    return obj.id === marketInvestibleId;
+                });
+                assert(investible.id === marketInvestibleId, 'should find the investible');
+                return globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId, globalCSMMarketInvestibleId]);
+            }).then((investibles) => {
+                let investible = investibles.find(obj => {
+                    return obj.id === marketInvestibleId;
+                });
                 assert(investible.stage === 'NEEDS_REVIEW', 'investible stage should be NEEDS_REVIEW');
                 assert(investible.next_stage === 'REVIEW_COMPLETE', 'investible next stage should be REVIEW_COMPLETE');
                 assert(investible.next_stage_threshold === 0, 'investible next stage threshold should be 0');
+                investible = investibles.find(obj => {
+                    return obj.id === globalCSMMarketInvestibleId;
+                });
+                assert(investible.stage === 'BOUND', 'investible stage should be BOUND');
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 //console.log('marketInvestibleId '+marketInvestibleId);

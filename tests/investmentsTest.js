@@ -57,14 +57,6 @@ module.exports = function(adminConfiguration, userConfiguration, userId, numUser
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
-            }).then((investible) => {
-                //console.log(response);
-                assert(investible.quantity === 2000, 'get investible quantity should return 2000');
-                assert(investible.next_stage_threshold === 0, 'get investible next threshold should return 0');
-                assert(investible.next_stage === 'fishing', 'get investible next stage should return fishing');
-                assert(investible.following === true, 'get investible following should be true');
-                assert(_arrayEquals(investible.category_list, ['fish', 'water']), 'category list not passed on correctly');
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'title of my comment', 'body of my comment');
             }).then((comment) => {
                 assert(comment.title === 'title of my comment', 'comment title incorrect');
@@ -98,9 +90,11 @@ module.exports = function(adminConfiguration, userConfiguration, userId, numUser
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
                 assert(_arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
-                return globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId);
-            }).then((investible) => {
-                //console.log(investible);
+                return sleep(20000);
+            }).then((response) => {
+                return globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId]);
+            }).then((investibles) => {
+                let investible = investibles[0];
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(_arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
@@ -123,9 +117,12 @@ module.exports = function(adminConfiguration, userConfiguration, userId, numUser
                     next_stage_threshold: 10
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then((result) => globalUserClient.markets.getMarketInvestible(globalMarketId, marketInvestibleId)
-            ).then((investible) => {
-                //console.log(investible);
+            }).then((response) => {
+                // Long sleep to give stages async processing time to complete
+                return sleep(20000);
+            }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
+            ).then((investibles) => {
+                let investible = investibles[0];
                 assert(investible.stage === 'REVIEWED', 'investible stage should be reviewed');
                 assert(investible.next_stage === 'CLOSED', 'investible next stage should be closed');
                 assert(investible.next_stage_threshold === 10, 'investible next stage threshold should be 10');
@@ -153,3 +150,9 @@ let _arrayEquals = (arr1, arr2) => {
     });
     return true;
 };
+
+function sleep(ms){
+    return new Promise(resolve=>{
+        setTimeout(resolve,ms);
+    })
+}
