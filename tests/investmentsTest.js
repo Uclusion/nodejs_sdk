@@ -1,9 +1,9 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 
-module.exports = function(adminConfiguration, userConfiguration, userId, numUsers) {
+module.exports = function (adminConfiguration, userConfiguration, userId, numUsers) {
     const fishOptions = {
-        name : 'fish',
+        name: 'fish',
         description: 'this is a fish market',
         trending_window: 5,
         manual_roi: false,
@@ -11,7 +11,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId, numUser
         initial_next_stage_threshold: 0
     };
     const updateFish = {
-        name : 'pufferfish',
+        name: 'pufferfish',
         description: 'possibly poisonous',
         category_list: ['poison', 'chef']
     };
@@ -137,7 +137,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId, numUser
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
-            }).catch(function(error) {
+            }).catch(function (error) {
                 console.log(error);
                 throw error;
             });
@@ -146,7 +146,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId, numUser
 };
 
 let _arrayEquals = (arr1, arr2) => {
-    if(arr1.length !== arr2.length)
+    if (arr1.length !== arr2.length)
         return false;
     arr1.forEach(function (e) {
         if (arr2.indexOf(e) < 0)
@@ -155,8 +155,8 @@ let _arrayEquals = (arr1, arr2) => {
     return true;
 };
 
-function sleep(ms){
-    return new Promise(resolve=>{
-        setTimeout(resolve,ms);
+function sleep(ms) {
+    return new Promise(resolve => {
+        setTimeout(resolve, ms);
     })
 }
