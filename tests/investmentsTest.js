@@ -61,8 +61,14 @@ module.exports = function(adminConfiguration, userConfiguration, userId, numUser
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 return globalUserClient.investibles.updateComment(comment.id, 'new body');
+            }).then((response) => {
+                assert(response.following === true, 'follow should return true');
+                return globalUserClient.investibles.createComment(marketInvestibleId, 'comment to fetch');
             }).then((comment) => {
-                assert(comment.body === 'new body', 'updated comment body incorrect');
+                assert(comment.body === 'body of my comment', 'comment body incorrect');
+                return globalUserClient.investibles.getComment(comment.id);
+            }).then((comment) => {
+                assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
                 return globalClient.teams.get(globalUserTeamId);
             }).then((response) => {
                 return globalUserClient.users.get(response.team.user_id, globalMarketId);
