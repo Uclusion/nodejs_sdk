@@ -10,7 +10,7 @@
     "amazon-cognito-identity-js": "^2.0.11",
     "esm": "^3.0.74",
     "node-fetch": "latest",
-    "uclusion_sdk": "latest"
+    "uclusion_sdk": "file:../uclusion_sdk"
   },
   "devDependencies": {
     "mocha": "^5.2.0",
@@ -19,8 +19,8 @@
   },
   "scripts": {
     "pretest": "npm install",
-    "test": "nyc mocha -r esm --recursive --reporter mocha-junit-reporter --reporter-options mochaFile=test/nodejs/test-results.xml test",
-    "testStage": "nyc mocha -r esm --recursive --reporter mocha-junit-reporter --reporter-options mochaFile=testStage/nodejs/test-results.xml testStage",
+    "test": "mocha -r esm --recursive test",
+    "testStage": "mocha -r esm --recursive testStage",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }
 }
