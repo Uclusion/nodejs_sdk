@@ -15,10 +15,6 @@ module.exports = function(adminConfiguration, adminUserId) {
             }).then((user) => {
                 assert(adminUserId === user.id, 'Fetched user did not match me');
                 assert(user.name === 'Daniel', 'Name not updated properly');
-                return globalClient.teams.mine();
-            }).then((teams) => {
-                //console.log(user);
-                assert(teams[0].num_users === 2, 'number of users in admin team is wrong');
                 return globalClient.users.update('Default');
             }).catch(function(error) {
                 console.log(error);

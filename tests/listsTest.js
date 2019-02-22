@@ -57,19 +57,26 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 investmentId = investment.id;
                 marketInvestibleId = investment.investible_id;
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
-                return globalUserClient.investibles.listComments(marketInvestibleId, 100);
-            }).then((response) => {
                 return globalUserClient.markets.listCategories(globalMarketId);
             }).then((result) => {
                 return globalUserClient.investibles.listTemplates(100);
             }).then((result) => {
                 return globalUserClient.markets.listInvestiblePresences(globalMarketId);
             }).then((response) => {
-                // Long sleep to give stages async processing time to complete
+                // Long sleep to give async processing time to complete
                 return sleep(20000);
             }).then((result) => {
                 return globalUserClient.markets.listUserInvestments(globalMarketId, userId, 20);
             }).then((result) => {
+                return globalClient.teams.list(globalMarketId);
+            }).then((result) => {
+                let listed_team = result[0];
+                assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
+                assert(listed_team.quantity === 4449, 'unspent quantity should be 4449 instead of ' + listed_team.quantity);
+                return globalClient.teams.investments(globalUserTeamId, globalMarketId);
+            }).then((result) => {
+                let investment = result[marketInvestibleId];
+                assert(investment.quantity === 6001, 'invested quantity should be 6001 instead of ' + investment.quantity);
                 return globalUserClient.markets.listInvestibles(globalMarketId);
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
