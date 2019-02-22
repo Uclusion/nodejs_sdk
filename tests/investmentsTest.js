@@ -66,8 +66,9 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'comment to fetch');
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
-                return globalUserClient.investibles.getComment(comment.id);
-            }).then((comment) => {
+                return globalUserClient.investibles.getMarketComments(globalMarketId, [comment.id]);
+            }).then((comments) => {
+                let comment = comments[0];
                 assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
                 assert(comment.market_id === globalMarketId, 'market was not set properly on the comment');
                 return globalClient.teams.get(globalUserTeamId);
