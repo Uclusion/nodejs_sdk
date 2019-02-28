@@ -59,6 +59,11 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                 return globalUserClient.markets.listCategories(globalMarketId);
             }).then((result) => {
+                let categories = result.categories;
+                assert(categories.length === 3, 'should be 3 categories instead of ' + categories.length);
+                categories.map((category) => {
+                    assert(category.investibles_in === 1, 'investibles_in should be 1 instead of ' + category.investibles_in)
+                });
                 return globalUserClient.investibles.listTemplates(100);
             }).then((result) => {
                 return globalUserClient.markets.listInvestiblePresences(globalMarketId);
