@@ -96,8 +96,6 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
                 assert(_arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
-                return sleep(20000);
-            }).then((response) => {
                 return globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles[0];
@@ -123,9 +121,6 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                     next_stage_threshold: 10
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then((response) => {
-                // Long sleep to give stages async processing time to complete
-                return sleep(20000);
             }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
@@ -156,9 +151,3 @@ let _arrayEquals = (arr1, arr2) => {
     });
     return true;
 };
-
-function sleep(ms) {
-    return new Promise(resolve => {
-        setTimeout(resolve, ms);
-    })
-}
