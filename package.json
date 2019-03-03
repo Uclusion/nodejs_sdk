@@ -9,7 +9,8 @@
   "dependencies": {
     "amazon-cognito-identity-js": "^2.0.11",
     "esm": "^3.0.74",
-    "node-fetch": "latest",
+    "node-fetch": "^2.3.0",
+    "uclusion_authorizer_sdk": "file:../uclusion_authorizer_sdk",
     "uclusion_sdk": "file:../uclusion_sdk"
   },
   "devDependencies": {
