@@ -57,6 +57,8 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
+                return sleep(5000); // Workaround for investors coming up empty and so comment create not allowed
+            }).then((response) => {
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
@@ -151,3 +153,9 @@ let _arrayEquals = (arr1, arr2) => {
     });
     return true;
 };
+
+function sleep(ms) {
+    return new Promise(resolve => {
+        setTimeout(resolve, ms);
+    })
+}
