@@ -57,16 +57,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 investmentId = investment.id;
                 marketInvestibleId = investment.investible_id;
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
-                return globalUserClient.markets.listCategories(globalMarketId);
-            }).then((result) => {
-                let categories = result.categories;
-                assert(categories.length === 3, 'should be 3 categories instead of ' + categories.length);
-                categories.map((category) => {
-                    assert(category.investibles_in === 1, 'investibles_in should be 1 instead of ' + category.investibles_in)
-                });
                 return globalUserClient.investibles.listTemplates(100);
-            }).then((result) => {
-                return globalUserClient.markets.listInvestiblePresences(globalMarketId);
             }).then((response) => {
                 // Long sleep to give async processing time to complete
                 return sleep(20000);
@@ -77,13 +68,19 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             }).then((result) => {
                 let listed_team = result[0];
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
-                assert(listed_team.quantity === 4449, 'unspent quantity should be 4449 instead of ' + listed_team.quantity);
+                assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
                 return globalClient.teams.investments(globalUserTeamId, globalMarketId);
             }).then((result) => {
                 let investment = result[marketInvestibleId];
                 assert(investment.quantity === 6001, 'invested quantity should be 6001 instead of ' + investment.quantity);
                 return globalUserClient.markets.listInvestibles(globalMarketId);
-            }).then((investibles) => {
+            }).then((result) => {
+                let categories = result.categories;
+                assert(categories.length === 3, 'should be 3 categories instead of ' + categories.length);
+                categories.map((category) => {
+                    assert(category.investibles_in === 1, 'investibles_in should be 1 instead of ' + category.investibles_in)
+                });
+                let investibles = result.investibles;
                 let investible = investibles.find(obj => {
                     return obj.id === marketInvestibleId;
                 });
@@ -120,7 +117,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 console.log(error);
                 throw error;
             });
-        }).timeout(60000);
+        }).timeout(120000);
     });
 };
 
