@@ -48,6 +48,10 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
             }).then((response) => {
                 return globalClient.investibles.createCategory('water', globalMarketId);
             }).then((response) => {
+                // Give async processing time to complete - including the grants to user and team
+                // Otherwise the team 450 can't be used an the numbers come out wrong
+                return sleep(5000);
+            }).then((response) => {
                 return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 2000, ['fish', 'water']);
             }).then((response) => {
                 let investment = response.investment;

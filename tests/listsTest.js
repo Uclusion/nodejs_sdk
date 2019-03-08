@@ -51,6 +51,10 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             }).then((response) => {
                 return globalClient.investibles.createCategory('unsalted', globalMarketId);
             }).then((response) => {
+                // Give async processing time to complete - including the grants to user and team
+                // Otherwise the team 450 can't be used an the numbers come out wrong
+                return sleep(5000);
+            }).then((response) => {
                 return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 6001, ['salted', 'unsalted']);
             }).then((response) => {
                 let investment = response.investment;
@@ -59,7 +63,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                 return globalUserClient.investibles.listTemplates(100);
             }).then((response) => {
-                // Long sleep to give async processing time to complete
+                // Long sleep to give async processing time to complete for stages
                 return sleep(20000);
             }).then((result) => {
                 return globalUserClient.markets.listUserInvestments(globalMarketId, userId, 20);
@@ -68,6 +72,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
             }).then((result) => {
                 let listed_team = result[0];
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
+                // 10000 + 450 - (6001 - 450)
                 assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
                 return globalClient.teams.investments(globalUserTeamId, globalMarketId);
             }).then((result) => {
