@@ -147,10 +147,19 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 assert(investible.is_active === false, 'is_active false');
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
-                return globalClient.markets.deleteMarket(globalMarketId);
+                return globalClient.summaries.marketSummary(globalMarketId);
+            }).then((summaries) => {
+                assert(summaries.market_id === globalMarketId);
+                assert(summaries.summaries.length === 1, 'There should only be 1 day of summary data for a new market');
+                const todaysSummary = summaries.summaries[0];
+                const isoNow = Date.now().toISOString();
+                assert(todaysSummary.unspent_shares === 9900, 'Unspent should be 9900 for the market summary');
+                assert(isoNow.startsWith(todaysSummary.date), 'Date on only summary should be today');
+            }).then((response) => {
+                    return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function (error) {
-                console.log(error);
-                throw error;
+                    console.log(error);
+                    throw error;
             });
         }).timeout(120000);
     });
