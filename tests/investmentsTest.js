@@ -144,6 +144,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
                 const todaysSummary = summaries.summaries[0];
                 assert(todaysSummary.unspent_shares === 9900, 'Unspent should be 9900 for the market summary');
+                assert(todaysSummary.num_users == 2, 'There should be two users in the market');
             }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
