@@ -136,10 +136,12 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
+                sleep(5000)
+            }).then((response) => {
                 return globalClient.summaries.marketSummary(globalMarketId);
             }).then((summaries) => {
                 assert(summaries.market_id === globalMarketId);
-                assert(summaries.summaries.length === 1, 'There should only be 1 day of summary data for a new market');
+                assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
                 const todaysSummary = summaries.summaries[0];
                 assert(todaysSummary.unspent_shares === 9900, 'Unspent should be 9900 for the market summary');
             }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
