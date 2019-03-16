@@ -17,7 +17,8 @@ const adminAuthorizer = new CognitoAuthorizer(adminAuthorizerConfiguration);
 
 const adminConfiguration = {
     baseURL:  'https://dev.api.uclusion.com/v1',
-    authorizer: adminAuthorizer
+    authorizer: adminAuthorizer,
+    websocketURL: 'wss://dev.ws.uclusion.com/v1'
 };
 
 const userAuthorizerConfiguration = {
@@ -33,7 +34,8 @@ const userAuthorizer = new CognitoAuthorizer(userAuthorizerConfiguration);
 
 const userConfiguration = {
     baseURL:  'https://dev.api.uclusion.com/v1',
-    authorizer: userAuthorizer
+    authorizer: userAuthorizer,
+    websocketURL: 'wss://dev.ws.uclusion.com/v1'
 };
 
 const adminUserId = '969f6312-14a2-43f5-bc42-c78fa8679c46';

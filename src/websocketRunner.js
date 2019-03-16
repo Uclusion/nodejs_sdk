@@ -1,0 +1,94 @@
+import _ from 'lodash';
+var W3CWebSocket = require('websocket').w3cwebsocket;
+
+/**
+ * Class which fires and manages a websocket connection to the server. Copied from and derived from the uclusion web ui code
+ */
+class WebSocketRunner {
+    constructor(config) {
+        this.wsUrl = config.wsUrl;
+        this.reconnectInterval = config.reconnectInterval;
+        this.subscribeQueue = [];
+        this.messageReceivedQueue = [];
+    }
+
+    getMessageHandler() {
+        const handler = (event) => {
+            //console.log(event);
+            const payload = JSON.parse(event.data);
+            this.messageReceivedQueue.push(payload);
+            //console.log(payload);
+        };
+        return handler.bind(this);
+    }
+
+    /**
+     * Subscribes the given user id to the subscriptions described in the subscriptions object
+     * subscriptions is an object of a form similar to
+     * {market_id: marketId, investible_id: investibleId ...}
+     * @param userId the user id to subscribe with
+     * @param subscriptions the object ids to subscribe too
+     */
+    subscribe(userId, subscriptions) {
+        const action = { action: 'subscribe', user_id: userId, ...subscriptions };
+        // push the action onto the subscribe queue so if we reconnect we'll track it
+        this.subscribeQueue.push(action);
+        // if socket is open, just go ahead and send it
+        if (this.socket.readyState === this.socket.OPEN) {
+            const actionString = JSON.stringify(action);
+            this.socket.send(actionString);
+        }
+        // compact the queue to remove duplicates
+        const compacted = _.uniqWith(this.subscribeQueue, _.isEqual);
+        this.subscribeQueue = compacted;
+  //      console.debug('Subscribe queue at end of subscribe:', JSON.stringify(this.subscribeQueue));
+    }
+
+    onOpenFactory() {
+        // we have to assign queue this to prevent the handler's
+        // this from being retargeted to the websocket
+        const queue = this.subscribeQueue;
+        //console.debug('Subcribing to:', queue);
+        const factory = (event) => {
+          //  console.debug('Here in open factory with queue:', JSON.stringify(queue));
+          //  console.debug('My socket is:', this.socket);
+            queue.forEach(action => {
+                const actionString = JSON.stringify(action);
+                //console.debug('Sending to my socket:', actionString);
+                this.socket.send(actionString);
+            });
+            // we're not emptying the queue because we might need it on reconnect
+        };
+        return factory.bind(this);
+    }
+
+    onCloseFactory() {
+        const runner = this;
+        const connectFunc = function (event) {
+            //console.debug('Web socket closed. Reopening in:', runner.reconnectInterval);
+            setTimeout(runner.connect.bind(runner), runner.reconnectInterval);
+        };
+        return connectFunc.bind(this);
+    }
+
+    // dead stupid version without good error handling, we'll improve later,
+    connect() {
+        this.socket = new W3CWebSocket(this.wsUrl);
+        this.socket.onopen = this.onOpenFactory();
+        this.socket.onmessage = this.getMessageHandler();
+        // make us retry
+        this.socket.onclose = this.onCloseFactory();
+    }
+
+    getMessagesReceived(){
+        return this.messageReceivedQueue;
+    }
+
+    terminate(){
+        // kill the reconnect handler and close the socket
+        this.socket.onclose = (event) => {};
+        this.socket.close();
+    }
+}
+
+export { WebSocketRunner };

@@ -1,5 +1,6 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
+import { WebSocketRunner } from "../src/websocketRunner"
 
 module.exports = function (adminConfiguration, userConfiguration, userId, numUsers) {
     const fishOptions = {
@@ -10,16 +11,37 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
         initial_next_stage: 'fishing',
         initial_next_stage_threshold: 0
     };
+    const expectedWebsocketMessages = [];
+    const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000})
     const updateFish = {
         name: 'pufferfish',
         description: 'possibly poisonous',
         category_list: ['poison', 'chef']
+    };
+    const verifyExpectedMessages = (messageQueue) => {
+        //console.log(expectedWebsocketMessages);
+        //console.log(messageQueue);
+        for (const expected of expectedWebsocketMessages){
+            //console.log("Looking for message");
+            //console.log(expected);
+            const found = messageQueue.find((element) => {
+                //console.log("Processing element");
+                //console.log(element);
+                const event_type_match = element.event_type === expected.event_type;
+                //console.log("Event Type Match: " + event_type_match);
+                const object_id_match = element.object_id === expected.object_id;
+                //console.log("Object Id Match: " + object_id_match);
+                return event_type_match && object_id_match;
+            });
+            assert(found, 'Did not find message on websocket we were expecting');
+        }
     };
     describe('#doInvestment', () => {
         it('should create investment without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
             let userPromise = uclusion.constructClient(userConfiguration);
             let globalClient;
+            let adminUserId;
             let globalUserClient;
             let globalMarketId;
             let globalInvestibleId;
@@ -31,9 +53,14 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return promise;
             }).then((client) => {
                 globalClient = client;
-                return client.markets.createMarket(fishOptions);
+                return client.users.get();
+            }).then((user) => {
+                adminUserId = user.id;
+                return globalClient.markets.createMarket(fishOptions);
             }).then((response) => {
                 globalMarketId = response.market_id;
+                webSocketRunner.connect();
+                webSocketRunner.subscribe(userId, { market_id : globalMarketId });
                 return globalUserClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 globalInvestibleId = response.id;
@@ -57,7 +84,9 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 let investment = response.investment;
                 investmentId = investment.id;
                 marketInvestibleId = investment.investible_id;
+                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_CREATED', object_id: marketInvestibleId});
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
+                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
@@ -67,6 +96,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
+                expectedWebsocketMessages.push({event_type: 'INVESTIBLE_COMMENT_UPDATED', object_id: comment.id});
                 return globalUserClient.investibles.updateComment(comment.id, 'new body');
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
@@ -158,6 +188,14 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                     return globalClient.markets.deleteMarket(globalMarketId);
+            }).then((response) => {
+                //close our websocket
+                webSocketRunner.terminate();
+                const messages = webSocketRunner.getMessagesReceived();
+                verifyExpectedMessages(messages);
+                //we should have roughly 9 messages, though many will be duplicates because the same action was performed
+                assert(messages.length === 9, 'Wrong number of messages received on websocket');
+                //console.log(messages);
             }).catch(function (error) {
                     console.log(error);
                     throw error;
