@@ -21,8 +21,8 @@
   },
   "scripts": {
     "pretest": "npm install",
-    "test": "mocha -r esm --recursive test",
-    "testStage": "mocha -r esm --recursive testStage",
+    "test": "mocha -r esm --recursive test; NUMFAILING=$?; cd ../circleci_orbs; python -m utils.record_testing -n $NUMFAILING -e dev",
+    "testStage": "mocha -r esm --recursive testStage; NUMFAILING=$?; cd ../circleci_orbs; python -m utils.record_testing -n $NUMFAILING -e stage",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }
 }
