@@ -75,7 +75,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
             }).then((user) => {
                 let userPresence = user.market_presence;
                 // 750 = 450 from new team, plus 300 from user
-                assert(userPresence.quantity === 750, 'Quantity should be 750 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 900, 'Quantity should be 900 instead of ' + userPresence.quantity);
                 return user; // ignored anyways
             }).then((response) => {
                 return globalClient.users.grant(userId, globalMarketId, 9000);
