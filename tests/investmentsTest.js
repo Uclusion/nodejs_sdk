@@ -69,6 +69,15 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 globalUserTeamId = response.team_id;
                 return globalClient.teams.bind(globalUserTeamId, globalMarketId);
             }).then((response) => {
+                return sleep(5000);
+            }).then((response) => {
+                return globalUserClient.users.get(userId, globalMarketId);
+            }).then((user) => {
+                let userPresence = user.market_presence;
+                // 750 = 450 from new team, plus 300 from user
+                assert(userPresence.quantity === 750, 'Quantity should be 750 instead of ' + userPresence.quantity);
+                return user; // ignored anyways
+            }).then((response) => {
                 return globalClient.users.grant(userId, globalMarketId, 9000);
             }).then((response) => {
                 return globalClient.investibles.createCategory('fish', globalMarketId);
@@ -91,7 +100,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
                 // Workaround for investors coming up empty and so comment create not allowed
-                return sleep(5000);
+                return sleep(15000);
             }).then((response) => {
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((comment) => {
@@ -117,7 +126,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
                 // Give the investment refund time to kick in
-                return sleep(5000);
+                return sleep(15000);
             }).then((response) => {
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
