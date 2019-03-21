@@ -17,7 +17,8 @@ const adminAuthorizer = new CognitoAuthorizer(adminAuthorizerConfiguration);
 
 const adminConfiguration = {
     baseURL:  'https://stage.api.uclusion.com/v1',
-    authorizer: adminAuthorizer
+    authorizer: adminAuthorizer,
+    websocketURL: 'wss://dev.ws.uclusion.com/v1'
 };
 
 const userAuthorizerConfiguration = {
