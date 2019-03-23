@@ -32,6 +32,7 @@ module.exports = function(adminConfiguration, adminUserId) {
                 assert(market.description === 'This is default.', 'Description is incorrect');
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
                 assert(market.manual_roi === false, 'Roi is incorrect, should be false');
+                assert(market.account_name, 'Market should have an account name');
                 assert(market.initial_next_stage_threshold === 6000, 'Initial next stage threshold should be 6000 instead of ' + market.initial_next_stage_threshold);
                 assert(market.initial_next_stage === 'globaling', 'Initial next stage is incorrect, should be globaling');
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
