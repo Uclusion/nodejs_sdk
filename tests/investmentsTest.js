@@ -79,7 +79,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
             }).then((user) => {
                 let userPresence = user.market_presence;
                 // 914 = 457 from new team, 457 from user who's part of team
-                assert(userPresence.quantity === 914, 'Quantity should be 900 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 914, 'Quantity should be 914 instead of ' + userPresence.quantity);
                 return user; // ignored anyways
             }).then((response) => {
                 return globalClient.users.grant(userId, globalMarketId, 9000);
