@@ -61,6 +61,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalClient.markets.createMarket(fishOptions);
             }).then((response) => {
                 globalMarketId = response.market_id;
+                console.log('Market ID is ' + globalMarketId);
                 webSocketRunner.connect();
                 webSocketRunner.subscribe(userId, { market_id : globalMarketId });
                 return globalUserClient.investibles.create('salmon', 'good on bagels');
@@ -73,6 +74,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
             }).then((response) => {
                 return sleep(5000);
             }).then((response) => {
+                console.log('Investing User ID is ' + userId);
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
@@ -185,7 +187,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
                 const todaysSummary = summaries.summaries[0];
                 assert(todaysSummary.unspent_shares === 9900, 'Unspent should be 9900 for the market summary');
-                assert(todaysSummary.num_users == 2, 'There should be two users in the market');
+                assert(todaysSummary.num_users === 2, 'There should be two users in the market');
             }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
