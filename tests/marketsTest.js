@@ -8,6 +8,8 @@ module.exports = function(adminConfiguration, adminUserId) {
         trending_window: 2,
         manual_roi: false,
         initial_next_stage: 'globaling',
+        new_user_grant: 313,
+        new_team_grant: 457
     };
     const updateOptions = {
         name : 'fish',
@@ -35,6 +37,8 @@ module.exports = function(adminConfiguration, adminUserId) {
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.initial_next_stage_threshold === 6000, 'Initial next stage threshold should be 6000 instead of ' + market.initial_next_stage_threshold);
                 assert(market.initial_next_stage === 'globaling', 'Initial next stage is incorrect, should be globaling');
+                assert(market.new_team_grant === 457, 'New team grant should match definition');
+                assert(market.new_user_grant === 313, 'New user grant should match definition');
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
             }).then((response) => globalClient.markets.get(globalMarketId)
             ).then((market) => {

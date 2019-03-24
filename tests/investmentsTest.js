@@ -9,7 +9,9 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
         trending_window: 5,
         manual_roi: false,
         initial_next_stage: 'fishing',
-        initial_next_stage_threshold: 0
+        initial_next_stage_threshold: 0,
+        new_user_grant: 313,
+        new_team_grant: 457,
     };
     const expectedWebsocketMessages = [];
     const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000})
@@ -74,8 +76,8 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                // 750 = 450 from new team, plus 300 from user
-                assert(userPresence.quantity === 900, 'Quantity should be 900 instead of ' + userPresence.quantity);
+                // 914 = 457 from new team, 457 from user who's part of team
+                assert(userPresence.quantity === 914, 'Quantity should be 900 instead of ' + userPresence.quantity);
                 return user; // ignored anyways
             }).then((response) => {
                 return globalClient.users.grant(userId, globalMarketId, 9000);
@@ -85,7 +87,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalClient.investibles.createCategory('water', globalMarketId);
             }).then((response) => {
                 // Give async processing time to complete - including the grants to user and team
-                // Otherwise the team 450 can't be used an the numbers come out wrong
+                // Otherwise the team 457can't be used an the numbers come out wrong
                 return sleep(5000);
             }).then((response) => {
                 return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 2000, ['fish', 'water']);
@@ -120,9 +122,9 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                // 7900 = 9000 - (2000 - 450) + 450 where 450 for user and another 450 spent from shared team
-                // The spending bonus should not be here unless integration tests run with a new user (then 8350)
-                assert(userPresence.quantity === 7900, 'Quantity should be 7900 instead of ' + userPresence.quantity);
+                // 7914 = (9000 - 2000) + 450 + 457 where 450 for user and another 457 spent from shared team
+                // The spending bonus should not be here unless integration tests run with a new user (then 8371)
+                assert(userPresence.quantity === 7914, 'Quantity should be 7914 instead of ' + userPresence.quantity);
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
                 // Give the investment refund time to kick in
@@ -131,13 +133,13 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.users.get(userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                assert(userPresence.quantity === 9900, 'Quantity should be 9900 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 9914, 'Quantity should be 9914 instead of ' + userPresence.quantity);
                 return globalClient.teams.get(globalUserTeamId);
             }).then((response) => {
                 return globalUserClient.users.get(response.team.user_id, globalMarketId);
             }).then((teamUser) => {
                 assert(teamUser.type === 'TEAM', 'Team user type incorrect');
-                // Ideally the team user would get back the 450 instead of it going to the investing user but not the case
+                // Ideally the team user would get back the 457 instead of it going to the investing user but not the case
                 let userPresence = teamUser.market_presence;
                 assert(userPresence.quantity === 0, 'Quantity should be 0 instead of ' + userPresence.quantity);
                 return globalClient.investibles.createCategory('poison', globalMarketId);
@@ -162,7 +164,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 assert(market.active_investments === 0, 'active investments should be 0');
                 assert(market.users_in === numUsers, 'Counting team users there are ' + numUsers + ' users in this market');
                 assert(market.team_count === 1, 'One team in this market');
-                assert(market.unspent === 9900, 'unspent should be 9900 instead of ' + market.unspent);
+                assert(market.unspent === 9914, 'unspent should be 9914 instead of ' + market.unspent);
                 let stateOptions = {
                     open_for_investment: false,
                     open_for_refunds: false,
