@@ -17,6 +17,7 @@ class WebSocketRunner {
             //console.log(event);
             const payload = JSON.parse(event.data);
             this.messageReceivedQueue.push(payload);
+            //console.log("Received payload")
             //console.log(payload);
         };
         return handler.bind(this);
