@@ -125,9 +125,17 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.users.get(userConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                // 7914 = (9000 - 2000) + 450 + 457 where 450 for user and another 457 spent from shared team
-                // The spending bonus should not be here unless integration tests run with a new user (then 8371)
-                assert(userPresence.quantity === 7914, 'Quantity should be 7914 instead of ' + userPresence.quantity);
+                /*
+                new_quantity (N)	quantity_change (N)	transaction_type (S)	user_type (S)
+                457	                457	                NEW_TEAM_GRANT	        TEAM
+                0	                -457	            INVESTMENT	            TEAM
+                274	                274	                REFERRING_TEAM	        TEAM
+                457	                457	                NEW_TEAM_GRANT	        USER
+                9457	            9000	            API_INITIATED	        USER
+                7914	            -1543	            INVESTMENT	            USER
+                8096	            182	                NEW_TEAM_BONUS	        USER
+                 */
+                assert(userPresence.quantity === 8370, 'Quantity should be 8370 instead of ' + userPresence.quantity);
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
                 // Give the investment refund time to kick in
@@ -136,7 +144,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.users.get(userConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                assert(userPresence.quantity === 9914, 'Quantity should be 9914 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 10370, 'Quantity should be 10370 instead of ' + userPresence.quantity);
                 return globalClient.teams.get(globalUserTeamId);
             }).then((response) => {
                 return globalUserClient.users.get(response.team.user_id, globalMarketId);
@@ -144,7 +152,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(teamUser.type === 'TEAM', 'Team user type incorrect');
                 // Ideally the team user would get back the 457 instead of it going to the investing user but not the case
                 let userPresence = teamUser.market_presence;
-                assert(userPresence.quantity === 0, 'Quantity should be 0 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 274, 'Quantity should be 274 instead of ' + userPresence.quantity);
                 return globalClient.investibles.createCategory('poison', globalMarketId);
             }).then((response) => {
                 return globalClient.investibles.createCategory('chef', globalMarketId);
@@ -167,7 +175,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(market.active_investments === 0, 'active investments should be 0');
                 assert(market.users_in === numUsers, 'Counting team users there are ' + numUsers + ' users in this market');
                 assert(market.team_count === 1, 'One team in this market');
-                assert(market.unspent === 9914, 'unspent should be 9914 instead of ' + market.unspent);
+                assert(market.unspent === 10370, 'unspent should be 10370 instead of ' + market.unspent);
                 let stateOptions = {
                     open_for_investment: false,
                     open_for_refunds: false,
@@ -187,7 +195,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(summaries.market_id === globalMarketId);
                 assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
                 const todaysSummary = summaries.summaries[0];
-                assert(todaysSummary.unspent_shares === 9914, 'Unspent should be 9914 for the market summary');
+                assert(todaysSummary.unspent_shares === 10370, 'Unspent should be 10370 for the market summary');
                 assert(todaysSummary.num_users === 1, 'There should be one user in the market');
             }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
             ).then((investibles) => {
