@@ -4,7 +4,7 @@ global.fetch = fetch;
 const adminConfiguration = {
     baseURL:  'https://stage.api.uclusion.com/v1',
     authorizer: adminAuthorizer,
-    websocketURL: 'wss://dev.ws.uclusion.com/v1'
+    websocketURL: 'wss://stage.ws.uclusion.com/v1'
 };
 
 const userConfiguration = {
