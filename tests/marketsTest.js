@@ -1,7 +1,7 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 
-module.exports = function(adminConfiguration, adminUserId) {
+module.exports = function(adminConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
@@ -47,7 +47,7 @@ module.exports = function(adminConfiguration, adminUserId) {
                 assert(market.trending_window === 5, 'Trending window is incorrect, should be 5');
                 assert(market.initial_next_stage_threshold === 1, 'Initial next stage threshold is incorrect, should be 1');
                 assert(market.initial_next_stage === 'fishy', 'Initial next stage is incorrect, should be fishy');
-                return globalClient.users.grant(adminUserId, globalMarketId, 1000);
+                return globalClient.users.grant(adminConfiguration.userId, globalMarketId, 1000);
             }).then((response) => {
                 return globalClient.markets.followMarket(globalMarketId, false);
             }).then((response) => {
@@ -56,7 +56,7 @@ module.exports = function(adminConfiguration, adminUserId) {
                 }
             ).then((market) => {
                 assert(market.unspent === 1000, 'Quantity is incorrect, should be 1000');
-                return globalClient.users.get(adminUserId, globalMarketId);
+                return globalClient.users.get(adminConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.following === true, 'Following should be true');

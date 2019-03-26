@@ -2,7 +2,7 @@ import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 import { WebSocketRunner } from "../src/websocketRunner"
 
-module.exports = function (adminConfiguration, userConfiguration, userId, numUsers) {
+module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const fishOptions = {
         name: 'fish',
         description: 'this is a fish market',
@@ -14,7 +14,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
         new_team_grant: 457,
     };
     const expectedWebsocketMessages = [];
-    const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000})
+    const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     const updateFish = {
         name: 'pufferfish',
         description: 'possibly poisonous',
@@ -63,26 +63,25 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 globalMarketId = response.market_id;
                 console.log('Market ID is ' + globalMarketId);
                 webSocketRunner.connect();
-                webSocketRunner.subscribe(userId, { market_id : globalMarketId });
+                webSocketRunner.subscribe(userConfiguration.userId, { market_id : globalMarketId });
                 return globalUserClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 globalInvestibleId = response.id;
-                return globalUserClient.users.get(userId);
+                return globalUserClient.users.get(userConfiguration.userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
                 return globalClient.teams.bind(globalUserTeamId, globalMarketId);
             }).then((response) => {
                 return sleep(5000);
             }).then((response) => {
-                console.log('Investing User ID is ' + userId);
-                return globalUserClient.users.get(userId, globalMarketId);
+                return globalUserClient.users.get(userConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 // 914 = 457 from new team, 457 from user who's part of team
                 assert(userPresence.quantity === 914, 'Quantity should be 914 instead of ' + userPresence.quantity);
                 return user; // ignored anyways
             }).then((response) => {
-                return globalClient.users.grant(userId, globalMarketId, 9000);
+                return globalClient.users.grant(userConfiguration.userId, globalMarketId, 9000);
             }).then((response) => {
                 return globalClient.investibles.createCategory('fish', globalMarketId);
             }).then((response) => {
@@ -109,19 +108,21 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
+                assert(comment.is_official === false, 'comment should not be official');
                 expectedWebsocketMessages.push({event_type: 'INVESTIBLE_COMMENT_UPDATED', object_id: comment.id});
                 return globalUserClient.investibles.updateComment(comment.id, 'new body');
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
-                return globalUserClient.investibles.createComment(marketInvestibleId, 'comment to fetch');
+                return globalClient.investibles.createComment(marketInvestibleId, 'comment to fetch');
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
+                assert(comment.is_official === true, 'comment should be official');
                 return globalUserClient.investibles.getMarketComments(globalMarketId, [comment.id]);
             }).then((comments) => {
                 let comment = comments[0];
                 assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
                 assert(comment.market_id === globalMarketId, 'market was not set properly on the comment');
-                return globalUserClient.users.get(userId, globalMarketId);
+                return globalUserClient.users.get(userConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 // 7914 = (9000 - 2000) + 450 + 457 where 450 for user and another 457 spent from shared team
@@ -132,7 +133,7 @@ module.exports = function (adminConfiguration, userConfiguration, userId, numUse
                 // Give the investment refund time to kick in
                 return sleep(15000);
             }).then((response) => {
-                return globalUserClient.users.get(userId, globalMarketId);
+                return globalUserClient.users.get(userConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.quantity === 9914, 'Quantity should be 9914 instead of ' + userPresence.quantity);

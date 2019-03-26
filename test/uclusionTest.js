@@ -1,8 +1,15 @@
 import fetch from 'node-fetch';
 global.fetch = fetch;
-import {
-    CognitoAuthorizer,
-} from 'uclusion_authorizer_sdk';
+
+const adminConfiguration = {
+    baseURL:  'https://dev.api.uclusion.com/v1',
+    websocketURL: 'wss://dev.ws.uclusion.com/v1'
+};
+
+const userConfiguration = {
+    baseURL:  'https://dev.api.uclusion.com/v1',
+    websocketURL: 'wss://dev.ws.uclusion.com/v1'
+};
 
 const adminAuthorizerConfiguration = {
     username: 'testeruclusion@gmail.com',
@@ -10,15 +17,6 @@ const adminAuthorizerConfiguration = {
     poolId: 'us-west-2_NVPcNPhKS',
     clientId: '4knr08iqujrprrkpimqm04dnp',
     baseURL:  'https://dev.api.uclusion.com/v1',
-    accountId: '81d2b192-5cf2-4f49-83a2-cd83cca4a4f4'
-};
-
-const adminAuthorizer = new CognitoAuthorizer(adminAuthorizerConfiguration);
-
-const adminConfiguration = {
-    baseURL:  'https://dev.api.uclusion.com/v1',
-    authorizer: adminAuthorizer,
-    websocketURL: 'wss://dev.ws.uclusion.com/v1'
 };
 
 const userAuthorizerConfiguration = {
@@ -27,26 +25,14 @@ const userAuthorizerConfiguration = {
     poolId: 'us-west-2_NVPcNPhKS',
     clientId: '4knr08iqujrprrkpimqm04dnp',
     baseURL:  'https://dev.api.uclusion.com/v1',
-    accountId: '81d2b192-5cf2-4f49-83a2-cd83cca4a4f4'
 };
-
-const userAuthorizer = new CognitoAuthorizer(userAuthorizerConfiguration);
-
-const userConfiguration = {
-    baseURL:  'https://dev.api.uclusion.com/v1',
-    authorizer: userAuthorizer,
-    websocketURL: 'wss://dev.ws.uclusion.com/v1'
-};
-
-const adminUserId = '969f6312-14a2-43f5-bc42-c78fa8679c46';
-const userId = '537be585-4af7-4296-b062-2310bdac43ed';
 
 describe('uclusion', () => {
-    require('../tests/usersTest.js')(adminConfiguration, adminUserId);
-    require('../tests/marketsTest.js')(adminConfiguration, adminUserId);
+    require('../tests/usersTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration);
+    require('../tests/marketsTest.js')(adminConfiguration);
     require('../tests/investiblesTest.js')(userConfiguration);
-    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, userId, 4);
-    require('../tests/listsTest.js')(adminConfiguration, userConfiguration, userId);
+    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, 4);
+    require('../tests/listsTest.js')(adminConfiguration, userConfiguration);
 });
 
 

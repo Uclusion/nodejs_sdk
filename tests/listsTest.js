@@ -1,7 +1,7 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 
-module.exports = function(adminConfiguration, userConfiguration, userId) {
+module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
         name : 'butter',
         description: 'this is a butter market'
@@ -40,12 +40,12 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 globalCSMMarketInvestibleId = investible.id;
                 assert(investible.name === 'peanut butter', 'name not passed on correctly');
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
-                return globalUserClient.users.get(userId);
+                return globalUserClient.users.get(userConfiguration.userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
                 return globalClient.teams.bind(globalUserTeamId, globalMarketId);
             }).then((response) => {
-                return globalClient.users.grant(userId, globalMarketId, 10000);
+                return globalClient.users.grant(userConfiguration.userId, globalMarketId, 10000);
             }).then((response) => {
                 return globalClient.investibles.createCategory('salted', globalMarketId);
             }).then((response) => {
@@ -66,7 +66,7 @@ module.exports = function(adminConfiguration, userConfiguration, userId) {
                 // Long sleep to give async processing time to complete for stages
                 return sleep(20000);
             }).then((result) => {
-                return globalUserClient.markets.listUserInvestments(globalMarketId, userId, 20);
+                return globalUserClient.markets.listUserInvestments(globalMarketId, userConfiguration.userId, 20);
             }).then((result) => {
                 return globalClient.teams.list(globalMarketId);
             }).then((result) => {
