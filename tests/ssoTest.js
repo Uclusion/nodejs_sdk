@@ -12,12 +12,11 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
         new_user_grant: 313,
         new_team_grant: 457
     };
-    let globalClient = null;
-    let globalMarketId = null;
     describe('#doPrelogin, ', () => {
         it('should retrieve login info without error', async () => {
             let sso = new UclusionSSO(adminConfiguration.baseURL);
             let promise = uclusion.constructClient(adminConfiguration);
+            let globalClient;
             let globalMarketId;
             await promise.then((client) => {
                 globalClient = client;
@@ -33,7 +32,16 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 assert(login_info.allow_user === false, 'User logins should not be supported on this market');
                 assert(login_info.allow_anonymous === false, 'Anonymous logins should not be supported on this market');
                 assert(login_info.user_pool_id === adminAuthorizerConfiguration.poolId, 'Cognito pool should match the authorizer pool');
-                assert(login_info.cognito_client_id == adminAuthorizerConfiguration.clientId, 'Cognito client id should match the authorizer client id');
+                assert(login_info.cognito_client_id === adminAuthorizerConfiguration.clientId, 'Cognito client id should match the authorizer client id');
+                return globalClient.teams.bindAnonymous(globalMarketId);
+            }).then((marketTeam) => {
+                assert(marketTeam.market_id === globalMarketId, 'Should be an anonymous team in this market now');
+                return sso.marketLoginInfo(globalMarketId)
+            }).then((login_info) => {
+                assert(login_info.allow_anonymous === true, 'Anonymous logins should be supported on this market');
+                return sso.marketAnonymousLogin(globalMarketId);
+            }).then((login) => {
+                assert(login.market_id === globalMarketId, 'Anonymous logins should work for this market');
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function(error) {
                 console.log(error);
