@@ -19,6 +19,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
+            let listed_team;
             await userPromise.then((client) => {
                 globalUserClient = client;
                 return promise;
@@ -70,13 +71,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((result) => {
                 return globalClient.teams.list(globalMarketId);
             }).then((result) => {
-                let listed_team = result[0];
+                listed_team = result[0];
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
                 // 10000 + 450 - (6001 - 450)
                 assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
-                return globalClient.teams.investments(globalUserTeamId, globalMarketId);
+                return globalClient.markets.listUserInvestments(globalMarketId, listed_team.user_id, 10000);
             }).then((result) => {
-                let investment = result[marketInvestibleId];
+                let investment = result[0];
                 assert(investment.quantity === 6001, 'invested quantity should be 6001 instead of ' + investment.quantity);
                 return globalUserClient.markets.listInvestibles(globalMarketId);
             }).then((result) => {
