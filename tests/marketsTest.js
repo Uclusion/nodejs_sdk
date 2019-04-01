@@ -18,7 +18,16 @@ module.exports = function(adminConfiguration) {
         initial_next_stage: 'fishy',
         initial_next_stage_threshold: 1
     };
-    describe('#doCreate, update, grant, and follow market', () => {
+
+    const stageInfo = {
+        name: 'Test Stage',
+        appears_in_market_summary: true,
+        allows_investment: true,
+        allows_refunds: false,
+        allows_editing: false,
+        visible_to_roles: ['MarketAnonymousUser', 'MarketUser']
+    };
+    describe('#doCreate, update, grant, create stage, and follow market', () => {
         it('should create market without error', async() => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
@@ -51,16 +60,20 @@ module.exports = function(adminConfiguration) {
             }).then((response) => {
                 return globalClient.markets.followMarket(globalMarketId, false);
             }).then((response) => {
-                    assert(response.following === true, 'Following incorrect, should be true');
-                    return globalClient.markets.get(globalMarketId);
-                }
-            ).then((market) => {
+                assert(response.following === true, 'Following incorrect, should be true');
+                return globalClient.markets.get(globalMarketId);
+            }).then((market) => {
                 assert(market.unspent === 1000, 'Quantity is incorrect, should be 1000');
                 return globalClient.users.get(adminConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.following === true, 'Following should be true');
                 assert(userPresence.quantity === 1000, 'Quantity should be 1000')
+            }).then((response) => {
+                return globalClient.markets.createStage(globalMarketId, stageInfo);
+            }).then((stage) => {
+                assert(stage.name === stageInfo.name);
+                return stage;
             }).then((response) => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function(error) {
