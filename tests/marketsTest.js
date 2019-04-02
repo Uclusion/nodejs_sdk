@@ -43,6 +43,7 @@ module.exports = function(adminConfiguration) {
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.new_team_grant === 457, 'New team grant should match definition');
                 assert(market.new_user_grant === 313, 'New user grant should match definition');
+                updateOptions.initial_stage = market.initial_stage_id;
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
             }).then((response) => globalClient.markets.get(globalMarketId)
             ).then((market) => {
