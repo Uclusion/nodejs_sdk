@@ -19,7 +19,7 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 adminConfiguration.userId = response.user.id;
                 adminConfiguration.authorizer = new CognitoAuthorizer(adminAuthorizerConfiguration);
                 // API key delay https://forums.aws.amazon.com/thread.jspa?threadID=298683&tstart=0
-                return sleep(10000);
+                return sleep(20000);
             }).then(() => {
                 return uclusion.constructClient(adminConfiguration);
             }).then((client) => {
