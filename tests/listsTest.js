@@ -20,6 +20,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let investmentId;
             let globalUserTeamId;
             let listed_team;
+            let globalStages;
             await userPromise.then((client) => {
                 globalUserClient = client;
                 return promise;
@@ -67,8 +68,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Long sleep to give async processing time to complete for stages
                 return sleep(20000);
             }).then((result) => {
-                return globalUserClient.markets.listUserInvestments(globalMarketId, userConfiguration.userId, 20);
+                return globalUserClient.markets.listUserInvestments(globalMarketId, userConfiguration.userId, 10000);
             }).then((result) => {
+                return globalClient.markets.listStages(globalMarketId);
+            }).then((stages) => {
+                globalStages = stages;
                 return globalClient.teams.list(globalMarketId);
             }).then((result) => {
                 listed_team = result[0];
@@ -96,13 +100,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let investible = investibles.find(obj => {
                     return obj.id === marketInvestibleId;
                 });
-                assert(investible.stage === 'NEEDS_REVIEW', 'investible stage should be NEEDS_REVIEW');
-                assert(investible.next_stage === 'REVIEW_COMPLETE', 'investible next stage should be REVIEW_COMPLETE');
-                assert(investible.next_stage_threshold === 0, 'investible next stage threshold should be 0');
+                let stage = globalStages.find(stage => { return stage.id === investible.stage});
+                assert(stage.name === 'Needs Review', 'investible stage should be Needs Review');
                 investible = investibles.find(obj => {
                     return obj.id === globalCSMMarketInvestibleId;
                 });
-                assert(investible.stage === 'BOUND', 'investible stage should be BOUND');
+                stage = globalStages.find(stage => { return stage.id === investible.stage});
+                assert(stage.name === 'Unreviewed', 'investible stage should be Unreviewed');
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                 //console.log('marketInvestibleId '+marketInvestibleId);

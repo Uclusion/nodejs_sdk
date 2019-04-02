@@ -61,13 +61,7 @@ module.exports = function(adminConfiguration) {
             }).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.following === true, 'Following should be true');
-                assert(userPresence.quantity === 1000, 'Quantity should be 1000')
-            }).then((response) => {
-                return globalClient.markets.createStage(globalMarketId, stageInfo);
-            }).then((stage) => {
-                assert(stage.name === stageInfo.name);
-                return stage;
-            }).then((response) => {
+                assert(userPresence.quantity === 1000, 'Quantity should be 1000');
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function(error) {
                 console.log(error);

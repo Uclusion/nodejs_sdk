@@ -8,8 +8,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
         description: 'this is a fish market',
         trending_window: 5,
         manual_roi: false,
-        initial_next_stage: 'fishing',
-        initial_next_stage_threshold: 0,
         new_user_grant: 313,
         new_team_grant: 457,
     };
@@ -50,6 +48,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
+            let globalStages;
             await userPromise.then((client) => {
                 globalUserClient = client;
                 return promise;
@@ -169,6 +168,9 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(_arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
                 assert(investible.quantity === 0, 'get market investible quantity incorrect');
+                return globalClient.markets.listStages(globalMarketId);
+            }).then((stages) => {
+                globalStages = stages;
                 return globalUserClient.markets.get(globalMarketId);
             }).then((market) => {
                 //console.log(market);
@@ -176,15 +178,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(market.users_in === numUsers, 'Counting team users there are ' + numUsers + ' users in this market');
                 assert(market.team_count === 1, 'One team in this market');
                 assert(market.unspent === 10370, 'unspent should be 10370 instead of ' + market.unspent);
+                const current_stage = globalStages.find(stage => { return stage.name === 'Needs Review'});
+                const stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
                 let stateOptions = {
-                    open_for_investment: false,
-                    open_for_refunds: false,
-                    open_for_editing: false,
-                    is_active: false,
-                    current_stage: 'BOUND',
-                    stage: 'REVIEWED',
-                    next_stage: 'CLOSED',
-                    next_stage_threshold: 10
+                    current_stage_id: current_stage.id,
+                    stage_id: stage.id,
+                    next_stage_additional_investment: 1000
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
@@ -200,13 +199,15 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
-                assert(investible.stage === 'REVIEWED', 'investible stage should be reviewed');
-                assert(investible.next_stage === 'CLOSED', 'investible next stage should be closed');
-                assert(investible.next_stage_threshold === 10, 'investible next stage threshold should be 10');
-                assert(investible.open_for_investment === false, 'open_for_investment false');
-                assert(investible.open_for_refunds === false, 'open_for_refunds false');
-                assert(investible.open_for_editing === false, 'open_for_editing false');
-                assert(investible.is_active === false, 'is_active false');
+                const current_stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
+                const next_stage = globalStages.find(stage => { return stage.name === 'Under Consideration'});
+                assert(investible.stage === current_stage.id, 'investible stage should be Needs Investment');
+                assert(investible.next_stage === next_stage.id, 'investible next stage should be Under Consideration');
+                assert(investible.next_stage_threshold === 1000, 'investible next stage threshold should be 1000');
+                assert(investible.open_for_investment === true, 'open_for_investment true');
+                assert(investible.open_for_refunds === true, 'open_for_refunds true');
+                assert(investible.open_for_editing === true, 'open_for_editing true');
+                assert(investible.is_active === true, 'is_active true');
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
                     return globalClient.markets.deleteMarket(globalMarketId);
