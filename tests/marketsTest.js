@@ -7,16 +7,13 @@ module.exports = function(adminConfiguration) {
         description: 'This is default.',
         trending_window: 2,
         manual_roi: false,
-        initial_next_stage: 'globaling',
         new_user_grant: 313,
         new_team_grant: 457
     };
     const updateOptions = {
         name : 'fish',
         description: 'this is a fish market',
-        trending_window: 5,
-        initial_next_stage: 'fishy',
-        initial_next_stage_threshold: 1
+        trending_window: 5
     };
 
     const stageInfo = {
@@ -44,8 +41,6 @@ module.exports = function(adminConfiguration) {
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
                 assert(market.manual_roi === false, 'Roi is incorrect, should be false');
                 assert(market.account_name, 'Market should have an account name');
-                assert(market.initial_next_stage_threshold === 6000, 'Initial next stage threshold should be 6000 instead of ' + market.initial_next_stage_threshold);
-                assert(market.initial_next_stage === 'globaling', 'Initial next stage is incorrect, should be globaling');
                 assert(market.new_team_grant === 457, 'New team grant should match definition');
                 assert(market.new_user_grant === 313, 'New user grant should match definition');
                 return globalClient.markets.updateMarket(globalMarketId, updateOptions);
@@ -54,8 +49,6 @@ module.exports = function(adminConfiguration) {
                 assert(market.name === 'fish', 'Name is incorrect');
                 assert(market.description === 'this is a fish market', 'Description is incorrect');
                 assert(market.trending_window === 5, 'Trending window is incorrect, should be 5');
-                assert(market.initial_next_stage_threshold === 1, 'Initial next stage threshold is incorrect, should be 1');
-                assert(market.initial_next_stage === 'fishy', 'Initial next stage is incorrect, should be fishy');
                 return globalClient.users.grant(adminConfiguration.userId, globalMarketId, 1000);
             }).then((response) => {
                 return globalClient.markets.followMarket(globalMarketId, false);
