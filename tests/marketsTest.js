@@ -32,6 +32,7 @@ module.exports = function(adminConfiguration) {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
             let globalMarketId;
+            let globalStageId;
             await promise.then((client) => {
                 globalClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -43,11 +44,17 @@ module.exports = function(adminConfiguration) {
                 return globalClient.markets.createStage(globalMarketId, stageInfo);
             }).then((stage) => {
                 verifyStage(stageInfo, stage);
+                globalStageId = stage.id;
+                return globalClient.markets.followStage(globalStageId, globalMarketId);
+            }).then((response) => {
+                assert(response.following === true, 'Following is incorrect');
                 return globalClient.markets.listStages(globalMarketId);
             }).then((stageList) => {
                 const newStageNames = [...adminExpectedStageNames];
                 newStageNames.push(stageInfo.name);
                 checkStages(newStageNames, stageList);
+                const followedStage = stageList.find(stage => { return stage.id === globalStageId});
+                assert(followedStage.following === true, 'Following should be true from list');
                 return globalClient.markets.get(globalMarketId);
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
