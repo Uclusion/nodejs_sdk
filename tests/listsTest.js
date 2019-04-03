@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { checkStages } from "./common_functions";
 import {uclusion} from "../src/uclusion";
 
 module.exports = function(adminConfiguration, userConfiguration) {
@@ -6,6 +7,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
         name : 'butter',
         description: 'this is a butter market'
     };
+    const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];
+
     describe('#doList', () => {
         it('should list without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
@@ -29,6 +32,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return client.markets.createMarket(butterOptions);
             }).then((response) => {
                 globalMarketId = response.market_id;
+                return globalClient.markets.listStages(globalMarketId);
+            }).then((stageList) => {
+                checkStages(adminExpectedStageNames, stageList);
                 return globalUserClient.investibles.create('butter', 'good on bagels');
             }).then((response) => {
                 globalInvestibleId = response.id;

@@ -1,7 +1,9 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
+import {checkStages} from "./common_functions";
 
 module.exports = function(adminConfiguration) {
+    const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
@@ -24,7 +26,8 @@ module.exports = function(adminConfiguration) {
         allows_editing: false,
         visible_to_roles: ['MarketAnonymousUser', 'MarketUser']
     };
-    describe('#doCreate, update, grant, create stage, and follow market', () => {
+
+    describe('#doCreate, stage list, update, grant, create stage, and follow market', () => {
         it('should create market without error', async() => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
@@ -34,7 +37,21 @@ module.exports = function(adminConfiguration) {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 globalMarketId = response.market_id;
-                return globalClient.markets.get(response.market_id);
+                return globalClient.markets.listStages(globalMarketId);
+            }).then((stageList) => {
+                checkStages(adminExpectedStageNames, stageList);
+                return globalClient.markets.createStage(globalMarketId, stageInfo);
+            }).then((stage) => {
+                assert(stage.name === stageInfo.name, 'Stage created with wrong name');
+                assert(stage.allows_investment === stageInfo.allows_investment, 'Stage created with wrong allows investment');
+                assert(stage.visible_to_roles.length === 2, 'Stage should have been visible to two roles');
+                assert(stage.visible_to_roles.includes('MarketAnonymousUser'), 'Stage should have allowed the anonymous user to see');
+                return globalClient.markets.listStages(globalMarketId);
+            }).then((stageList) => {
+                const newStageNames = [...adminExpectedStageNames];
+                newStageNames.push(stageInfo.name);
+                checkStages(newStageNames, stageList);
+                return globalClient.markets.get(globalMarketId);
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
                 assert(market.description === 'This is default.', 'Description is incorrect');
