@@ -81,10 +81,17 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalStages = stages;
                 return globalClient.teams.list(globalMarketId);
             }).then((result) => {
+                /*
+                450	    450	    NEW_TEAM_GRANT	USER
+                10450	10000	API_INITIATED	USER
+                450	    450	    NEW_TEAM_GRANT	TEAM
+                0	    -450	INVESTMENT	    TEAM
+                4899	-5551	INVESTMENT	    USER
+                10900	6001	ROI	            USER
+                */
                 listed_team = result[0];
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
-                // 10000 + 450 - (6001 - 450)
-                assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
+                assert(listed_team.quantity === 10900, 'unspent quantity should be 10900 instead of ' + listed_team.quantity);
                 return globalClient.markets.listUserInvestments(globalMarketId, listed_team.user_id, 10000);
             }).then((result) => {
                 let investment = result[0];

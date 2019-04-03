@@ -101,8 +101,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                // Workaround for investors coming up empty and so comment create not allowed
-                return sleep(15000);
+                // Workaround for investors coming up empty and so comment create not allowed plus make sure ROI has time
+                return sleep(25000);
             }).then((response) => {
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((comment) => {
@@ -133,8 +133,9 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 9457	            9000	            API_INITIATED	        USER
                 7914	            -1543	            INVESTMENT	            USER
                 8096	            182	                NEW_TEAM_BONUS	        USER
+                10096               2000                ROI                     USER
                  */
-                assert(userPresence.quantity === 8370, 'Quantity should be 8370 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 10370, 'Quantity should be 10370 instead of ' + userPresence.quantity);
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
                 // Give the investment refund time to kick in
@@ -143,7 +144,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.users.get(userConfiguration.userId, globalMarketId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                assert(userPresence.quantity === 10370, 'Quantity should be 10370 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 12370, 'Quantity should be 12370 instead of ' + userPresence.quantity);
                 return globalClient.teams.get(globalUserTeamId);
             }).then((response) => {
                 return globalUserClient.users.get(response.team.user_id, globalMarketId);
