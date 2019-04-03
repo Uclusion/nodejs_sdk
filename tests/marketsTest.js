@@ -1,6 +1,6 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
-import {checkStages} from "./common_functions";
+import {checkStages, verifyStage} from "./common_functions";
 
 module.exports = function(adminConfiguration) {
     const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];
@@ -42,10 +42,7 @@ module.exports = function(adminConfiguration) {
                 checkStages(adminExpectedStageNames, stageList);
                 return globalClient.markets.createStage(globalMarketId, stageInfo);
             }).then((stage) => {
-                assert(stage.name === stageInfo.name, 'Stage created with wrong name');
-                assert(stage.allows_investment === stageInfo.allows_investment, 'Stage created with wrong allows investment');
-                assert(stage.visible_to_roles.length === 2, 'Stage should have been visible to two roles');
-                assert(stage.visible_to_roles.includes('MarketAnonymousUser'), 'Stage should have allowed the anonymous user to see');
+                verifyStage(stageInfo, stage);
                 return globalClient.markets.listStages(globalMarketId);
             }).then((stageList) => {
                 const newStageNames = [...adminExpectedStageNames];
