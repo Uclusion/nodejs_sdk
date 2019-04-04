@@ -16,7 +16,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const updateFish = {
         name: 'pufferfish',
         description: 'possibly poisonous',
-        category_list: ['poison', 'chef']
+        category_list: ['poison', 'chef'],
+        label_list: ['freshwater', 'spawning']
     };
     const verifyExpectedMessages = (messageQueue) => {
         //console.log(expectedWebsocketMessages);
@@ -157,17 +158,20 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((response) => {
                 return globalClient.investibles.createCategory('chef', globalMarketId);
             }).then((response) => {
-                return globalUserClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name, updateFish.description, updateFish.category_list);
+                return globalUserClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name,
+                    updateFish.description, updateFish.category_list, updateFish.label_list);
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
                 assert(_arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
+                assert(_arrayEquals(response.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 return globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles[0];
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(_arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
+                assert(_arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 assert(investible.quantity === 0, 'get market investible quantity incorrect');
                 return globalClient.markets.listStages(globalMarketId);
             }).then((stages) => {
