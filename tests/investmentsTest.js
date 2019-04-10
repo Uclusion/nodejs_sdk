@@ -159,7 +159,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((response) => {
                 return globalClient.investibles.createCategory('chef', globalMarketId);
             }).then((response) => {
-                return globalUserClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name,
+                return globalClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name,
                     updateFish.description, updateFish.category_list, updateFish.label_list);
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
