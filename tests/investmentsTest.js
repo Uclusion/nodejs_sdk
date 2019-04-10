@@ -67,6 +67,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 globalInvestibleId = response.id;
+                console.log('Investible ID is ' + globalInvestibleId);
                 return globalUserClient.users.get(userConfiguration.userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
@@ -173,6 +174,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(_arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
                 assert(_arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 assert(investible.quantity === 0, 'get market investible quantity incorrect');
+                assert(investible.current_user_is_following === true, 'current_user_is_following should return true');
                 return globalClient.markets.listStages(globalMarketId);
             }).then((stages) => {
                 globalStages = stages;
