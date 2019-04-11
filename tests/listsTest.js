@@ -79,6 +79,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return globalClient.markets.listStages(globalMarketId);
             }).then((stages) => {
                 globalStages = stages;
+                return globalClient.teams.followTeam(globalUserTeamId, globalMarketId);
+            }).then((response) => {
+                assert(response.teams_followed.includes(globalUserTeamId), 'Follow team unsuccessful');
                 return globalClient.teams.list(globalMarketId);
             }).then((result) => {
                 /*
@@ -90,6 +93,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 10900	6001	ROI	            USER
                 */
                 listed_team = result[0];
+                assert(listed_team.current_user_is_following === true, 'this team current_user_is_following should return true');
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
                 assert(listed_team.quantity === 10900, 'unspent quantity should be 10900 instead of ' + listed_team.quantity);
                 return globalClient.markets.listUserInvestments(globalMarketId, listed_team.user_id, 10000);
