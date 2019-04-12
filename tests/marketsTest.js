@@ -1,6 +1,6 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
-import {checkStages, verifyStage} from "./common_functions";
+import {checkStages, verifyStage} from "./commonTestFunctions";
 
 module.exports = function(adminConfiguration) {
     const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];

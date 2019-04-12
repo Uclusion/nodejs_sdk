@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { checkStages } from "./common_functions";
+import { checkStages } from "./commonTestFunctions";
 import {uclusion} from "../src/uclusion";
 
 module.exports = function(adminConfiguration, userConfiguration) {

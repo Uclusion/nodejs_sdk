@@ -1,6 +1,7 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 import { WebSocketRunner } from "../src/websocketRunner"
+import { verifyExpectedMessages, arrayEquals, sleep } from "./commonTestFunctions";
 
 module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const fishOptions = {
@@ -19,24 +20,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
         category_list: ['poison', 'chef'],
         label_list: ['freshwater', 'spawning']
     };
-    const verifyExpectedMessages = (messageQueue) => {
-        //console.log(expectedWebsocketMessages);
-        //console.log(messageQueue);
-        for (const expected of expectedWebsocketMessages){
-            //console.log("Looking for message");
-            //console.log(expected);
-            const found = messageQueue.find((element) => {
-                //console.log("Processing element");
-                //console.log(element);
-                const event_type_match = element.event_type === expected.event_type;
-                //console.log("Event Type Match: " + event_type_match);
-                const object_id_match = element.object_id === expected.object_id;
-                //console.log("Object Id Match: " + object_id_match);
-                return event_type_match && object_id_match;
-            });
-            assert(found, 'Did not find message on websocket we were expecting');
-        }
-    };
+
     describe('#doInvestment', () => {
         it('should create investment without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
@@ -164,15 +148,15 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
-                assert(_arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
-                assert(_arrayEquals(response.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
+                assert(arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
+                assert(arrayEquals(response.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 return globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles[0];
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
-                assert(_arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
-                assert(_arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
+                assert(arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
+                assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 assert(investible.quantity === 0, 'get market investible quantity incorrect');
                 assert(investible.current_user_is_following === true, 'current_user_is_following should return true');
                 return globalClient.markets.listStages(globalMarketId);
@@ -194,7 +178,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
-                sleep(5000)
+                return sleep(5000);
             }).then((response) => {
                 return globalClient.summaries.marketSummary(globalMarketId);
             }).then((summaries) => {
@@ -217,13 +201,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.is_active === true, 'is_active true');
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
-                sleep(1000); //wait for delete to propagate
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).then((response) => {
                 //close our websocket
                 webSocketRunner.terminate();
                 const messages = webSocketRunner.getMessagesReceived();
-                verifyExpectedMessages(messages);
+                verifyExpectedMessages(messages, expectedWebsocketMessages);
                 //we should have roughly 9 messages, though many will be duplicates because the same action was performed
                 assert(messages.length === 9, 'Wrong number of messages received on websocket');
                 //console.log(messages);
@@ -235,18 +218,4 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     });
 };
 
-let _arrayEquals = (arr1, arr2) => {
-    if (arr1.length !== arr2.length)
-        return false;
-    arr1.forEach(function (e) {
-        if (arr2.indexOf(e) < 0)
-            return false;
-    });
-    return true;
-};
 
-function sleep(ms) {
-    return new Promise(resolve => {
-        setTimeout(resolve, ms);
-    })
-}
