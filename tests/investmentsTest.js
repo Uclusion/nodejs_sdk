@@ -215,9 +215,11 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
                 assert(investible.open_for_editing === true, 'open_for_editing true');
                 assert(investible.is_active === true, 'is_active true');
+                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then((response) => {
-                    return globalClient.markets.deleteMarket(globalMarketId);
+                sleep(1000); //wait for delete to propagate
+                return globalClient.markets.deleteMarket(globalMarketId);
             }).then((response) => {
                 //close our websocket
                 webSocketRunner.terminate();
