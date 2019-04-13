@@ -83,7 +83,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 marketInvestibleId = investment.investible_id;
                 expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_CREATED', object_id: marketInvestibleId});
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
-                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
@@ -146,6 +145,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name,
                     updateFish.description, updateFish.category_list, updateFish.label_list);
             }).then((response) => {
+                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
                 assert(arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
@@ -178,7 +178,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
-                return sleep(5000);
+                return sleep(10000);
             }).then((response) => {
                 return globalClient.summaries.marketSummary(globalMarketId);
             }).then((summaries) => {
@@ -187,7 +187,14 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 const todaysSummary = summaries.summaries[0];
                 assert(todaysSummary.unspent_shares === 10370, 'Unspent should be 10370 for the market summary');
                 assert(todaysSummary.num_users === 1, 'There should be one user in the market');
-            }).then((result) => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
+            }).then(() => {
+                const messages = webSocketRunner.getMessagesReceived();
+                verifyExpectedMessages(messages, expectedWebsocketMessages);
+                //we should have roughly 9 messages, though many will be duplicates because the same action was performed
+                assert(messages.length === 9, 'Wrong number of messages received on websocket');
+                //close our websocket
+                webSocketRunner.terminate();
+            }).then(() => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
                 const current_stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
@@ -200,16 +207,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.open_for_editing === true, 'open_for_editing true');
                 assert(investible.is_active === true, 'is_active true');
                 return globalUserClient.investibles.delete(globalInvestibleId);
-            }).then((response) => {
+            }).then(() => {
                 return globalClient.markets.deleteMarket(globalMarketId);
-            }).then((response) => {
-                //close our websocket
-                webSocketRunner.terminate();
-                const messages = webSocketRunner.getMessagesReceived();
-                verifyExpectedMessages(messages, expectedWebsocketMessages);
-                //we should have roughly 9 messages, though many will be duplicates because the same action was performed
-                assert(messages.length === 9, 'Wrong number of messages received on websocket');
-                //console.log(messages);
             }).catch(function (error) {
                     console.log(error);
                     throw error;

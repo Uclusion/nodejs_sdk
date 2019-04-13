@@ -82,6 +82,9 @@ class WebSocketRunner {
     }
 
     getMessagesReceived(){
+        for (const message in this.messageReceivedQueue) {
+            console.log(message);
+        }
         return this.messageReceivedQueue;
     }
 

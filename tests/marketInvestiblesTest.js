@@ -37,19 +37,19 @@ module.exports = function(adminConfiguration) {
                 return globalClient.investibles.bindToMarket(investibleTemplateId, globalMarketId, ['foo']);
             }).then((bound) => {
                 marketInvestibleId = bound.id;
-                return sleep(5000);
-            }).then(() => {
-                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
                 return globalClient.investibles.delete(marketInvestibleId);
             }).then(() => {
+                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
                 return globalClient.investibles.delete(investibleTemplateId);
+            }).then((bound) => {
+                return sleep(10000);
             }).then(() => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).then(() => {
-                //close our websocket
-                webSocketRunner.terminate();
                 const messages = webSocketRunner.getMessagesReceived();
                 verifyExpectedMessages(messages, expectedWebsocketMessages);
+                //close our websocket
+                webSocketRunner.terminate();
             }).catch(function(error) {
                 console.log(error);
                 throw error;
