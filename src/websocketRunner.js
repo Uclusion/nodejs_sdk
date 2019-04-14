@@ -9,16 +9,16 @@ class WebSocketRunner {
         this.wsUrl = config.wsUrl;
         this.reconnectInterval = config.reconnectInterval;
         this.subscribeQueue = [];
-        this.messageReceivedQueue = [];
+        this.messageHanders = [];
     }
 
     getMessageHandler() {
         const handler = (event) => {
             //console.log(event);
             const payload = JSON.parse(event.data);
-            this.messageReceivedQueue.push(payload);
-            //console.log("Received payload")
-            //console.log(payload);
+            //we're going to filter the messagehandlers at each run
+            //and if they return true assume they want to go away
+            this.messageHanders = this.messageHanders.filter(messageHandler => !messageHandler(payload));
         };
         return handler.bind(this);
     }
@@ -81,12 +81,35 @@ class WebSocketRunner {
         this.socket.onclose = this.onCloseFactory();
     }
 
-    getMessagesReceived(){
-        for (const message in this.messageReceivedQueue) {
-            console.log(message);
-        }
-        return this.messageReceivedQueue;
+    /** Waits for a received message matching the signature passed in
+     *
+     * @param signature an object of key/value pairs we'll wait for
+     * @return A promise that resolves if the message is received within timeout milliseconds,
+     * otherwise rejects
+     */
+    waitForReceivedMessage(signature, timeout){
+        return new Promise((resolve, reject) => {
+            const timeoutHandler = setTimeout(() => { reject(signature) }, timeout);
+            this.messageHanders.push((payload) => {
+                console.log("Received payload for matching:");
+                console.log(payload);
+                let stillMatching = true;
+                console.log("Matching against signature:");
+                console.log(signature);
+                for(const key of Object.keys(signature)){
+                    stillMatching &= (payload[key] === signature[key]);
+                }
+                if (stillMatching) {
+                    console.log("Found match");
+                    clearTimeout(timeoutHandler);
+                    resolve(payload);
+                    return true;
+                }
+                return false;
+            });
+        });
     }
+
 
     terminate(){
         // kill the reconnect handler and close the socket

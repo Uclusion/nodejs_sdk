@@ -39,16 +39,14 @@ module.exports = function(adminConfiguration) {
                 marketInvestibleId = bound.id;
                 return globalClient.investibles.delete(marketInvestibleId);
             }).then(() => {
-                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId}, 3000);
+            }).then(() => {
                 return globalClient.investibles.delete(investibleTemplateId);
             }).then((bound) => {
                 return sleep(10000);
             }).then(() => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).then(() => {
-                const messages = webSocketRunner.getMessagesReceived();
-                verifyExpectedMessages(messages, expectedWebsocketMessages);
-                //close our websocket
                 webSocketRunner.terminate();
             }).catch(function(error) {
                 console.log(error);

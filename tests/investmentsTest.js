@@ -1,7 +1,7 @@
 import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 import { WebSocketRunner } from "../src/websocketRunner"
-import { verifyExpectedMessages, arrayEquals, sleep } from "./commonTestFunctions";
+import { arrayEquals, sleep } from "./commonTestFunctions";
 
 module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const fishOptions = {
@@ -12,7 +12,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
         new_user_grant: 313,
         new_team_grant: 457,
     };
-    const expectedWebsocketMessages = [];
     const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     const updateFish = {
         name: 'pufferfish',
@@ -78,10 +77,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((response) => {
                 return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 2000, ['fish', 'water']);
             }).then((response) => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_CREATED'}, 3000)
+                  .then((payload) => response);
+            }).then((response) => {
                 let investment = response.investment;
                 investmentId = investment.id;
                 marketInvestibleId = investment.investible_id;
-                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_CREATED', object_id: marketInvestibleId});
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
@@ -90,10 +91,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return sleep(25000);
             }).then((response) => {
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
+            }).then((response) => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'}, 3000)
+                  .then((payload) => response);
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.is_official === false, 'comment should not be official');
-                expectedWebsocketMessages.push({event_type: 'INVESTIBLE_COMMENT_UPDATED', object_id: comment.id});
                 return globalUserClient.investibles.updateComment(comment.id, 'new body');
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
@@ -145,7 +148,9 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalClient.investibles.updateInMarket(marketInvestibleId, globalMarketId, updateFish.name,
                     updateFish.description, updateFish.category_list, updateFish.label_list);
             }).then((response) => {
-                expectedWebsocketMessages.push({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId}, 3000)
+                  .then((payload) => response);
+            }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
                 assert(arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
@@ -188,12 +193,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(todaysSummary.unspent_shares === 10370, 'Unspent should be 10370 for the market summary');
                 assert(todaysSummary.num_users === 1, 'There should be one user in the market');
             }).then(() => {
-                const messages = webSocketRunner.getMessagesReceived();
-                verifyExpectedMessages(messages, expectedWebsocketMessages);
-                //we should have roughly 9 messages, though many will be duplicates because the same action was performed
-                assert(messages.length === 9, 'Wrong number of messages received on websocket');
-                //close our websocket
-                webSocketRunner.terminate();
+                return webSocketRunner.terminate();
             }).then(() => globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
