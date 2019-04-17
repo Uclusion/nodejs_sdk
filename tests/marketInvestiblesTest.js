@@ -49,6 +49,8 @@ module.exports = function(adminConfiguration) {
                 webSocketRunner.terminate();
             }).catch(function(error) {
                 console.log(error);
+                //close our websocket
+                webSocketRunner.terminate();
                 throw error;
             });
         }).timeout(30000);

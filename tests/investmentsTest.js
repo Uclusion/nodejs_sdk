@@ -204,6 +204,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).catch(function (error) {
                     console.log(error);
+                    //close our websocket
+                    webSocketRunner.terminate();
                     throw error;
             });
         }).timeout(120000);
