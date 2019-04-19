@@ -1,0 +1,17 @@
+{
+  "name": "market",
+  "version": "0.0.1",
+  "description": "Tell us how awesome we are.",
+  "preferGlobal": true,
+  "dependencies": {
+    "amazon-cognito-identity-js": "^2.0.11",
+    "esm": "^3.0.74",
+    "node-fetch": "^2.3.0",
+    "uclusion_authorizer_sdk": "file:../uclusion_authorizer_sdk",
+    "uclusion_sdk": "file:../uclusion_sdk"
+  },
+  "author": "David Israel",
+  "scripts": {
+    "provision": "node -r esm market.js"
+  }
+}
