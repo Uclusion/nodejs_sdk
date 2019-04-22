@@ -90,6 +90,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 // Workaround for investors coming up empty and so comment create not allowed plus make sure ROI has time
                 return sleep(25000);
             }).then((response) => {
+                return globalClient.investibles.getInvestingTeams(marketInvestibleId);
+            }).then((teams) => {
+                let team = teams[0];
+                assert(team.invested_quantity === 2000, 'Quantity invested should be 2000');
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((response) => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'}, 3000)
