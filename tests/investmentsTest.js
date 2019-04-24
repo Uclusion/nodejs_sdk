@@ -77,9 +77,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((response) => {
                 return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 2000, ['fish', 'water']);
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_CREATED'}, 3000)
-                  .then((payload) => response);
-            }).then((response) => {
                 let investment = response.investment;
                 investmentId = investment.id;
                 marketInvestibleId = investment.investible_id;
@@ -130,19 +127,13 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(userPresence.quantity === 10370, 'Quantity should be 10370 instead of ' + userPresence.quantity);
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
-                // Give the investment refund time to kick in
-                return sleep(15000);
-            }).then((response) => {
-                return globalUserClient.users.get(userConfiguration.userId, globalMarketId);
-            }).then((user) => {
-                let userPresence = user.market_presence;
-                assert(userPresence.quantity === 12370, 'Quantity should be 12370 instead of ' + userPresence.quantity);
+                const responseJson = JSON.stringify(response);
+                assert(responseJson.includes('Investment from prior stage'), 'Error message is wrong');
                 return globalClient.teams.get(globalUserTeamId);
             }).then((response) => {
                 return globalUserClient.users.get(response.team.user_id, globalMarketId);
             }).then((teamUser) => {
                 assert(teamUser.type === 'TEAM', 'Team user type incorrect');
-                // Ideally the team user would get back the 457 instead of it going to the investing user but not the case
                 let userPresence = teamUser.market_presence;
                 assert(userPresence.quantity === 274, 'Quantity should be 274 instead of ' + userPresence.quantity);
                 return globalClient.investibles.createCategory('poison', globalMarketId);
@@ -166,7 +157,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
-                assert(investible.quantity === 0, 'get market investible quantity incorrect');
+                assert(investible.quantity === 2000, 'get market investible quantity incorrect');
                 assert(investible.current_user_is_following === true, 'current_user_is_following should return true');
                 return globalClient.markets.listStages(globalMarketId);
             }).then((stages) => {
@@ -174,10 +165,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.markets.get(globalMarketId);
             }).then((market) => {
                 //console.log(market);
-                assert(market.active_investments === 0, 'active investments should be 0');
+                assert(market.active_investments === 2000, 'active investments should be 2000');
                 assert(market.users_in === numUsers, 'Counting team users there are ' + numUsers + ' users in this market');
                 assert(market.team_count === 1, 'One team in this market');
-                assert(market.unspent === 10370, 'unspent should be 10370 instead of ' + market.unspent);
+                assert(market.unspent === 8370, 'unspent should be 8370 instead of ' + market.unspent);
                 const current_stage = globalStages.find(stage => { return stage.name === 'Needs Review'});
                 const stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
                 let stateOptions = {
@@ -194,7 +185,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(summaries.market_id === globalMarketId);
                 assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
                 const todaysSummary = summaries.summaries[0];
-                assert(todaysSummary.unspent_shares === 10370, 'Unspent should be 10370 for the market summary');
+                assert(todaysSummary.unspent_shares === 8370, 'Unspent should be 10370 for the market summary');
                 assert(todaysSummary.num_users === 1, 'There should be one user in the market');
             }).then(() => {
                 return webSocketRunner.terminate();
@@ -205,7 +196,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 const next_stage = globalStages.find(stage => { return stage.name === 'Under Consideration'});
                 assert(investible.stage === current_stage.id, 'investible stage should be Needs Investment');
                 assert(investible.next_stage === next_stage.id, 'investible next stage should be Under Consideration');
-                assert(investible.next_stage_threshold === 1000, 'investible next stage threshold should be 1000');
+                assert(investible.next_stage_threshold === 3000, 'next stage threshold should be 3000 instead of ' + investible.next_stage_threshold);
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
                 assert(investible.open_for_editing === true, 'open_for_editing true');
