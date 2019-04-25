@@ -8,7 +8,6 @@ module.exports = function(adminConfiguration) {
         name : 'Default',
         description: 'This is default.',
         trending_window: 2,
-        manual_roi: false,
         new_user_grant: 313,
         new_team_grant: 457
     };
@@ -39,7 +38,7 @@ module.exports = function(adminConfiguration) {
                 marketInvestibleId = bound.id;
                 return globalClient.investibles.delete(marketInvestibleId);
             }).then(() => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId}, 3000);
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId}, 9000);
             }).then(() => {
                 return globalClient.investibles.delete(investibleTemplateId);
             }).then((bound) => {

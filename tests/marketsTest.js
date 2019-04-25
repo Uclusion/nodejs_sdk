@@ -8,7 +8,6 @@ module.exports = function(adminConfiguration) {
         name : 'Default',
         description: 'This is default.',
         trending_window: 2,
-        manual_roi: false,
         new_user_grant: 313,
         new_team_grant: 457
     };
@@ -60,7 +59,6 @@ module.exports = function(adminConfiguration) {
                 assert(market.name === 'Default', 'Name is incorrect');
                 assert(market.description === 'This is default.', 'Description is incorrect');
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
-                assert(market.manual_roi === false, 'Roi is incorrect, should be false');
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.new_team_grant === 457, 'New team grant should match definition');
                 assert(market.new_user_grant === 313, 'New user grant should match definition');

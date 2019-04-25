@@ -7,7 +7,6 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
         name : 'Default',
         description: 'This is default.',
         trending_window: 2,
-        manual_roi: false,
         initial_next_stage: 'globaling',
         new_user_grant: 313,
         new_team_grant: 457

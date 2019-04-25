@@ -8,7 +8,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
         name: 'fish',
         description: 'this is a fish market',
         trending_window: 5,
-        manual_roi: false,
         new_user_grant: 313,
         new_team_grant: 457,
     };
@@ -84,8 +83,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                // Workaround for investors coming up empty and so comment create not allowed plus make sure ROI has time
-                return sleep(25000);
+                // Workaround for investors coming up empty and so comment create not allowed
+                return sleep(5000);
             }).then((response) => {
                 return globalClient.investibles.getInvestingTeams(marketInvestibleId);
             }).then((teams) => {
@@ -122,9 +121,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 9457	            9000	            API_INITIATED	        USER
                 7914	            -1543	            INVESTMENT	            USER
                 8096	            182	                NEW_TEAM_BONUS	        USER
-                10096               2000                ROI                     USER
                  */
-                assert(userPresence.quantity === 10370, 'Quantity should be 10370 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 8370, 'Quantity should be 8370 instead of ' + userPresence.quantity);
                 return globalUserClient.markets.deleteInvestment(globalMarketId, investmentId);
             }).then((response) => {
                 const responseJson = JSON.stringify(response);
@@ -185,7 +183,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(summaries.market_id === globalMarketId);
                 assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
                 const todaysSummary = summaries.summaries[0];
-                assert(todaysSummary.unspent_shares === 8370, 'Unspent should be 10370 for the market summary');
+                assert(todaysSummary.unspent_shares === 8370, 'Unspent should be 8370 for the market summary');
                 assert(todaysSummary.num_users === 1, 'There should be one user in the market');
             }).then(() => {
                 return webSocketRunner.terminate();
