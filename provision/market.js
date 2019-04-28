@@ -60,7 +60,6 @@ const authorizer = new AnonymousAuthorizer({
 let globalClient;
 let globalUserClient;
 let globalMarketId;
-let globalInvestibleId;
 let globalUserTeamId;
 const date = new Date();
 const timestamp = date.getTime();
@@ -96,7 +95,47 @@ authorizer.cognitoAccountCreate({ accountName, name: 'Test Account',
 }).then((response) => {
     globalUserTeamId = response.team_id;
     return globalClient.teams.bind(globalUserTeamId, globalMarketId);
-}).then((response) => {
+}).then(() => {
+    return globalClient.teams.create('Team 1', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 2', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 3', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 4', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 5', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 6', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 7', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 8', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 9', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
+    return globalClient.teams.create('Team 10', 'For testing display of more teams');
+}).then((team) => {
+    return globalClient.teams.bind(team.id, globalMarketId);
+}).then(() => {
     return sleep(5000);
 }).then((response) => {
     return globalClient.users.grant(userConfiguration.userId, globalMarketId, 9000);
