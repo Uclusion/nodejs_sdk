@@ -74,7 +74,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Long sleep to give async processing time to complete for stages
                 return sleep(20000);
             }).then((result) => {
-                return globalUserClient.markets.listUserInvestments(globalMarketId, userConfiguration.userId, 10000);
+                return globalUserClient.markets.listUserInvestments(globalMarketId, userConfiguration.userId);
             }).then((result) => {
                 return globalClient.markets.listStages(globalMarketId);
             }).then((stages) => {
@@ -95,7 +95,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(listed_team.current_user_is_following === true, 'this team current_user_is_following should return true');
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
                 assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
-                return globalClient.markets.listUserInvestments(globalMarketId, listed_team.user_id, 10000);
+                return globalClient.markets.summarizeUserInvestments(globalMarketId, listed_team.user_id);
             }).then((result) => {
                 let investment = result[0];
                 assert(investment.quantity === 6001, 'invested quantity should be 6001 instead of ' + investment.quantity);
