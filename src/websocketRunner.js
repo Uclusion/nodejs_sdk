@@ -87,21 +87,24 @@ class WebSocketRunner {
      * @return A promise that resolves if the message is received within timeout milliseconds,
      * otherwise rejects
      */
-    waitForReceivedMessage(signature, timeout){
+    waitForReceivedMessage(signature){
+        console.log("Waiting on message signature:");
+        console.log(signature);
+
         return new Promise((resolve, reject) => {
-            const timeoutHandler = setTimeout(() => { reject(signature) }, timeout);
+       //     const timeoutHandler = setTimeout(() => { reject(signature) }, timeout);
             this.messageHanders.push((payload) => {
                 console.log("Received payload for matching:");
                 console.log(payload);
                 let stillMatching = true;
-                console.log("Matching against signature:");
+                console.log("Testing message against signature:");
                 console.log(signature);
                 for(const key of Object.keys(signature)){
                     stillMatching &= (payload[key] === signature[key]);
                 }
                 if (stillMatching) {
                     console.log("Found match");
-                    clearTimeout(timeoutHandler);
+        //            clearTimeout(timeoutHandler);
                     resolve(payload);
                     return true;
                 }
