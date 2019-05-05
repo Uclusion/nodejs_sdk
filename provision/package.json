@@ -12,6 +12,7 @@
   },
   "author": "David Israel",
   "scripts": {
-    "provision": "node -r esm market.js"
+    "provision": "node -r esm market.js",
+    "clone": "node -r esm clone.js"
   }
 }
