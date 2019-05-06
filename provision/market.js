@@ -1,33 +1,16 @@
 import fetch from 'node-fetch';
 import {AnonymousAuthorizer, CognitoAuthorizer} from "uclusion_authorizer_sdk";
 import {uclusion} from "../src/uclusion";
+import { createMarketTeams } from "./market_users";
+import { createInvestibles } from "./market_investibles";
+import {
+    adminAuthorizerConfiguration, userAuthorizerConfiguration,
+    userConfiguration, adminConfiguration,
+    loginUser
+} from "./login_utils";
+
 global.fetch = fetch;
 
-const adminConfiguration = {
-    baseURL:  'https://dev.api.uclusion.com/v1',
-    websocketURL: 'wss://dev.ws.uclusion.com/v1'
-};
-
-const userConfiguration = {
-    baseURL:  'https://dev.api.uclusion.com/v1',
-    websocketURL: 'wss://dev.ws.uclusion.com/v1'
-};
-
-const adminAuthorizerConfiguration = {
-    username: 'testeruclusion@gmail.com',
-    password: 'Uclusi0n_test',
-    poolId: 'us-west-2_NVPcNPhKS',
-    clientId: '4knr08iqujrprrkpimqm04dnp',
-    baseURL:  'https://dev.api.uclusion.com/v1',
-};
-
-const userAuthorizerConfiguration = {
-    username: '827hooshang@gmail.com',
-    password: 'Uclusi0n_test',
-    poolId: 'us-west-2_NVPcNPhKS',
-    clientId: '4knr08iqujrprrkpimqm04dnp',
-    baseURL:  'https://dev.api.uclusion.com/v1',
-};
 
 function sleep(ms) {
     return new Promise(resolve=>{
@@ -35,22 +18,15 @@ function sleep(ms) {
     })
 }
 
-function createInvestibles(userClient, marketId, teamId) {
-    let i;
-    for (i = 0; i < 100; i++) {
-        console.log('Provisioning investible ' + i);
-        let promise = userClient.investibles.create('Provisioning ' + i,
-            'To see if working for ' + i);
-        promise.then((response) => {
-            return userClient.markets.investAndBind(marketId, teamId, response.id, 10,
-                ['Category ' + (Math.floor(Math.random() * 10) + 1)]);
-        }).then(() => {
-            return sleep(1500);
-        }).catch(function(error) {
-            console.log(error);
-            throw error;
-        });
-    }
+function investInInvestible(userEmail, marketId, investibleId, quantity){
+    const clientPromise = loginUser(userEmail);
+    let userClient = null;
+    return clientPromise.then((client) => {
+        userClient = client;
+        return userClient.users.get();
+    }).then((user) => {
+        userClient.markets.createInvestment(marketId, investibleId, user.team_id, quantity);
+    });
 }
 
 const authorizer = new AnonymousAuthorizer({
@@ -95,48 +71,8 @@ authorizer.cognitoAccountCreate({ accountName, name: 'Test Account',
 }).then((response) => {
     globalUserTeamId = response.team_id;
     return globalClient.teams.bind(globalUserTeamId, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 1', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 2', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 3', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 4', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 5', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 6', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 7', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 8', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 9', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return globalClient.teams.create('Team 10', 'For testing display of more teams');
-}).then((team) => {
-    return globalClient.teams.bind(team.id, globalMarketId);
-}).then(() => {
-    return sleep(5000);
+}).then((repsponse) => {
+    return createMarketTeams(globalClient, globalMarketId);
 }).then((response) => {
     return globalClient.users.grant(userConfiguration.userId, globalMarketId, 9000);
 }).then((response) => {
@@ -160,7 +96,7 @@ authorizer.cognitoAccountCreate({ accountName, name: 'Test Account',
 }).then((response) => {
     return globalClient.investibles.createCategory('Category 10', globalMarketId);
 }).then(() => {
-    return createInvestibles(globalUserClient, globalMarketId, globalUserTeamId);
+    return createInvestibles('827hooshang@gmail.com', globalMarketId);
 }).catch(function(error) {
     console.log(error);
     throw error;
