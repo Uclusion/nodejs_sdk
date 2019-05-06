@@ -1,8 +1,8 @@
 import { sleep } from "../tests/commonTestFunctions";
 
-const numUsers = 1;
+const numUsers = 100;
 const medianSize = 5;
-const fixedAllocations = [1]; //[1, 5, 10, 15]; // 31 users reserved for fixed distribution
+const fixedAllocations = [1, 5, 10, 15]; // 31 users reserved for fixed distribution
 
 const baseUserPattern = 'tuser+[id]@uclusion.com';
 
@@ -37,13 +37,14 @@ function bucketizeUsers() {
   });
   while (i < numUsers) {
     //now randomly create stuff with a distribution centered on 5 (eg, rand 1 to 10)
-    let randSize = (Math.random() * 10) + 1;
+    let randSize = Math.floor((Math.random() * 10)) + 1;
     if ((randSize + i) >= numUsers) {
       randSize = numUsers - i;
     }
     buckets.push(createBucket(randSize, i));
     i += randSize;
   }
+  //console.log(buckets);
   return buckets;
 }
 
@@ -57,6 +58,7 @@ export function createMarketTeams(client, marketId) {
     teamIndex += 1;
     let teamId = null;
     promiseChain = promiseChain.then((result) => {
+      console.log("Creating team " + teamName + " with description " + teamDescription);
       return client.teams.create(teamName, teamDescription)
     }).then((team) => {
           teamId = team.id;

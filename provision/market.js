@@ -1,8 +1,8 @@
 import fetch from 'node-fetch';
 import {AnonymousAuthorizer, CognitoAuthorizer} from "uclusion_authorizer_sdk";
 import {uclusion} from "../src/uclusion";
-import { createMarketTeams } from "./market_users";
-import { createInvestibles } from "./market_investibles";
+import { createMarketTeams, getUserList } from "./market_users";
+import { createInvestibles, investRandomly } from "./market_investibles";
 import {
     adminAuthorizerConfiguration, userAuthorizerConfiguration,
     userConfiguration, adminConfiguration,
@@ -95,8 +95,11 @@ authorizer.cognitoAccountCreate({ accountName, name: 'Test Account',
     return globalClient.investibles.createCategory('Category 9', globalMarketId);
 }).then((response) => {
     return globalClient.investibles.createCategory('Category 10', globalMarketId);
-}).then(() => {
-    return createInvestibles('827hooshang@gmail.com', globalMarketId);
+}).then((categories) => {
+    return createInvestibles('827hooshang@gmail.com', globalMarketId, 100);
+}).then((investibles) => {
+    const userList = getUserList();
+    return investRandomly(userList, globalMarketId, 150);
 }).catch(function(error) {
     console.log(error);
     throw error;
