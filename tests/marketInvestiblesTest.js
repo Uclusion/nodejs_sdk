@@ -1,6 +1,4 @@
-import assert from 'assert'
 import {uclusion} from "../src/uclusion";
-import {verifyExpectedMessages, sleep} from "./commonTestFunctions";
 import {WebSocketRunner} from "../src/websocketRunner";
 
 module.exports = function(adminConfiguration) {
@@ -41,8 +39,6 @@ module.exports = function(adminConfiguration) {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId}, 9000);
             }).then(() => {
                 return globalClient.investibles.delete(investibleTemplateId);
-            }).then((bound) => {
-                return sleep(10000);
             }).then(() => {
                 return globalClient.markets.deleteMarket(globalMarketId);
             }).then(() => {
@@ -53,6 +49,6 @@ module.exports = function(adminConfiguration) {
                 webSocketRunner.terminate();
                 throw error;
             });
-        }).timeout(30000);
+        }).timeout(60000);
     });
 };
