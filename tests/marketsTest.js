@@ -22,7 +22,6 @@ module.exports = function(adminConfiguration) {
         appears_in_market_summary: true,
         allows_investment: true,
         allows_refunds: false,
-        allows_editing: false,
         visible_to_roles: ['MarketAnonymousUser', 'MarketUser']
     };
 

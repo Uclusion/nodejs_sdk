@@ -17,7 +17,6 @@ export const verifyStage = (expected, received) => {
         assert(received.visible_to_roles.includes(role), "Sshould have included role " + role);
     }
     assert(expected.allows_refunds === received.allows_refunds, 'Stage has wrong allows refunds');
-    assert(expected.allows_editing === received.allows_refunds, 'Stage has wrong allows editing');
 };
 
 export const verifyExpectedMessages = (messageQueue, expectedWebsocketMessages) => {
