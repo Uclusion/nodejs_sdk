@@ -24,13 +24,14 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 return uclusion.constructClient(adminConfiguration);
             }).then((client) => {
                 globalClient = client;
-                return client.users.update('Daniel');
+                return client.users.update('Daniel', undefined, undefined, '{ "code": "red" }');
             }).then((response) => {
                 assert(response.success_message === 'User updated', 'User update was not successful');
                 return globalClient.users.get(adminConfiguration.userId);
             }).then((user) => {
                 assert(adminConfiguration.userId === user.id, 'Fetched user did not match me');
                 assert(user.name === 'Daniel', 'Name not updated properly');
+                assert(user.ui_preferences === '{ "code": "red" }', 'UI preferences not updated properly');
                 return globalClient.users.update('Default');
             }).then((response) => {
                 assert(response.success_message === 'User updated', 'Update not successful');
