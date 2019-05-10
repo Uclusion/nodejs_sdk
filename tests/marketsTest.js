@@ -6,7 +6,6 @@ module.exports = function(adminConfiguration) {
     const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];
     const marketOptions = {
         name : 'Default',
-        description: 'This is default.',
         trending_window: 2,
         new_user_grant: 313,
         new_team_grant: 457
