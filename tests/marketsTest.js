@@ -56,7 +56,6 @@ module.exports = function(adminConfiguration) {
                 return globalClient.markets.get(globalMarketId);
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
-                assert(market.description === 'This is default.', 'Description is incorrect');
                 assert(market.trending_window === 2, 'Trending window is incorrect, should be 2');
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.new_team_grant === 457, 'New team grant should match definition');
