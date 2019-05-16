@@ -13,8 +13,7 @@ module.exports = function(adminConfiguration) {
     const updateOptions = {
         name : 'fish',
         description: 'this is a fish market',
-        trending_window: 5,
-        is_public_signup: true
+        trending_window: 5
     };
 
     const stageInfo = {
