@@ -49,7 +49,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return globalUserClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 globalInvestibleId = response.id;
-                console.log('Investible ID is ' + globalInvestibleId);
                 return globalUserClient.users.get(userConfiguration.userId);
             }).then((response) => {
                 globalUserTeamId = response.team_id;
@@ -79,6 +78,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 let investment = response.investment;
                 investmentId = investment.id;
                 marketInvestibleId = investment.investible_id;
+                console.log('Investible ID is ' + marketInvestibleId);
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
@@ -90,6 +90,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((teams) => {
                 let team = teams[0];
                 assert(team.invested_quantity === 2000, 'Quantity invested should be 2000');
+                return globalClient.investibles.getWorkgroup(marketInvestibleId);
+            }).then((users) => {
+                let user = users[0];
+                assert(user.quantity_invested === 2000, 'Quantity invested should be 2000');
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((response) => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'}, 3000)
