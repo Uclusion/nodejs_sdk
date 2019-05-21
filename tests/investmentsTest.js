@@ -169,7 +169,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 //console.log(market);
                 assert(market.active_investments === 2000, 'active investments should be 2000');
                 assert(market.users_in === numUsers, 'Counting team users there are ' + numUsers + ' users in this market');
-                assert(market.team_count === 1, 'One team in this market');
+                assert(market.team_count === 2, 'Two teams in this market');
                 assert(market.unspent === 8370, 'unspent should be 8370 instead of ' + market.unspent);
                 const current_stage = globalStages.find(stage => { return stage.name === 'Needs Review'});
                 const stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});

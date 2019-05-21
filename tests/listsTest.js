@@ -83,7 +83,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((response) => {
                 assert(response.teams_followed.includes(globalUserTeamId), 'Follow team unsuccessful');
                 return globalClient.teams.list(globalMarketId);
-            }).then((result) => {
+            }).then((teams) => {
                 /*
                 450	    450	    NEW_TEAM_GRANT	USER
                 10450	10000	API_INITIATED	USER
@@ -91,7 +91,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 0	    -450	INVESTMENT	    TEAM
                 4899	-5551	INVESTMENT	    USER
                 */
-                listed_team = result[0];
+                listed_team = teams.find(team => { return team.id === globalUserTeamId});
                 assert(listed_team.current_user_is_following === true, 'this team current_user_is_following should return true');
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
                 assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
