@@ -137,7 +137,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((teamUser) => {
                 assert(teamUser.type === 'TEAM', 'Team user type incorrect');
                 let userPresence = teamUser.market_presence;
-                assert(userPresence.quantity === 274, 'Quantity should be 274 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === 274, 'Quantity should be 274 instead of ' + userPresence.quantity + ' for ' + teamUser.id);
                 return globalClient.investibles.createCategory('poison', globalMarketId);
             }).then((response) => {
                 return globalClient.investibles.createCategory('chef', globalMarketId);
@@ -201,7 +201,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.next_stage_threshold === 3000, 'next stage threshold should be 3000 instead of ' + investible.next_stage_threshold);
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
-                assert(investible.open_for_editing === true, 'open_for_editing true');
                 assert(investible.is_active === true, 'is_active true');
                 return globalUserClient.investibles.delete(globalInvestibleId);
             }).then(() => {
