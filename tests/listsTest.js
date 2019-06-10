@@ -1,8 +1,9 @@
 import assert from 'assert'
 import { checkStages } from "./commonTestFunctions";
 import {uclusion} from "../src/uclusion";
+import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
 
-module.exports = function(adminConfiguration, userConfiguration) {
+module.exports = function(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
     const butterOptions = {
         name : 'butter',
         description: 'this is a butter market'
@@ -15,7 +16,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let userPromise = uclusion.constructClient(userConfiguration);
             let globalClient;
             let globalUserClient;
-            let globalMarketId;
             let globalInvestibleId;
             let globalCSMInvestibleId;
             let globalCSMMarketInvestibleId;
@@ -24,15 +24,31 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let globalUserTeamId;
             let listed_team;
             let globalStages;
-            await userPromise.then((client) => {
-                globalUserClient = client;
-                return promise;
-            }).then((client) => {
-                globalClient = client;
+            let globalMarketId;
+            await promise.then((client) => {
                 return client.markets.createMarket(butterOptions);
             }).then((response) => {
+                const configuration = {...adminConfiguration};
+                const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
                 globalMarketId = response.market_id;
-                return globalClient.markets.listStages(globalMarketId);
+                adminAuthorizerConfig.marketId = response.market_id;
+                configuration.authorizer = new CognitoAuthorizer(adminAuthorizerConfig);
+                return uclusion.constructClient(configuration);
+            }).then((client) => {
+                globalClient = client;
+                return globalClient.users.get(userConfiguration.userId);
+            }).then((response) => {
+                globalUserTeamId = response.team_id;
+                return globalClient.teams.bind(globalUserTeamId);
+            }).then((client) => {
+                const userConfig = {...userConfiguration};
+                const userAuthorizerConfig = {...userAuthorizerConfiguration};
+                userAuthorizerConfig.marketId = globalMarketId;
+                userConfig.authorizer = new CognitoAuthorizer(userAuthorizerConfig);
+                return uclusion.constructClient(userConfig);
+            }).then((client) => {
+                globalUserClient = client;
+                return globalClient.markets.listStages();
             }).then((stageList) => {
                 checkStages(adminExpectedStageNames, stageList);
                 return globalUserClient.investibles.create('butter', 'good on bagels');
@@ -41,29 +57,24 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return globalClient.investibles.create('peanut butter', 'good with jelly');
             }).then((response) => {
                 globalCSMInvestibleId = response.id;
-                return globalClient.investibles.createCategory('sandwich', globalMarketId);
+                return globalClient.investibles.createCategory('sandwich');
             }).then((response) => {
-                return globalClient.investibles.bindToMarket(globalCSMInvestibleId, globalMarketId, ['sandwich']);
+                return globalClient.investibles.bindToMarket(globalCSMInvestibleId, ['sandwich']);
             }).then((investible) => {
                 globalCSMMarketInvestibleId = investible.id;
                 assert(investible.name === 'peanut butter', 'name not passed on correctly');
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
-                return globalUserClient.users.get(userConfiguration.userId);
+                return globalClient.users.grant(userConfiguration.userId, 10000);
             }).then((response) => {
-                globalUserTeamId = response.team_id;
-                return globalClient.teams.bind(globalUserTeamId, globalMarketId);
+                return globalClient.investibles.createCategory('salted');
             }).then((response) => {
-                return globalClient.users.grant(userConfiguration.userId, globalMarketId, 10000);
-            }).then((response) => {
-                return globalClient.investibles.createCategory('salted', globalMarketId);
-            }).then((response) => {
-                return globalClient.investibles.createCategory('unsalted', globalMarketId);
+                return globalClient.investibles.createCategory('unsalted');
             }).then((response) => {
                 // Give async processing time to complete - including the grants to user and team
                 // Otherwise the team 450 can't be used an the numbers come out wrong
                 return sleep(5000);
             }).then((response) => {
-                return globalUserClient.markets.investAndBind(globalMarketId, globalUserTeamId, globalInvestibleId, 6001, ['salted', 'unsalted']);
+                return globalUserClient.markets.investAndBind(globalUserTeamId, globalInvestibleId, 6001, ['salted', 'unsalted']);
             }).then((response) => {
                 let investment = response.investment;
                 investmentId = investment.id;
@@ -74,15 +85,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Long sleep to give async processing time to complete for stages
                 return sleep(20000);
             }).then((result) => {
-                return globalUserClient.markets.listUserInvestments(globalMarketId, userConfiguration.userId);
+                return globalUserClient.markets.listUserInvestments(userConfiguration.userId);
             }).then((result) => {
-                return globalClient.markets.listStages(globalMarketId);
+                return globalClient.markets.listStages();
             }).then((stages) => {
                 globalStages = stages;
-                return globalClient.teams.followTeam(globalUserTeamId, globalMarketId);
+                return globalClient.teams.followTeam(globalUserTeamId);
             }).then((response) => {
                 assert(response.teams_followed.includes(globalUserTeamId), 'Follow team unsuccessful');
-                return globalClient.teams.list(globalMarketId);
+                return globalClient.teams.list();
             }).then((teams) => {
                 /*
                 450	    450	    NEW_TEAM_GRANT	USER
@@ -95,11 +106,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(listed_team.current_user_is_following === true, 'this team current_user_is_following should return true');
                 assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
                 assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
-                return globalClient.markets.summarizeUserInvestments(globalMarketId, listed_team.user_id);
+                return globalClient.markets.summarizeUserInvestments(listed_team.user_id);
             }).then((result) => {
                 let investment = result[0];
                 assert(investment.quantity === 6001, 'invested quantity should be 6001 instead of ' + investment.quantity);
-                return globalUserClient.markets.listInvestibles(globalMarketId);
+                return globalUserClient.markets.listInvestibles();
             }).then((result) => {
                 let categories = result.categories;
                 assert(categories.length === 3, 'should be 3 categories instead of ' + categories.length);
@@ -111,7 +122,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === marketInvestibleId;
                 });
                 assert(investible.id === marketInvestibleId, 'should find the investible');
-                return globalUserClient.markets.getMarketInvestibles(globalMarketId, [marketInvestibleId, globalCSMMarketInvestibleId]);
+                return globalUserClient.markets.getMarketInvestibles([marketInvestibleId, globalCSMMarketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
                     return obj.id === marketInvestibleId;
@@ -135,10 +146,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return globalClient.investibles.delete(globalCSMMarketInvestibleId);
             }).then((response) => {
                 assert(response.success_message === 'Investible deleted', 'Investible delete not successful');
-                return globalClient.investibles.deleteCategory('sandwich', globalMarketId);
+                return globalClient.investibles.deleteCategory('sandwich');
             }).then((response) => {
                 assert(response.success_message === 'Category deleted', 'Category delete not successful');
-                return globalClient.markets.deleteMarket(globalMarketId);
+                return globalClient.markets.deleteMarket();
             }).catch(function(error) {
                 console.log(error);
                 throw error;

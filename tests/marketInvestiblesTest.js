@@ -1,7 +1,8 @@
 import {uclusion} from "../src/uclusion";
 import {WebSocketRunner} from "../src/websocketRunner";
+import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
 
-module.exports = function(adminConfiguration) {
+module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
@@ -17,21 +18,26 @@ module.exports = function(adminConfiguration) {
             let globalClient;
             let investibleTemplateId;
             let globalMarketId;
-            let globalStageId;
             let marketInvestibleId;
             await promise.then((client) => {
-                globalClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
+                const configuration = {...adminConfiguration};
+                const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
+                adminAuthorizerConfig.marketId = response.market_id;
+                configuration.authorizer = new CognitoAuthorizer(adminAuthorizerConfig);
                 globalMarketId = response.market_id;
+                return uclusion.constructClient(configuration);
+            }).then((client) => {
+                globalClient = client;
                 webSocketRunner.connect();
                 webSocketRunner.subscribe(adminConfiguration.userId, { market_id : globalMarketId });
                 return globalClient.investibles.create('salmon', 'good on bagels');
             }).then((investible) => {
                 investibleTemplateId = investible.id;
-                return globalClient.investibles.createCategory('foo', globalMarketId);
+                return globalClient.investibles.createCategory('foo');
             }).then((category) => {
-                return globalClient.investibles.bindToMarket(investibleTemplateId, globalMarketId, ['foo']);
+                return globalClient.investibles.bindToMarket(investibleTemplateId, ['foo']);
             }).then((bound) => {
                 marketInvestibleId = bound.id;
                 return globalClient.investibles.delete(marketInvestibleId);
@@ -40,7 +46,7 @@ module.exports = function(adminConfiguration) {
             }).then(() => {
                 return globalClient.investibles.delete(investibleTemplateId);
             }).then(() => {
-                return globalClient.markets.deleteMarket(globalMarketId);
+                return globalClient.markets.deleteMarket();
             }).then(() => {
                 webSocketRunner.terminate();
             }).catch(function(error) {

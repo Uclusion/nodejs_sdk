@@ -30,11 +30,11 @@ const userAuthorizerConfiguration = {
 describe('uclusion', () => {
     require('../tests/usersTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration);
     require('../tests/ssoTest.js')(adminConfiguration, adminAuthorizerConfiguration);
-    require('../tests/marketsTest.js')(adminConfiguration);
-    require('../tests/marketInvestiblesTest')(adminConfiguration);
+    require('../tests/marketsTest.js')(adminConfiguration, adminAuthorizerConfiguration);
+    require('../tests/marketInvestiblesTest')(adminConfiguration, adminAuthorizerConfiguration);
     require('../tests/investiblesTest.js')(userConfiguration);
-    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, 4);
-    require('../tests/listsTest.js')(adminConfiguration, userConfiguration);
+    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration, 4);
+    require('../tests/listsTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration);
 });
 
 

@@ -13,7 +13,7 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
             const timestamp = date.getTime();
             const accountName = 'TestAccount' + timestamp;
             await authorizer.cognitoAccountCreate({ accountName, name: 'Test Account',
-                email: adminAuthorizerConfiguration.username }).then((response) => {
+                email: adminAuthorizerConfiguration.username, tier: 'Advanced' }).then((response) => {
                 adminAuthorizerConfiguration.accountId = response.account.id;
                 userAuthorizerConfiguration.accountId = response.account.id;
                 adminConfiguration.userId = response.user.id;
@@ -27,7 +27,7 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 return client.users.update('Daniel', undefined, undefined, '{ "code": "red" }');
             }).then((response) => {
                 assert(response.success_message === 'User updated', 'User update was not successful');
-                return globalClient.users.get(adminConfiguration.userId);
+                return globalClient.users.get();
             }).then((user) => {
                 assert(adminConfiguration.userId === user.id, 'Fetched user did not match me');
                 assert(user.name === 'Daniel', 'Name not updated properly');

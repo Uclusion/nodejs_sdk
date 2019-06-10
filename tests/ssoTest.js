@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { UclusionSSO } from 'uclusion_authorizer_sdk';
+import {CognitoAuthorizer, UclusionSSO} from 'uclusion_authorizer_sdk';
 import {uclusion} from "../src/uclusion";
 
 module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
@@ -18,11 +18,16 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
             let globalClient;
             let globalMarketId;
             await promise.then((client) => {
-                globalClient = client;
                 return client.markets.createMarket(marketOptions);
-            }).then((market) => {
-                //console.log(market);
-                globalMarketId = market.market_id;
+            }).then((response) => {
+                const configuration = {...adminConfiguration};
+                const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
+                adminAuthorizerConfig.marketId = response.market_id;
+                configuration.authorizer = new CognitoAuthorizer(adminAuthorizerConfig);
+                globalMarketId = response.market_id;
+                return uclusion.constructClient(configuration);
+            }).then((client) => {
+                globalClient = client;
                 return sso.marketLoginInfo(globalMarketId)
             }).then((login_info) => {
                 //console.log(login_info);
@@ -32,7 +37,7 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 assert(login_info.allow_anonymous === false, 'Anonymous logins should not be supported on this market');
                 assert(login_info.user_pool_id === adminAuthorizerConfiguration.poolId, 'Cognito pool should match the authorizer pool');
                 assert(login_info.cognito_client_id === adminAuthorizerConfiguration.clientId, 'Cognito client id should match the authorizer client id');
-                return globalClient.teams.bindAnonymous(globalMarketId);
+                return globalClient.teams.bindAnonymous();
             }).then((marketTeam) => {
                 assert(marketTeam.market_id === globalMarketId, 'Should be an anonymous team in this market now');
                 return sso.marketLoginInfo(globalMarketId)
@@ -41,7 +46,7 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 return sso.marketAnonymousLogin(globalMarketId);
             }).then((login) => {
                 assert(login.market_id === globalMarketId, 'Anonymous logins should work for this market');
-                return globalClient.markets.deleteMarket(globalMarketId);
+                return globalClient.markets.deleteMarket();
             }).catch(function(error) {
                 console.log(error);
                 throw error;
