@@ -1,3 +1,4 @@
+import assert from 'assert'
 import {uclusion} from "../src/uclusion";
 import {WebSocketRunner} from "../src/websocketRunner";
 import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
@@ -37,12 +38,24 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 investibleTemplateId = investible.id;
                 return globalClient.investibles.createCategory('foo');
             }).then((category) => {
+                return globalClient.markets.updateMarket({active: false});
+            }).then(() => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
+            }).then((category) => {
+                return globalClient.investibles.bindToMarket(investibleTemplateId, ['foo']);
+            }).then((response) => {
+                const responseJson = JSON.stringify(response);
+                assert(responseJson.includes('Market inactive'), 'Wrong response = ' + responseJson);
+                return globalClient.markets.updateMarket({active: true});
+            }).then(() => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
+            }).then(() => {
                 return globalClient.investibles.bindToMarket(investibleTemplateId, ['foo']);
             }).then((bound) => {
                 marketInvestibleId = bound.id;
                 return globalClient.investibles.delete(marketInvestibleId);
             }).then(() => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId}, 9000);
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
             }).then(() => {
                 return globalClient.investibles.delete(investibleTemplateId);
             }).then(() => {
