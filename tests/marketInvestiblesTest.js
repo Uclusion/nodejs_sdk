@@ -1,4 +1,4 @@
-import {uclusion} from "../src/uclusion";
+import uclusion from 'uclusion_sdk';
 import {WebSocketRunner} from "../src/websocketRunner";
 import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
 

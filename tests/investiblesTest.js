@@ -1,5 +1,5 @@
 import assert from 'assert'
-import {uclusion} from "../src/uclusion";
+import uclusion from 'uclusion_sdk';
 
 module.exports = function(userConfiguration) {
     describe('#doCreateInvestible, ', () => {

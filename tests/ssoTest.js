@@ -1,6 +1,6 @@
-import assert from 'assert'
-import {CognitoAuthorizer, UclusionSSO} from 'uclusion_authorizer_sdk';
-import {uclusion} from "../src/uclusion";
+import assert from 'assert';
+import {CognitoAuthorizer} from 'uclusion_authorizer_sdk';
+import uclusion from 'uclusion_sdk';
 
 module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
     const marketOptions = {
@@ -13,7 +13,6 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
     };
     describe('#doPrelogin, ', () => {
         it('should retrieve login info without error', async () => {
-            let sso = new UclusionSSO(adminConfiguration.baseURL);
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
             let globalMarketId;
@@ -28,9 +27,9 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 return uclusion.constructClient(configuration);
             }).then((client) => {
                 globalClient = client;
-                return sso.marketLoginInfo(globalMarketId)
+                return uclusion.constructSSOClient(adminConfiguration).then(client => client.marketLoginInfo(globalMarketId));
             }).then((login_info) => {
-                //console.log(login_info);
+                console.log(login_info);
                 assert(login_info.ui_url, 'Markets should have a ui_url');
                 assert(login_info.allow_cognito, 'Cognito should be allowed on this test market');
                 assert(login_info.allow_user === false, 'User logins should not be supported on this market');
@@ -40,10 +39,10 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 return globalClient.teams.bindAnonymous();
             }).then((marketTeam) => {
                 assert(marketTeam.market_id === globalMarketId, 'Should be an anonymous team in this market now');
-                return sso.marketLoginInfo(globalMarketId)
+                return uclusion.constructSSOClient(adminConfiguration).then(client => client.marketLoginInfo(globalMarketId));
             }).then((login_info) => {
                 assert(login_info.allow_anonymous === true, 'Anonymous logins should be supported on this market');
-                return sso.marketAnonymousLogin(globalMarketId);
+                return uclusion.constructSSOClient(adminConfiguration).then(client => client.marketAnonymousLogin(globalMarketId));
             }).then((login) => {
                 assert(login.market_id === globalMarketId, 'Anonymous logins should work for this market');
                 return globalClient.markets.deleteMarket();
