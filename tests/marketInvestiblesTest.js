@@ -1,5 +1,5 @@
 import assert from 'assert'
-import {uclusion} from "../src/uclusion";
+import uclusion from 'uclusion_sdk';
 import {WebSocketRunner} from "../src/websocketRunner";
 import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
 
@@ -55,7 +55,7 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 marketInvestibleId = bound.id;
                 return globalClient.investibles.delete(marketInvestibleId);
             }).then(() => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId}, 9000);
             }).then(() => {
                 return globalClient.investibles.delete(investibleTemplateId);
             }).then(() => {
