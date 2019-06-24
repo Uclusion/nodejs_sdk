@@ -1,7 +1,7 @@
 import assert from 'assert'
-import { checkStages } from "./commonTestFunctions";
-import {uclusion} from "../src/uclusion";
-import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
+import { checkStages } from './commonTestFunctions';
+import uclusion from 'uclusion_sdk';
+import {CognitoAuthorizer} from 'uclusion_authorizer_sdk';
 
 module.exports = function(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
     const butterOptions = {
