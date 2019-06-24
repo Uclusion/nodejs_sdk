@@ -42,10 +42,13 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
             }).then((category) => {
-                return globalClient.investibles.bindToMarket(investibleTemplateId, ['foo']);
+                return globalClient.investibles.bindToMarket(investibleTemplateId, ['foo'])
+                    .catch(function(error) {
+                        assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
+                        return 'Market inactive';
+                    });
             }).then((response) => {
-                const responseJson = JSON.stringify(response);
-                assert(responseJson.includes('Market inactive'), 'Wrong response = ' + responseJson);
+                assert(response.includes('Market inactive'), 'Wrong response = ' + response);
                 return globalClient.markets.updateMarket({active: true});
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
