@@ -1,8 +1,8 @@
-import assert from 'assert'
-import {uclusion} from "../src/uclusion";
-import { WebSocketRunner } from "../src/websocketRunner"
-import { arrayEquals, sleep } from "./commonTestFunctions";
-import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
+import assert from 'assert';
+import uclusion from 'uclusion_sdk';
+import { WebSocketRunner } from '../src/websocketRunner';
+import { arrayEquals, sleep } from './commonTestFunctions';
+import {CognitoAuthorizer} from 'uclusion_authorizer_sdk';
 
 module.exports = function (adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration, numUsers) {
     const fishOptions = {

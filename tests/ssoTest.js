@@ -11,7 +11,7 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
         new_user_grant: 313,
         new_team_grant: 457
     };
-    describe('#doPrelogin, ', () => {
+    describe('#do sso tests, ', () => {
         it('should retrieve login info without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
