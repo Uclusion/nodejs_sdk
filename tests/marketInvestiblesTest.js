@@ -14,10 +14,9 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
     const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     const expectedWebsocketMessages = [];
     describe('#do market investible tests', () => {
-        it('create investible binding and deletion without error', async() => {
+        it('create investible and deletion without error', async() => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
-            let investibleTemplateId;
             let globalMarketId;
             let marketInvestibleId;
             await promise.then((client) => {
@@ -35,14 +34,12 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 webSocketRunner.subscribe(adminConfiguration.userId, { market_id : globalMarketId });
                 return globalClient.investibles.create('salmon', 'good on bagels');
             }).then((investible) => {
-                investibleTemplateId = investible.id;
-                return globalClient.investibles.createCategory('foo');
-            }).then((category) => {
+                marketInvestibleId = investible.id;
                 return globalClient.markets.updateMarket({active: false});
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
             }).then((category) => {
-                return globalClient.investibles.bindToMarket(investibleTemplateId, ['foo'])
+                return globalClient.investibles.delete(marketInvestibleId)
                     .catch(function(error) {
                         assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
                         return 'Market inactive';
@@ -53,14 +50,9 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
             }).then(() => {
-                return globalClient.investibles.bindToMarket(investibleTemplateId, ['foo']);
-            }).then((bound) => {
-                marketInvestibleId = bound.id;
                 return globalClient.investibles.delete(marketInvestibleId);
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId}, 9000);
-            }).then(() => {
-                return globalClient.investibles.delete(investibleTemplateId);
             }).then(() => {
                 return globalClient.markets.deleteMarket();
             }).then(() => {

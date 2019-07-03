@@ -16,7 +16,6 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
     const updateFish = {
         name: 'pufferfish',
         description: 'possibly poisonous',
-        category_list: ['poison', 'chef'],
         label_list: ['freshwater', 'spawning']
     };
 
@@ -27,7 +26,6 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
             let adminUserId;
             let globalUserClient;
             let globalMarketId;
-            let globalInvestibleId;
             let marketInvestibleId;
             let investmentId;
             let globalUserTeamId;
@@ -64,7 +62,8 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 globalUserClient = client;
                 return globalUserClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
-                globalInvestibleId = response.id;
+                marketInvestibleId = response.id;
+                console.log('Investible ID is ' + marketInvestibleId);
                 return sleep(5000);
             }).then((response) => {
                 return globalUserClient.users.get(userConfiguration.userId);
@@ -76,20 +75,13 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
             }).then((response) => {
                 return globalClient.users.grant(userConfiguration.userId, 9000);
             }).then((response) => {
-                return globalClient.investibles.createCategory('fish');
-            }).then((response) => {
-                return globalClient.investibles.createCategory('water');
-            }).then((response) => {
                 // Give async processing time to complete - including the grants to user and team
                 // Otherwise the team 457can't be used an the numbers come out wrong
                 return sleep(5000);
             }).then((response) => {
-                return globalUserClient.markets.investAndBind(globalUserTeamId, globalInvestibleId, 2000, ['fish', 'water']);
-            }).then((response) => {
-                let investment = response.investment;
+                return globalUserClient.markets.createInvestment(globalUserTeamId, marketInvestibleId, 2000);
+            }).then((investment) => {
                 investmentId = investment.id;
-                marketInvestibleId = investment.investible_id;
-                console.log('Investible ID is ' + marketInvestibleId);
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
@@ -149,26 +141,20 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 assert(teamUser.type === 'TEAM', 'Team user type incorrect');
                 let userPresence = teamUser.market_presence;
                 assert(userPresence.quantity === 274, 'Quantity should be 274 instead of ' + userPresence.quantity + ' for ' + teamUser.id);
-                return globalClient.investibles.createCategory('poison');
-            }).then((response) => {
-                return globalClient.investibles.createCategory('chef');
-            }).then((response) => {
-                return globalClient.investibles.updateInMarket(marketInvestibleId, updateFish.name,
-                    updateFish.description, updateFish.category_list, updateFish.label_list);
+                return globalClient.investibles.update(marketInvestibleId, updateFish.name,
+                    updateFish.description, updateFish.label_list);
             }).then((response) => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
                   .then((payload) => response);
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
-                assert(arrayEquals(response.category_list, ['poison', 'chef']), 'update market investible category list not passed on correctly');
                 assert(arrayEquals(response.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 return globalUserClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles[0];
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
-                assert(arrayEquals(investible.category_list, ['poison', 'chef']), 'get market investible category list incorrect');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 assert(investible.quantity === 2000, 'get market investible quantity incorrect');
                 assert(investible.current_user_is_following === true, 'current_user_is_following should return true');
@@ -213,8 +199,6 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
                 assert(investible.is_active === true, 'is_active true');
-                return globalUserClient.investibles.delete(globalInvestibleId);
-            }).then(() => {
                 return globalClient.markets.deleteMarket();
             }).catch(function (error) {
                     console.log(error);
