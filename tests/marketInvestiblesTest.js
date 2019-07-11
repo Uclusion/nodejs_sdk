@@ -12,7 +12,7 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
         new_team_grant: 457
     };
     const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
-    const expectedWebsocketMessages = [];
+    webSocketRunner.connect();
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
             let promise = uclusion.constructClient(adminConfiguration);
@@ -22,16 +22,15 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
             await promise.then((client) => {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
+                globalMarketId = response.market_id;
+                webSocketRunner.subscribe(adminConfiguration.userId, { market_id : globalMarketId });
                 const configuration = {...adminConfiguration};
                 const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
                 adminAuthorizerConfig.marketId = response.market_id;
                 configuration.authorizer = new CognitoAuthorizer(adminAuthorizerConfig);
-                globalMarketId = response.market_id;
                 return uclusion.constructClient(configuration);
             }).then((client) => {
                 globalClient = client;
-                webSocketRunner.connect();
-                webSocketRunner.subscribe(adminConfiguration.userId, { market_id : globalMarketId });
                 return globalClient.investibles.create('salmon', 'good on bagels');
             }).then((investible) => {
                 marketInvestibleId = investible.id;
@@ -63,6 +62,6 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 webSocketRunner.terminate();
                 throw error;
             });
-        }).timeout(90000);
+        }).timeout(240000);
     });
 };

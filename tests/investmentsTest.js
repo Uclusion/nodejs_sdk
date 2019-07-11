@@ -64,7 +64,7 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
             }).then((response) => {
                 marketInvestibleId = response.id;
                 console.log('Investible ID is ' + marketInvestibleId);
-                return sleep(5000);
+                return sleep(7000);
             }).then((response) => {
                 return globalUserClient.users.get(userConfiguration.userId);
             }).then((user) => {
@@ -79,27 +79,16 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 // Otherwise the team 457can't be used an the numbers come out wrong
                 return sleep(5000);
             }).then((response) => {
-                return globalUserClient.markets.createInvestment(globalUserTeamId, marketInvestibleId, 2000);
+                return globalUserClient.markets.updateInvestment(globalUserTeamId, marketInvestibleId, 2000, 0);
             }).then((investment) => {
                 investmentId = investment.id;
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                // Workaround for investors coming up empty and so comment create not allowed
-                return sleep(5000);
-            }).then((response) => {
-                return globalClient.investibles.getInvestingTeams(marketInvestibleId);
-            }).then((teams) => {
-                let team = teams[0];
-                assert(team.invested_quantity === 2000, 'Quantity invested should be 2000');
-                return globalClient.investibles.getWorkgroup(marketInvestibleId);
-            }).then((users) => {
-                let user = users[0];
-                assert(user.quantity_invested === 2000, 'Quantity invested should be 2000');
                 return globalUserClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'}, 3000)
+                return webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                   .then((payload) => response);
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
@@ -130,10 +119,6 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 8096	            182	                NEW_TEAM_BONUS	        USER
                  */
                 assert(userPresence.quantity === 8370, 'Quantity should be 8370 instead of ' + userPresence.quantity);
-                return globalUserClient.markets.deleteInvestment(investmentId);
-            }).then((response) => {
-                const responseJson = JSON.stringify(response);
-                assert(responseJson.includes('Investment from prior stage'), 'Error message is wrong');
                 return globalClient.teams.get(globalUserTeamId);
             }).then((response) => {
                 return globalUserClient.users.get(response.team.user_id);
@@ -186,6 +171,10 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 const todaysSummary = summaries.summaries[0];
                 assert(todaysSummary.unspent_shares === 8370, 'Unspent should be 8370 for the market summary');
                 assert(todaysSummary.num_users === 1, 'There should be one user in the market');
+                return globalUserClient.markets.updateInvestment(globalUserTeamId, marketInvestibleId, 0, 2000);
+            }).then((response) => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
+                    .then((payload) => response);
             }).then(() => {
                 return webSocketRunner.terminate();
             }).then(() => globalUserClient.markets.getMarketInvestibles([marketInvestibleId])
@@ -193,12 +182,13 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 let investible = investibles[0];
                 const current_stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
                 const next_stage = globalStages.find(stage => { return stage.name === 'Under Consideration'});
-                assert(investible.stage === current_stage.id, 'investible stage should be Needs Investment');
+                assert(investible.stage === current_stage.id, 'With ' + investible.quantity + ' investible stage should be Needs Investment ' + current_stage.id + ' instead of ' + investible.stage + ' which is ' + investible.stage_name);
                 assert(investible.next_stage === next_stage.id, 'investible next stage should be Under Consideration');
                 assert(investible.next_stage_threshold === 3000, 'next stage threshold should be 3000 instead of ' + investible.next_stage_threshold);
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
                 assert(investible.is_active === true, 'is_active true');
+                assert(investible.quantity === 0, 'investment should be updated to zero');
                 return globalClient.markets.deleteMarket();
             }).catch(function (error) {
                     console.log(error);
