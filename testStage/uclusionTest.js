@@ -32,7 +32,7 @@ describe('uclusion', () => {
     require('../tests/ssoTest.js')(adminConfiguration, adminAuthorizerConfiguration);
     require('../tests/marketsTest.js')(adminConfiguration, adminAuthorizerConfiguration);
     require('../tests/marketInvestiblesTest')(adminConfiguration, adminAuthorizerConfiguration);
-    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration, 4);
+    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration, 2);
     require('../tests/listsTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration);
 });
 

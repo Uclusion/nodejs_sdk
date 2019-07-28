@@ -8,9 +8,8 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
     const fishOptions = {
         name: 'fish',
         description: 'this is a fish market',
-        trending_window: 5,
-        new_user_grant: 313,
-        new_team_grant: 457,
+        expiration_minutes: 30,
+        new_user_grant: 313
     };
     const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     const updateFish = {
@@ -27,8 +26,6 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
             let globalUserClient;
             let globalMarketId;
             let marketInvestibleId;
-            let investmentId;
-            let globalUserTeamId;
             let globalStages;
             await promise.then((client) => {
                 globalClient = client;
@@ -46,9 +43,6 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
             }).then((client) => {
                 globalClient = client;
                 return globalClient.users.get(userConfiguration.userId);
-            }).then((response) => {
-                globalUserTeamId = response.team_id;
-                return globalClient.teams.bind(globalUserTeamId);
             }).then((response) => {
                 console.log('Market ID is ' + globalMarketId);
                 webSocketRunner.connect();
@@ -69,19 +63,16 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 return globalUserClient.users.get(userConfiguration.userId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                // 914 = 457 from new team, 457 from user who's part of team
-                assert(userPresence.quantity === 914, 'Quantity should be 914 instead of ' + userPresence.quantity);
+                assert(userPresence.quantity === fishOptions.new_user_grant, 'Quantity is ' + userPresence.quantity);
                 return user; // ignored anyways
             }).then((response) => {
                 return globalClient.users.grant(userConfiguration.userId, 9000);
             }).then((response) => {
-                // Give async processing time to complete - including the grants to user and team
-                // Otherwise the team 457can't be used an the numbers come out wrong
+                // Give async processing time to complete - including the grants to user
                 return sleep(5000);
             }).then((response) => {
-                return globalUserClient.markets.updateInvestment(globalUserTeamId, marketInvestibleId, 2000, 0);
+                return globalUserClient.markets.updateInvestment(marketInvestibleId, 2000, 0);
             }).then((investment) => {
-                investmentId = investment.id;
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
                 return globalUserClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
@@ -108,24 +99,7 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 return globalUserClient.users.get(userConfiguration.userId);
             }).then((user) => {
                 let userPresence = user.market_presence;
-                /*
-                new_quantity (N)	quantity_change (N)	transaction_type (S)	user_type (S)
-                457	                457	                NEW_TEAM_GRANT	        TEAM
-                0	                -457	            INVESTMENT	            TEAM
-                274	                274	                REFERRING_TEAM	        TEAM
-                457	                457	                NEW_TEAM_GRANT	        USER
-                9457	            9000	            API_INITIATED	        USER
-                7914	            -1543	            INVESTMENT	            USER
-                8096	            182	                NEW_TEAM_BONUS	        USER
-                 */
-                assert(userPresence.quantity === 8370, 'Quantity should be 8370 instead of ' + userPresence.quantity);
-                return globalClient.teams.get(globalUserTeamId);
-            }).then((response) => {
-                return globalUserClient.users.get(response.team.user_id);
-            }).then((teamUser) => {
-                assert(teamUser.type === 'TEAM', 'Team user type incorrect');
-                let userPresence = teamUser.market_presence;
-                assert(userPresence.quantity === 274, 'Quantity should be 274 instead of ' + userPresence.quantity + ' for ' + teamUser.id);
+                assert(userPresence.quantity === fishOptions.new_user_grant + 7000, 'Quantity was instead ' + userPresence.quantity);
                 return globalClient.investibles.update(marketInvestibleId, updateFish.name,
                     updateFish.description, updateFish.label_list);
             }).then((response) => {
@@ -150,15 +124,13 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
             }).then((market) => {
                 //console.log(market);
                 assert(market.active_investments === 2000, 'active investments should be 2000');
-                assert(market.users_in === numUsers, 'Counting team users there are ' + numUsers + ' users in this market');
-                assert(market.team_count === 2, 'Two teams in this market');
-                assert(market.unspent === 8370, 'unspent should be 8370 instead of ' + market.unspent);
-                const current_stage = globalStages.find(stage => { return stage.name === 'Needs Review'});
+                assert(market.users_in === numUsers, 'There are ' + market.users_in + ' users in this market');
+                assert(market.unspent === 2*fishOptions.new_user_grant + 7000, 'Unspent is in fact ' + market.unspent);
+                const current_stage = globalStages.find(stage => { return stage.name === 'Unreviewed'});
                 const stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
                 let stateOptions = {
                     current_stage_id: current_stage.id,
-                    stage_id: stage.id,
-                    next_stage_additional_investment: 1000
+                    stage_id: stage.id
                 };
                 return globalClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
@@ -169,9 +141,9 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 assert(summaries.market_id === globalMarketId);
                 assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
                 const todaysSummary = summaries.summaries[0];
-                assert(todaysSummary.unspent_shares === 8370, 'Unspent should be 8370 for the market summary');
-                assert(todaysSummary.num_users === 1, 'There should be one user in the market');
-                return globalUserClient.markets.updateInvestment(globalUserTeamId, marketInvestibleId, 0, 2000);
+                assert(todaysSummary.unspent_shares === 2*fishOptions.new_user_grant + 7000, 'Unspent wrong in summary');
+                assert(todaysSummary.num_users === numUsers, 'There are ' + todaysSummary.num_users + ' in the market');
+                return globalUserClient.markets.updateInvestment(marketInvestibleId, 0, 2000);
             }).then((response) => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
                     .then((payload) => response);
@@ -181,10 +153,7 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
             ).then((investibles) => {
                 let investible = investibles[0];
                 const current_stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
-                const next_stage = globalStages.find(stage => { return stage.name === 'Under Consideration'});
-                assert(investible.stage === current_stage.id, 'With ' + investible.quantity + ' investible stage should be Needs Investment ' + current_stage.id + ' instead of ' + investible.stage + ' which is ' + investible.stage_name);
-                assert(investible.next_stage === next_stage.id, 'investible next stage should be Under Consideration');
-                assert(investible.next_stage_threshold === 3000, 'next stage threshold should be 3000 instead of ' + investible.next_stage_threshold);
+                assert(investible.stage === current_stage.id, 'Instead of ' + investible.stage + ' which is ' + investible.stage_name);
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
                 assert(investible.is_active === true, 'is_active true');

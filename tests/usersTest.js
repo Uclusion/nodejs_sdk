@@ -4,7 +4,7 @@ import { CognitoAuthorizer, AnonymousAuthorizer } from "uclusion_authorizer_sdk"
 
 
 module.exports = function (adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
-  describe('#doCreate account, teams and update user', () => {
+  describe('#doCreate account and update user', () => {
     it('should login and pull without error', async () => {
       const authorizer = new AnonymousAuthorizer({
         uclusionUrl: adminConfiguration.baseURL,
@@ -26,7 +26,7 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
           return uclusion.constructClient(adminConfiguration);
         }).then((client) => {
           globalClient = client;
-          return client.users.update('Daniel', undefined, undefined, '{ "code": "red" }');
+          return client.users.update('Daniel', '{ "code": "red" }');
         }).then((response) => {
           assert(response.success_message === 'User updated', 'User update was not successful');
           return globalClient.users.get(adminConfiguration.userId);
@@ -37,9 +37,7 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
           return globalClient.users.update('Default');
         }).then((response) => {
           assert(response.success_message === 'User updated', 'Update not successful');
-          return globalClient.teams.create('Test team', 'Holder for regular test user');
-        }).then((team) => {
-          return globalClient.users.create(team.id, 'Test User', userAuthorizerConfiguration.username);
+          return globalClient.users.create('Test User', userAuthorizerConfiguration.username);
         }).then((user) => {
           userConfiguration.userId = user.id;
           console.log('Investing User ID is ' + userConfiguration.userId);

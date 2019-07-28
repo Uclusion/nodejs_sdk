@@ -6,21 +6,18 @@ import {CognitoAuthorizer} from 'uclusion_authorizer_sdk';
 module.exports = function(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
     const butterOptions = {
         name : 'butter',
-        description: 'this is a butter market'
+        description: 'this is a butter market',
+        expiration_minutes: 10,
     };
     const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];
 
     describe('#doList', () => {
         it('should list without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
-            let userPromise = uclusion.constructClient(userConfiguration);
             let globalClient;
             let globalUserClient;
             let globalCSMMarketInvestibleId;
             let marketInvestibleId;
-            let investmentId;
-            let globalUserTeamId;
-            let listed_team;
             let globalStages;
             let globalMarketId;
             await promise.then((client) => {
@@ -34,11 +31,6 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 return uclusion.constructClient(configuration);
             }).then((client) => {
                 globalClient = client;
-                return globalClient.users.get(userConfiguration.userId);
-            }).then((response) => {
-                globalUserTeamId = response.team_id;
-                return globalClient.teams.bind(globalUserTeamId);
-            }).then((client) => {
                 const userConfig = {...userConfiguration};
                 const userAuthorizerConfig = {...userAuthorizerConfiguration};
                 userAuthorizerConfig.marketId = globalMarketId;
@@ -59,13 +51,11 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
                 return globalClient.users.grant(userConfiguration.userId, 10000);
             }).then((response) => {
-                // Give async processing time to complete - including the grants to user and team
-                // Otherwise the team 450 can't be used an the numbers come out wrong
+                // Give async processing time to complete - including the grants to user
                 return sleep(5000);
             }).then((response) => {
-                return globalUserClient.markets.updateInvestment(globalUserTeamId, marketInvestibleId, 6001, 0);
+                return globalUserClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
             }).then((investment) => {
-                investmentId = investment.id;
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                 // Long sleep to give async processing time to complete for stages
                 return sleep(20000);
@@ -73,22 +63,6 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 return globalClient.markets.listStages();
             }).then((stages) => {
                 globalStages = stages;
-                return globalClient.teams.followTeam(globalUserTeamId);
-            }).then((response) => {
-                assert(response.teams_followed.includes(globalUserTeamId), 'Follow team unsuccessful');
-                return globalClient.teams.list();
-            }).then((teams) => {
-                /*
-                450	    450	    NEW_TEAM_GRANT	USER
-                10450	10000	API_INITIATED	USER
-                450	    450	    NEW_TEAM_GRANT	TEAM
-                0	    -450	INVESTMENT	    TEAM
-                4899	-5551	INVESTMENT	    USER
-                */
-                listed_team = teams.find(team => { return team.id === globalUserTeamId});
-                assert(listed_team.current_user_is_following === true, 'this team current_user_is_following should return true');
-                assert(listed_team.quantity_invested === 6001, 'invested quantity should be 6001 instead of ' + listed_team.quantity_invested);
-                assert(listed_team.quantity === 4899, 'unspent quantity should be 4899 instead of ' + listed_team.quantity);
                 return globalUserClient.markets.listInvestibles();
             }).then((result) => {
                 let investibles = result.investibles;
@@ -102,7 +76,7 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                     return obj.id === marketInvestibleId;
                 });
                 let stage = globalStages.find(stage => { return stage.id === investible.stage});
-                assert(stage.name === 'Needs Review', 'investible stage should be Needs Review');
+                assert(stage.name === 'Unreviewed', 'investible stage should be Unreviewed');
                 investible = investibles.find(obj => {
                     return obj.id === globalCSMMarketInvestibleId;
                 });
