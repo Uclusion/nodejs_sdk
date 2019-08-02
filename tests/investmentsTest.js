@@ -22,16 +22,13 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
         it('should create investment without error', async () => {
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
-            let adminUserId;
             let globalUserClient;
+            let globalUserId;
             let globalMarketId;
             let marketInvestibleId;
             let globalStages;
             await promise.then((client) => {
                 globalClient = client;
-                return client.users.get();
-            }).then((user) => {
-                adminUserId = user.id;
                 return globalClient.markets.createMarket(fishOptions);
             }).then((response) => {
                 const configuration = {...adminConfiguration};
@@ -42,11 +39,7 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 return uclusion.constructClient(configuration);
             }).then((client) => {
                 globalClient = client;
-                return globalClient.users.get(userConfiguration.userId);
-            }).then((response) => {
                 console.log('Market ID is ' + globalMarketId);
-                webSocketRunner.connect();
-                webSocketRunner.subscribe(userConfiguration.userId, { market_id : globalMarketId });
                 const userConfig = {...userConfiguration};
                 const userAuthorizerConfig = {...userAuthorizerConfiguration};
                 userAuthorizerConfig.marketId = globalMarketId;
@@ -54,19 +47,18 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 return uclusion.constructClient(userConfig);
             }).then((client) => {
                 globalUserClient = client;
+                return sleep(7000);
+            }).then(() => globalUserClient.users.get()).then((user) => {
+                let userPresence = user.market_presence;
+                assert(userPresence.quantity === fishOptions.new_user_grant, 'Quantity is ' + userPresence.quantity);
+                webSocketRunner.connect();
+                webSocketRunner.subscribe(user.id, { market_id : globalMarketId });
+                globalUserId = user.id;
                 return globalUserClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 marketInvestibleId = response.id;
                 console.log('Investible ID is ' + marketInvestibleId);
-                return sleep(7000);
-            }).then((response) => {
-                return globalUserClient.users.get(userConfiguration.userId);
-            }).then((user) => {
-                let userPresence = user.market_presence;
-                assert(userPresence.quantity === fishOptions.new_user_grant, 'Quantity is ' + userPresence.quantity);
-                return user; // ignored anyways
-            }).then((response) => {
-                return globalClient.users.grant(userConfiguration.userId, 9000);
+                return globalClient.users.grant(globalUserId, 9000);
             }).then((response) => {
                 // Give async processing time to complete - including the grants to user
                 return sleep(5000);
@@ -96,10 +88,10 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 let comment = comments[0];
                 assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
                 assert(comment.market_id === globalMarketId, 'market was not set properly on the comment');
-                return globalUserClient.users.get(userConfiguration.userId);
+                return globalUserClient.users.get();
             }).then((user) => {
                 let userPresence = user.market_presence;
-                assert(userPresence.quantity === fishOptions.new_user_grant + 7000, 'Quantity was instead ' + userPresence.quantity);
+                assert(userPresence.quantity === fishOptions.new_user_grant + 7000, 'Quantity was instead ' + userPresence.quantity + ' for ' + user.id);
                 return globalClient.investibles.update(marketInvestibleId, updateFish.name,
                     updateFish.description, updateFish.label_list);
             }).then((response) => {

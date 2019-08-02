@@ -16,6 +16,7 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
             let promise = uclusion.constructClient(adminConfiguration);
             let globalClient;
             let globalUserClient;
+            let globalUserId;
             let globalCSMMarketInvestibleId;
             let marketInvestibleId;
             let globalStages;
@@ -38,6 +39,9 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 return uclusion.constructClient(userConfig);
             }).then((client) => {
                 globalUserClient = client;
+                return globalUserClient.users.get();
+            }).then((user) => {
+                globalUserId = user.id;
                 return globalClient.markets.listStages();
             }).then((stageList) => {
                 checkStages(adminExpectedStageNames, stageList);
@@ -49,7 +53,7 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 globalCSMMarketInvestibleId = investible.id;
                 assert(investible.name === 'peanut butter', 'name not passed on correctly');
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
-                return globalClient.users.grant(userConfiguration.userId, 10000);
+                return globalClient.users.grant(globalUserId, 10000);
             }).then((response) => {
                 // Give async processing time to complete - including the grants to user
                 return sleep(5000);

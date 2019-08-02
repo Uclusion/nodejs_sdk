@@ -8,7 +8,7 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
     const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];
     const marketOptions = {
         name : 'Default',
-        expiration_minutes: 1,
+        expiration_minutes: 2,
         new_user_grant: 313
     };
     const updateOptions = {
@@ -37,16 +37,17 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 const configuration = {...adminConfiguration};
                 const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
                 globalMarketId = response.market_id;
-                webSocketRunner.subscribe(adminConfiguration.userId, { market_id : globalMarketId });
                 adminAuthorizerConfig.marketId = response.market_id;
                 configuration.authorizer = new CognitoAuthorizer(adminAuthorizerConfig);
                 return uclusion.constructClient(configuration);
             }).then((client) => {
                 globalClient = client;
+                return globalClient.users.get();
+            }).then((user) => {
+                // Have 2 minutes to get here so that can receive the market update for the market expiring
+                webSocketRunner.subscribe(user.id, {market_id: globalMarketId});
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
-            }).then(() => {
-                return globalClient.markets.listStages();
-            }).then((stageList) => {
+            }).then(() => globalClient.markets.listStages()).then((stageList) => {
                 checkStages(adminExpectedStageNames, stageList);
                 return globalClient.markets.createStage(stageInfo);
             }).then((stage) => {

@@ -6,7 +6,7 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
-        expiration_minutes: 2,
+        expiration_minutes: 20,
         new_user_grant: 313
     };
     describe('#do sso tests, ', () => {
@@ -28,11 +28,9 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 return uclusion.constructSSOClient(adminConfiguration).then(client => client.marketLoginInfo(globalMarketId));
             }).then((login_info) => {
                 console.log(login_info);
-                assert(login_info.ui_url, 'Markets should have a ui_url');
-                assert(login_info.allow_cognito, 'Cognito should be allowed on this test market');
-                assert(login_info.allow_user === false, 'User logins should not be supported on this market');
-                assert(login_info.user_pool_id === adminAuthorizerConfiguration.poolId, 'Cognito pool should match the authorizer pool');
-                assert(login_info.cognito_client_id === adminAuthorizerConfiguration.clientId, 'Cognito client id should match the authorizer client id');
+                assert(login_info.active === true, 'Market should be active for 20m');
+                assert(login_info.name === marketOptions.name, 'Market name should be correct');
+                assert(login_info.description === marketOptions.description, 'Market description should be correct');
                 return globalClient.markets.deleteMarket();
             }).catch(function(error) {
                 console.log(error);

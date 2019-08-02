@@ -22,7 +22,6 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 globalMarketId = response.market_id;
-                webSocketRunner.subscribe(adminConfiguration.userId, { market_id : globalMarketId });
                 const configuration = {...adminConfiguration};
                 const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
                 adminAuthorizerConfig.marketId = response.market_id;
@@ -30,6 +29,9 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
                 return uclusion.constructClient(configuration);
             }).then((client) => {
                 globalClient = client;
+                return globalClient.users.get();
+            }).then((user) => {
+                webSocketRunner.subscribe(user.id, { market_id : globalMarketId });
                 return globalClient.investibles.create('salmon', 'good on bagels');
             }).then((investible) => {
                 marketInvestibleId = investible.id;

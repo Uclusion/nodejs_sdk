@@ -1,20 +1,22 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
-import { CognitoAuthorizer, AnonymousAuthorizer } from "uclusion_authorizer_sdk";
+import { CognitoAuthorizer } from "uclusion_authorizer_sdk";
 
 
 module.exports = function (adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
   describe('#doCreate account and update user', () => {
     it('should login and pull without error', async () => {
-      const authorizer = new AnonymousAuthorizer({
-        uclusionUrl: adminConfiguration.baseURL,
-      });
+      adminConfiguration.authorizer = new CognitoAuthorizer(adminAuthorizerConfiguration);
       let globalClient;
       const date = new Date();
       const timestamp = date.getTime();
       const accountName = 'TestAccount' + timestamp;
-      await uclusion.constructSSOClient(adminConfiguration)
-        .then(client => client.cognitoAccountCreate(accountName, 'Test Account', adminAuthorizerConfiguration.username, 'Advanced'))
+      let globalIdToken;
+      await uclusion.constructClient(adminConfiguration)
+          .then((client) => {
+            globalIdToken = adminConfiguration.authorizer.cognitoToken;
+            return uclusion.constructSSOClient(adminConfiguration);
+          }).then(client => client.cognitoAccountCreate(accountName, globalIdToken, 'Advanced', true))
         .then((response) => {
           adminAuthorizerConfiguration.accountId = response.account.id;
           userAuthorizerConfiguration.accountId = response.account.id;
@@ -37,11 +39,6 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
           return globalClient.users.update('Default');
         }).then((response) => {
           assert(response.success_message === 'User updated', 'Update not successful');
-          return globalClient.users.create('Test User', userAuthorizerConfiguration.username);
-        }).then((user) => {
-          userConfiguration.userId = user.id;
-          console.log('Investing User ID is ' + userConfiguration.userId);
-          userConfiguration.authorizer = new CognitoAuthorizer(userAuthorizerConfiguration);
         }).catch(function (error) {
           console.log(error);
           throw error;
