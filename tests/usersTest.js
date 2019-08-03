@@ -4,7 +4,11 @@ import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
 import {Auth} from 'aws-amplify';
 import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager';
 
-module.exports = function (adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
+/*
+Admin Configuration and User Configuration are used as in/out params here,
+so that we don't have to keep making accounts for every seperate test
+ */
+module.exports = function (adminConfiguration, userConfiguration) {
     describe('#doCreate account and update user', () => {
         it('should login and pull without error', async () => {
             let adminAccountClient;
@@ -20,12 +24,13 @@ module.exports = function (adminConfiguration, userConfiguration, adminAuthorize
                 .then(jwtToken => {
                     adminIdToken = jwtToken;
                     return uclusion.constructSSOClient(adminConfiguration);
-                })
-                .then(sso => {
+                }).then(sso => {
                     ssoClient = sso;
                     return ssoClient.cognitoAccountCreate(accountName, adminIdToken, 'Advanced', true);
                 }).then(response => {
                     const accountId = response.account.id;
+                    adminConfiguration.accountId = accountId;
+                    userConfiguration.accountId = accountId;
                     return new TestTokenManager(TOKEN_TYPE_ACCOUNT, accountId, ssoClient);
                 }).then((tokenManager) => {
                     const config = {...adminConfiguration, tokenManager};

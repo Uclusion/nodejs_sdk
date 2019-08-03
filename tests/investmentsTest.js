@@ -1,6 +1,6 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
-import { WebSocketRunner } from '../src/websocketRunner';
+import { WebSocketRunner } from '../src/WebSocketRunner';
 import { arrayEquals, sleep } from './commonTestFunctions';
 import {CognitoAuthorizer} from 'uclusion_authorizer_sdk';
 
