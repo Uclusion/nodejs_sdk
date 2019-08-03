@@ -1,9 +1,10 @@
 import assert from 'assert'
 import uclusion from 'uclusion_sdk';
-import {WebSocketRunner} from "../src/websocketRunner";
+import {WebSocketRunner} from "../src/WebSocketRunner";
 import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
+import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 
-module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
+module.exports = function(adminConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
@@ -14,43 +15,39 @@ module.exports = function(adminConfiguration, adminAuthorizerConfiguration) {
     webSocketRunner.connect();
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
-            let promise = uclusion.constructClient(adminConfiguration);
-            let globalClient;
-            let globalMarketId;
+            let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+            let adminClient;
+            let createdMarketId;
             let marketInvestibleId;
             await promise.then((client) => {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
-                globalMarketId = response.market_id;
-                const configuration = {...adminConfiguration};
-                const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
-                adminAuthorizerConfig.marketId = response.market_id;
-                configuration.authorizer = new CognitoAuthorizer(adminAuthorizerConfig);
-                return uclusion.constructClient(configuration);
+                createdMarketId = response.market_id;
+                return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
-                globalClient = client;
-                return globalClient.users.get();
+                adminClient = client;
+                return adminClient.users.get();
             }).then((user) => {
-                webSocketRunner.subscribe(user.id, { market_id : globalMarketId });
-                return globalClient.investibles.create('salmon', 'good on bagels');
+                webSocketRunner.subscribe(user.id, { market_id : createdMarketId });
+                return adminClient.investibles.create('salmon', 'good on bagels');
             }).then((investible) => {
                 marketInvestibleId = investible.id;
-                return globalClient.investibles.delete(investible.id);
+                return adminClient.investibles.delete(investible.id);
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
             }).then((investible) => {
-                return globalClient.markets.updateMarket({active: false});
+                return adminClient.markets.updateMarket({active: false});
             }).then(() => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: globalMarketId});
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
             }).then(() => {
-                return globalClient.investibles.create('salmon', 'good on bagels')
+                return adminClient.investibles.create('salmon', 'good on bagels')
                     .catch(function(error) {
                         assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
                         return 'Market inactive';
                     });
             }).then((response) => {
                 assert(response.includes('Market inactive'), 'Wrong response = ' + response);
-                return globalClient.markets.deleteMarket();
+                return adminClient.markets.deleteMarket();
             }).then(() => {
                 webSocketRunner.terminate();
             }).catch(function(error) {

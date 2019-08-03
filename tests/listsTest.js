@@ -2,8 +2,9 @@ import assert from 'assert'
 import { checkStages } from './commonTestFunctions';
 import uclusion from 'uclusion_sdk';
 import {CognitoAuthorizer} from 'uclusion_authorizer_sdk';
+import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 
-module.exports = function(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
+module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
         name : 'butter',
         description: 'this is a butter market',
@@ -13,68 +14,60 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
 
     describe('#doList', () => {
         it('should list without error', async () => {
-            let promise = uclusion.constructClient(adminConfiguration);
-            let globalClient;
-            let globalUserClient;
-            let globalUserId;
+            let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+            let adminClient;
+            let userClient;
+            let userId;
             let globalCSMMarketInvestibleId;
             let marketInvestibleId;
             let globalStages;
-            let globalMarketId;
+            let createdMarketId;
             await promise.then((client) => {
                 return client.markets.createMarket(butterOptions);
             }).then((response) => {
-                const configuration = {...adminConfiguration};
-                const adminAuthorizerConfig = {...adminAuthorizerConfiguration};
-                globalMarketId = response.market_id;
-                adminAuthorizerConfig.marketId = response.market_id;
-                configuration.authorizer = new CognitoAuthorizer(adminAuthorizerConfig);
-                return uclusion.constructClient(configuration);
+                createdMarketId = response.market_id;
+                return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
-                globalClient = client;
-                const userConfig = {...userConfiguration};
-                const userAuthorizerConfig = {...userAuthorizerConfiguration};
-                userAuthorizerConfig.marketId = globalMarketId;
-                userConfig.authorizer = new CognitoAuthorizer(userAuthorizerConfig);
-                return uclusion.constructClient(userConfig);
+                adminClient = client;
+                return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
-                globalUserClient = client;
-                return globalUserClient.users.get();
+                userClient = client;
+                return userClient.users.get();
             }).then((user) => {
-                globalUserId = user.id;
-                return globalClient.markets.listStages();
+                userId = user.id;
+                return adminClient.markets.listStages();
             }).then((stageList) => {
                 checkStages(adminExpectedStageNames, stageList);
-                return globalUserClient.investibles.create('butter', 'good on bagels');
+                return userClient.investibles.create('butter', 'good on bagels');
             }).then((response) => {
                 marketInvestibleId = response.id;
-                return globalClient.investibles.create('peanut butter', 'good with jelly');
+                return adminClient.investibles.create('peanut butter', 'good with jelly');
             }).then((investible) => {
                 globalCSMMarketInvestibleId = investible.id;
                 assert(investible.name === 'peanut butter', 'name not passed on correctly');
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
-                return globalClient.users.grant(globalUserId, 10000);
+                return adminClient.users.grant(userId, 10000);
             }).then((response) => {
                 // Give async processing time to complete - including the grants to user
                 return sleep(5000);
             }).then((response) => {
-                return globalUserClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
+                return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
             }).then((investment) => {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                 // Long sleep to give async processing time to complete for stages
                 return sleep(20000);
             }).then((result) => {
-                return globalClient.markets.listStages();
+                return adminClient.markets.listStages();
             }).then((stages) => {
                 globalStages = stages;
-                return globalUserClient.markets.listInvestibles();
+                return userClient.markets.listInvestibles();
             }).then((result) => {
                 let investibles = result.investibles;
                 let investible = investibles.find(obj => {
                     return obj.id === marketInvestibleId;
                 });
                 assert(investible.id === marketInvestibleId, 'should find the investible');
-                return globalUserClient.markets.getMarketInvestibles([marketInvestibleId, globalCSMMarketInvestibleId]);
+                return userClient.markets.getMarketInvestibles([marketInvestibleId, globalCSMMarketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
                     return obj.id === marketInvestibleId;
@@ -86,7 +79,7 @@ module.exports = function(adminConfiguration, userConfiguration, adminAuthorizer
                 });
                 stage = globalStages.find(stage => { return stage.id === investible.stage});
                 assert(stage.name === 'Unreviewed', 'investible stage should be Unreviewed');
-                return globalClient.markets.deleteMarket();
+                return adminClient.markets.deleteMarket();
             }).catch(function(error) {
                 console.log(error);
                 throw error;

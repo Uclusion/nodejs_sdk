@@ -1,39 +1,39 @@
 import fetch from 'node-fetch';
+import Amplify from 'aws-amplify';
 global.fetch = fetch;
+
+const cognitoConfiguration = {
+    userPoolId: 'us-west-2_NVPcNPhKS',
+    userPoolWebClientId: '4knr08iqujrprrkpimqm04dnp',
+    region: 'us-west-2',
+};
+
+Amplify.configure({Auth: cognitoConfiguration});
 
 const adminConfiguration = {
     baseURL:  'https://dev.api.uclusion.com/v1',
-    websocketURL: 'wss://dev.ws.uclusion.com/v1'
+    websocketURL: 'wss://dev.ws.uclusion.com/v1',
+    username: 'testeruclusion@gmail.com',
+    password: 'Uclusi0n_test',
 };
 
 const userConfiguration = {
     baseURL:  'https://dev.api.uclusion.com/v1',
-    websocketURL: 'wss://dev.ws.uclusion.com/v1'
-};
-
-const adminAuthorizerConfiguration = {
-    username: 'testeruclusion@gmail.com',
-    password: 'Uclusi0n_test',
-    poolId: 'us-west-2_NVPcNPhKS',
-    clientId: '4knr08iqujrprrkpimqm04dnp',
-    baseURL:  'https://dev.api.uclusion.com/v1',
-};
-
-const userAuthorizerConfiguration = {
+    websocketURL: 'wss://dev.ws.uclusion.com/v1',
     username: '827hooshang@gmail.com',
     password: 'Uclusi0n_test',
-    poolId: 'us-west-2_NVPcNPhKS',
-    clientId: '4knr08iqujrprrkpimqm04dnp',
-    baseURL:  'https://dev.api.uclusion.com/v1',
 };
 
+
+
+
 describe('uclusion', () => {
-    require('../tests/usersTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration);
-    require('../tests/ssoTest.js')(adminConfiguration, adminAuthorizerConfiguration);
-    require('../tests/marketsTest.js')(adminConfiguration, adminAuthorizerConfiguration);
-    require('../tests/marketInvestiblesTest')(adminConfiguration, adminAuthorizerConfiguration);
-    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration, 2);
-    require('../tests/listsTest.js')(adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration);
+    require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
+    require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
+    require('../tests/marketsTest.js')(adminConfiguration);
+    require('../tests/marketInvestiblesTest')(adminConfiguration);
+    require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, 2);
+    require('../tests/listsTest.js')(adminConfiguration, userConfiguration);
 });
 
 
