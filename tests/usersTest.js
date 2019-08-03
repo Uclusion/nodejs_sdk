@@ -1,21 +1,27 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
 import { CognitoAuthorizer } from "uclusion_authorizer_sdk";
-
+import { Auth } from 'aws-amplify';
 
 module.exports = function (adminConfiguration, userConfiguration, adminAuthorizerConfiguration, userAuthorizerConfiguration) {
   describe('#doCreate account and update user', () => {
     it('should login and pull without error', async () => {
+
       adminConfiguration.authorizer = new CognitoAuthorizer(adminAuthorizerConfiguration);
       let globalClient;
       const date = new Date();
       const timestamp = date.getTime();
       const accountName = 'TestAccount' + timestamp;
       let globalIdToken;
-      await uclusion.constructClient(adminConfiguration)
+      await
+        Auth.signIn(adminConfiguration)
+          .then(() => Auth.getCurrentSession())
+          .then(cognitoData => cognitoData.idToken.jwtToken)
+
+      uclusion.constructClient(adminConfiguration)
           .then((client) => {
             globalIdToken = adminConfiguration.authorizer.cognitoToken;
-            return uclusion.constructSSOClient(adminConfiguration);
+
           }).then(client => client.cognitoAccountCreate(accountName, globalIdToken, 'Advanced', true))
         .then((response) => {
           adminAuthorizerConfiguration.accountId = response.account.id;

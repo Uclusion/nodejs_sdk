@@ -7,7 +7,8 @@
   "version": "0.0.1",
   "main": "src/uclusion.js",
   "dependencies": {
-    "websocket": "latest",
+    "websocket": "^1.0.29",
+    "aws-amplify": "^1.1.35",
     "amazon-cognito-identity-js": "^2.0.11",
     "esm": "^3.0.74",
     "node-fetch": "^2.3.0",
