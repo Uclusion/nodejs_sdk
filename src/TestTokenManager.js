@@ -1,6 +1,8 @@
-const TOKEN_TYPE_ACCOUNT = 'ACCOUNT';
-const TOKEN_TYPE_MARKET = 'MARKET';
 import { Auth } from 'aws-amplify';
+
+export const TOKEN_TYPE_ACCOUNT = 'ACCOUNT';
+export const TOKEN_TYPE_MARKET = 'MARKET';
+
 class TestTokenManager{
 
   constructor(tokenType, itemId, ssoClient) {
@@ -20,17 +22,20 @@ class TestTokenManager{
     if(this.token) {
       return Promise.resolve(this.token);
     }
-    return Auth.getCurrentSession()
+    return Auth.currentSession()
       .then(tokenData => this.processTokenData(tokenData))
       .then((idToken) => {
         if(TOKEN_TYPE_MARKET === this.tokenType) {
-          return ssoClient.marketCognitoLogin(idToken, this.itemId);
+          return this.ssoClient.marketCognitoLogin(idToken, this.itemId);
         }
-        return ssoClient.accountCognitoLogin(idToken, this.itemId);
+        return this.ssoClient.accountCognitoLogin(idToken, this.itemId);
       })
-      .then((newToken) => {
-        this.token = newToken;
-        return newToken;
+      .then((loginData) => {
+        const { uclusion_token } = loginData;
+        this.token = uclusion_token;
+        return this.token;
       });
   }
 }
+
+export default TestTokenManager;
