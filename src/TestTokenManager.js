@@ -1,4 +1,6 @@
 import { Auth } from 'aws-amplify';
+import jwt_decode from 'jwt-decode';
+import uclusion from 'uclusion_sdk';
 
 export const TOKEN_TYPE_ACCOUNT = 'ACCOUNT';
 export const TOKEN_TYPE_MARKET = 'MARKET';
@@ -19,7 +21,9 @@ class TestTokenManager{
   }
 
   getToken() {
+    console.log(`got asked for token of type ${this.tokenType} for item id ${this.itemId}`);
     if(this.token) {
+      console.log(`using existing token ${this.token}`);
       return Promise.resolve(this.token);
     }
     return Auth.currentSession()
@@ -31,9 +35,10 @@ class TestTokenManager{
         return this.ssoClient.accountCognitoLogin(idToken, this.itemId);
       })
       .then((loginData) => {
+        console.log(loginData);
         const { uclusion_token } = loginData;
         this.token = uclusion_token;
-        return this.token;
+        return Promise.resolve(this.token);
       });
   }
 }
