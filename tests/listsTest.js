@@ -53,6 +53,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
             }).then((investment) => {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
+                return userClient.markets.listUsers();
+            }).then((users) => {
+                assert(users.length === 2, '2 users in this dialog');
                 return userClient.markets.listInvestibles();
             }).then((result) => {
                 let investibles = result.investibles;
