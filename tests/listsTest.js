@@ -8,7 +8,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         description: 'this is a butter market',
         expiration_minutes: 10,
     };
-    const adminExpectedStageNames = [ 'Unreviewed', 'Needs Review', 'Needs Investment', 'Under Consideration', 'Complete'];
+    const adminExpectedStageNames = [ 'Created', 'In Moderation', 'In Dialog'];
 
     describe('#doList', () => {
         it('should list without error', async () => {
@@ -35,6 +35,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 userId = user.id;
                 return adminClient.markets.listStages();
             }).then((stageList) => {
+                globalStages = stageList;
                 checkStages(adminExpectedStageNames, stageList);
                 return userClient.investibles.create('butter', 'good on bagels');
             }).then((response) => {
@@ -52,12 +53,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
             }).then((investment) => {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
-                // Long sleep to give async processing time to complete for stages
-                return sleep(20000);
-            }).then((result) => {
-                return adminClient.markets.listStages();
-            }).then((stages) => {
-                globalStages = stages;
                 return userClient.markets.listInvestibles();
             }).then((result) => {
                 let investibles = result.investibles;
@@ -71,12 +66,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === marketInvestibleId;
                 });
                 let stage = globalStages.find(stage => { return stage.id === investible.stage});
-                assert(stage.name === 'Unreviewed', 'investible stage should be Unreviewed');
+                assert(stage.name === 'Created', 'investible stage should be Created');
                 investible = investibles.find(obj => {
                     return obj.id === globalCSMMarketInvestibleId;
                 });
-                stage = globalStages.find(stage => { return stage.id === investible.stage});
-                assert(stage.name === 'Unreviewed', 'investible stage should be Unreviewed');
+                assert(!investible, 'Should not be able to see other\'s investible in Created');
                 return adminClient.markets.deleteMarket();
             }).catch(function(error) {
                 console.log(error);

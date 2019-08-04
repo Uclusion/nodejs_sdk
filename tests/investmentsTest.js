@@ -49,10 +49,29 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((response) => {
                 marketInvestibleId = response.id;
                 console.log('Investible ID is ' + marketInvestibleId);
+                return adminClient.markets.listStages();
+            }).then((stages) => {
+                globalStages = stages;
+                const current_stage = globalStages.find(stage => { return stage.name === 'Created'});
+                const stage = globalStages.find(stage => { return stage.name === 'In Moderation'});
+                let stateOptions = {
+                    current_stage_id: current_stage.id,
+                    stage_id: stage.id
+                };
+                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
                 return adminClient.users.grant(userId, 9000);
             }).then((response) => {
                 // Give async processing time to complete - including the grants to user
                 return sleep(5000);
+            }).then(() => {
+                const current_stage = globalStages.find(stage => { return stage.name === 'In Moderation'});
+                const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
+                let stateOptions = {
+                    current_stage_id: current_stage.id,
+                    stage_id: stage.id
+                };
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
                 return userClient.markets.updateInvestment(marketInvestibleId, 2000, 0);
             }).then((investment) => {
@@ -100,23 +119,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 assert(investible.quantity === 2000, 'get market investible quantity incorrect');
                 assert(investible.current_user_is_following === true, 'current_user_is_following should return true');
-                return adminClient.markets.listStages();
-            }).then((stages) => {
-                globalStages = stages;
                 return userClient.markets.get();
             }).then((market) => {
                 //console.log(market);
                 assert(market.active_investments === 2000, 'active investments should be 2000');
                 assert(market.users_in === numUsers, 'There are ' + market.users_in + ' users in this market');
                 assert(market.unspent === 2*fishOptions.new_user_grant + 7000, 'Unspent is in fact ' + market.unspent);
-                const current_stage = globalStages.find(stage => { return stage.name === 'Unreviewed'});
-                const stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
-                let stateOptions = {
-                    current_stage_id: current_stage.id,
-                    stage_id: stage.id
-                };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then((response) => {
                 return sleep(10000);
             }).then((response) => {
                 return adminClient.summaries.marketSummary();
@@ -135,11 +143,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then(() => userClient.markets.getMarketInvestibles([marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
-                const current_stage = globalStages.find(stage => { return stage.name === 'Needs Investment'});
+                const current_stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 assert(investible.stage === current_stage.id, 'Instead of ' + investible.stage + ' which is ' + investible.stage_name);
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
-                assert(investible.is_active === true, 'is_active true');
                 assert(investible.quantity === 0, 'investment should be updated to zero');
                 return adminClient.markets.deleteMarket();
             }).catch(function (error) {

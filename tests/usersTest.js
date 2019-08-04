@@ -15,7 +15,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
             const timestamp = date.getTime();
             const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
-            let adminAccountTokenManager;
             let ssoClient;
             await Auth.signIn(adminConfiguration)
                 .then(() => Auth.currentSession())
