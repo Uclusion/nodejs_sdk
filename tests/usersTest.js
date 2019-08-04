@@ -1,6 +1,5 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
-import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
 import {Auth} from 'aws-amplify';
 import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager';
 

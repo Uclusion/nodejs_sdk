@@ -1,7 +1,5 @@
 import assert from 'assert'
-import uclusion from 'uclusion_sdk';
 import {checkStages, verifyStage} from "./commonTestFunctions";
-import {CognitoAuthorizer} from "uclusion_authorizer_sdk";
 import {WebSocketRunner} from "../src/WebSocketRunner";
 import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 

@@ -1,7 +1,5 @@
 import assert from 'assert'
 import { checkStages } from './commonTestFunctions';
-import uclusion from 'uclusion_sdk';
-import {CognitoAuthorizer} from 'uclusion_authorizer_sdk';
 import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
