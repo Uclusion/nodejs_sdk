@@ -8,7 +8,7 @@ function getSSOInfo(configuration) {
     .then(() => Auth.currentSession())
     .then(cognitoData => cognitoData.idToken.jwtToken)
     .then(idToken => {
-      console.log(`got new idtoken ${idToken}`);
+//      console.log(`got new idtoken ${idToken}`);
       return uclusion.constructSSOClient(configuration)
         .then((ssoClient) => {
           return { idToken, ssoClient };
@@ -21,7 +21,8 @@ export function loginUserToAccount(configuration, accountId) {
     .then(info => {
       const { ssoClient, idToken } = info;
       const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, accountId, ssoClient);
-      return uclusion.constructClient({ ...configuration, tokenManager });
+      return tokenManager.getToken()
+        .then(() => uclusion.constructClient({ ...configuration, tokenManager }));
     });
 }
 
@@ -30,6 +31,7 @@ export function loginUserToMarket(configuration, marketId) {
     .then(info => {
       const { ssoClient, idToken } = info;
       const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET, marketId, ssoClient);
-      return uclusion.constructClient({ ...configuration, tokenManager });
+      return tokenManager.getToken()
+        .then(() => uclusion.constructClient({ ...configuration, tokenManager }));
     });
 }

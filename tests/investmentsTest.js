@@ -36,14 +36,11 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
-                //force a call, because we won't actually login unless you try to do something
-                return adminClient.users.get();
-            }).then(() => {
                 console.log(`Logging user into market ${createdMarketId}`);
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;
-                return sleep(10000);
+                return sleep(7000);
             }).then(() => userClient.users.get()).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.quantity === fishOptions.new_user_grant, 'Quantity is ' + userPresence.quantity);
