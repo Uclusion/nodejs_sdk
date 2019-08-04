@@ -29,11 +29,11 @@ const userConfiguration = {
 
 describe('uclusion', () => {
     require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
-    require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
-    require('../tests/marketsTest.js')(adminConfiguration);
-    require('../tests/marketInvestiblesTest')(adminConfiguration);
+//    require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
+//    require('../tests/marketsTest.js')(adminConfiguration);
+//    require('../tests/marketInvestiblesTest')(adminConfiguration);
     require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, 2);
-    require('../tests/listsTest.js')(adminConfiguration, userConfiguration);
+//    require('../tests/listsTest.js')(adminConfiguration, userConfiguration);
 });
 
 
