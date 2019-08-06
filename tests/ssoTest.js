@@ -1,7 +1,8 @@
 import assert from 'assert';
-import { loginUserToAccount, loginUserToMarket } from '../src/utils';
+import {getSSOInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
+import _ from 'lodash';
 import uclusion from 'uclusion_sdk';
-import TestTokenManager, {TOKEN_TYPE_MARKET} from "../src/TestTokenManager";
+import TestTokenManager, {TOKEN_TYPE_MARKET} from '../src/TestTokenManager';
 
 module.exports = function(adminConfiguration) {
     const marketOptions = {
@@ -10,7 +11,7 @@ module.exports = function(adminConfiguration) {
         expiration_minutes: 20,
         new_user_grant: 313
     };
-    describe('#do sso tests, ', () => {
+    describe('#do account sso tests, ', () => {
         it('should retrieve login info without error', async () => {
             let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
             let adminClient;
@@ -30,6 +31,33 @@ module.exports = function(adminConfiguration) {
                 assert(login_info.name === marketOptions.name, 'Market name should be correct');
                 assert(login_info.description === marketOptions.description, 'Market description should be correct');
                 return adminClient.markets.deleteMarket();
+            }).catch(function(error) {
+                console.log(error);
+                throw error;
+            });
+        }).timeout(30000);
+    });
+    describe('#do identity sso tests, ', () => {
+        it('should retrieve login info without error', async () => {
+            let authPromise = getSSOInfo(adminConfiguration);
+            let createdMarketId;
+            await authPromise.then((ssoInfo) => {
+                const { ssoClient, idToken } = ssoInfo;
+                return ssoClient.availableMarkets(idToken, true)
+                    .then((result) => {
+                        assert(_.isEmpty(result), "Shouldn't be associated with any market");
+                        return result;
+                    }).then(() => {
+                        return loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+                    }).then(client => client.markets.createMarket((marketOptions)))
+                    .then((response) => {
+                        createdMarketId = response.marketId;
+                        return ssoClient.availableMarkets(idToken, true);
+                    }).then((result) => {
+                        assert(!_.isEmpty(result), "Should have one market associated");
+                        return result;
+                    })
+
             }).catch(function(error) {
                 console.log(error);
                 throw error;

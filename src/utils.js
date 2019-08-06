@@ -1,12 +1,11 @@
-import { Auth } from "aws-amplify";
-import uclusion from "uclusion_sdk";
-import TestTokenManager, { TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET } from "./TestTokenManager";
+import { Auth } from 'aws-amplify';
+import uclusion from 'uclusion_sdk';
+import TestTokenManager, { TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET } from './TestTokenManager';
+import {getIdentity} from './amplifyAuth';
 
 
-function getSSOInfo(configuration) {
-  return Auth.signIn(configuration)
-    .then(() => Auth.currentSession())
-    .then(cognitoData => cognitoData.idToken.jwtToken)
+export function getSSOInfo(configuration) {
+  return loginUserToIdentity(configuration)
     .then(idToken => {
 //      console.log(`got new idtoken ${idToken}`);
       return uclusion.constructSSOClient(configuration)
@@ -14,6 +13,11 @@ function getSSOInfo(configuration) {
           return { idToken, ssoClient };
         });
     });
+}
+
+export function loginUserToIdentity(configuration) {
+    return Auth.signIn(configuration)
+        .then(getIdentity);
 }
 
 export function loginUserToAccount(configuration, accountId) {

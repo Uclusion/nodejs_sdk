@@ -1,6 +1,4 @@
-import { Auth } from 'aws-amplify';
-import jwt_decode from 'jwt-decode';
-import uclusion from 'uclusion_sdk';
+import { getIdentity } from './amplifyAuth';
 
 export const TOKEN_TYPE_ACCOUNT = 'ACCOUNT';
 export const TOKEN_TYPE_MARKET = 'MARKET';
@@ -14,20 +12,13 @@ class TestTokenManager{
     this.token = null;
   }
 
-  processTokenData(tokenData){
-    const { idToken } = tokenData;
-    const { jwtToken } = idToken;
-    return jwtToken;
-  }
-
   getToken() {
    // console.log(`got asked for token of type ${this.tokenType} for item id ${this.itemId}`);
     if(this.token) {
    //   console.log(`using existing token ${this.token}`);
       return Promise.resolve(this.token);
     }
-    return Auth.currentSession()
-      .then(tokenData => this.processTokenData(tokenData))
+    return getIdentity()
       .then((idToken) => {
         if(TOKEN_TYPE_MARKET === this.tokenType) {
           return this.ssoClient.marketCognitoLogin(idToken, this.itemId);
