@@ -17,7 +17,7 @@ export function getSSOInfo(configuration) {
 
 export function loginUserToIdentity(configuration) {
     return Auth.signIn(configuration)
-        .then(getIdentity);
+        .then(() => getIdentity());
 }
 
 export function loginUserToAccount(configuration, accountId) {

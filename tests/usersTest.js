@@ -1,7 +1,8 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
-import {Auth} from 'aws-amplify';
 import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager';
+import { sleep } from './commonTestFunctions';
+import {getSSOInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
 
 /*
 Admin Configuration and User Configuration are used as in/out params here,
@@ -16,14 +17,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
             const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
             let ssoClient;
-            await Auth.signIn(adminConfiguration)
-                .then(() => Auth.currentSession())
-                .then(cognitoData => cognitoData.idToken.jwtToken)
-                .then(jwtToken => {
-                    adminIdToken = jwtToken;
-                    return uclusion.constructSSOClient(adminConfiguration);
-                }).then(sso => {
-                    ssoClient = sso;
+            await getSSOInfo(adminConfiguration).then(ssoInfo => {
+                    ssoClient = ssoInfo.ssoClient;
+                    adminIdToken = ssoInfo.idToken;
                     return ssoClient.cognitoAccountCreate(accountName, adminIdToken, 'Advanced', true);
                 }).then(response => {
                     const accountId = response.account.id;
@@ -51,10 +47,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 });
         }).timeout(60000);
     });
-};
 
-function sleep(ms) {
-    return new Promise(resolve => {
-        setTimeout(resolve, ms);
-    });
-}
+
+
+};

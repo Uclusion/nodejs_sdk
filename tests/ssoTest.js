@@ -11,8 +11,9 @@ module.exports = function(adminConfiguration) {
         expiration_minutes: 20,
         new_user_grant: 313
     };
+
     describe('#do account sso tests, ', () => {
-        it('should retrieve login info without error', async () => {
+        it('should login and retrieve market info without error', async () => {
             let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
             let adminClient;
             let globalMarketId;
@@ -49,7 +50,7 @@ module.exports = function(adminConfiguration) {
                         return result;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
-                    }).then(client => client.markets.createMarket((marketOptions)))
+                    }).then(client => client.markets.createMarket(marketOptions))
                     .then((response) => {
                         createdMarketId = response.marketId;
                         return ssoClient.availableMarkets(idToken, true);
