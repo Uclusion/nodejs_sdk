@@ -1,6 +1,4 @@
-import {getSSOInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
-import {Auth} from 'aws-amplify';
-import uclusion from 'uclusion_sdk';
+import {getSSOInfo, loginUserToMarket} from '../src/utils';
 import { sleep } from './commonTestFunctions';
 
 module.exports = function (adminConfiguration) {
@@ -13,10 +11,12 @@ module.exports = function (adminConfiguration) {
                 return ssoClient.availableMarkets(idToken, true)
                     .then((markets) => {
                         const deletions = Object.keys(markets).map((marketId) => {
+                            console.log('Found ' + marketId);
                             return loginUserToMarket(adminConfiguration, marketId)
                                 .then(client => client.markets.deleteMarket());
                         });
-                        return Promise.all(deletions).then(() => sleep(20000));
+                        deletions.push(sleep(20000));
+                        return Promise.all(deletions).then(() => console.log('Done waiting for cleanup'));
                     });
             }).catch(function (error) {
                 console.log(error);
