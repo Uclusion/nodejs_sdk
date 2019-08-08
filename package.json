@@ -14,7 +14,6 @@
     "esm": "^3.0.74",
     "lodash": "^4.17.15",
     "node-fetch": "^2.3.0",
-    "uclusion_authorizer_sdk": "file:../uclusion_authorizer_sdk",
     "uclusion_sdk": "file:../uclusion_sdk"
   },
   "devDependencies": {
