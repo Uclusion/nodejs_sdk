@@ -14,7 +14,7 @@
     "esm": "^3.0.74",
     "lodash": "^4.17.15",
     "node-fetch": "^2.3.0",
-    "uclusion_sdk": "file:../uclusion_sdk"
+    "uclusion_sdk": "git@github.com:Uclusion/uclusion_sdk.git"
   },
   "devDependencies": {
     "mocha": "^5.2.0",
