@@ -46,7 +46,8 @@ module.exports = function(adminConfiguration) {
                 const { ssoClient, idToken } = ssoInfo;
                 return ssoClient.availableMarkets(idToken, true)
                     .then((result) => {
-                        assert(_.isEmpty(result), "Shouldn't be associated with any market");
+                        console.log(result);
+                        assert(_.isEmpty(result), "Associated with a market");
                         return result;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
