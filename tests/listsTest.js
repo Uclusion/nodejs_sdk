@@ -1,6 +1,7 @@
 import assert from 'assert'
 import { checkStages } from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket} from "../src/utils";
+import {WebSocketRunner} from "../src/WebSocketRunner";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
@@ -9,7 +10,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         expiration_minutes: 10,
     };
     const adminExpectedStageNames = [ 'Created', 'In Moderation', 'In Dialog'];
-
+    const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     describe('#doList', () => {
         it('should list without error', async () => {
             let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
@@ -33,6 +34,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
+                webSocketRunner.connect();
+                webSocketRunner.subscribe(user.id, { market_id : createdMarketId });
                 return adminClient.markets.listStages();
             }).then((stageList) => {
                 globalStages = stageList;
@@ -53,9 +56,22 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
             }).then((investment) => {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
-                return userClient.markets.listUsers();
+                return adminClient.users.poke(userId, 'Please add the thing.');
+            }).then((response) => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'})
+                    .then(() => response);
+            }).then(() => {
+                return adminClient.markets.listUsers();
             }).then((users) => {
                 assert(users.length === 2, '2 users in this dialog');
+                const pokedUser = users.find(obj => {
+                    return obj.id === userId;
+                });
+                assert(pokedUser.users_poked.length === 0, 'Should not have poked anyone');
+                const userPoking = users.find(obj => {
+                    return obj.id !== userId;
+                });
+                assert(userPoking.users_poked.length === 1, 'Should have poked someone');
                 return userClient.markets.listInvestibles();
             }).then((result) => {
                 let investibles = result.investibles;
@@ -74,8 +90,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === globalCSMMarketInvestibleId;
                 });
                 assert(!investible, 'Should not be able to see other\'s investible in Created');
+                webSocketRunner.terminate();
                 return adminClient.markets.deleteMarket();
             }).catch(function(error) {
+                webSocketRunner.terminate();
                 console.log(error);
                 throw error;
             });
