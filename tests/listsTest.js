@@ -16,6 +16,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
             let adminClient;
             let userClient;
+            let adminId;
             let userId;
             let globalCSMMarketInvestibleId;
             let marketInvestibleId;
@@ -28,6 +29,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
+                return adminClient.users.get();
+            }).then((user) => {
+                adminId = user.id;
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;
@@ -72,6 +76,20 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id !== userId;
                 });
                 assert(userPoking.users_poked.length === 1, 'Should have poked someone');
+                return userClient.users.getMessages();
+            }).then((messages) => {
+                const userPoked = messages.find(obj => {
+                    return obj.type_object_id === 'USER_POKED_' + adminId;
+                });
+                assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
+                return userClient.users.acknowledge(adminId, 'USER_POKED');
+            }).then(() => {
+                return userClient.users.getMessages();
+            }).then((messages) => {
+                const userPoked = messages.find(obj => {
+                    return obj.type_object_id === 'USER_POKED_' + adminId;
+                });
+                assert(!userPoked, 'Ack failed');
                 return userClient.markets.listInvestibles();
             }).then((result) => {
                 let investibles = result.investibles;
