@@ -86,9 +86,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.is_official === false, 'comment should not be official');
-                return userClient.investibles.updateComment(comment.id, 'new body');
+                return userClient.investibles.updateComment(comment.id, 'new body', true);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
+                assert(comment.is_resolved, 'updated comment is_resolved incorrect');
                 return adminClient.investibles.createComment(marketInvestibleId, 'comment to fetch');
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
