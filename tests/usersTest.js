@@ -22,10 +22,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     adminIdToken = ssoInfo.idToken;
                     return ssoClient.cognitoAccountCreate(accountName, adminIdToken, 'Advanced', true);
                 }).then(response => {
-                    const accountId = response.account.id;
-                    adminConfiguration.accountId = accountId;
-                    userConfiguration.accountId = accountId;
-                    return new TestTokenManager(TOKEN_TYPE_ACCOUNT, accountId, ssoClient);
+                    return new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 }).then((tokenManager) => {
                     const config = {...adminConfiguration, tokenManager};
                     return sleep(30000).then(() => uclusion.constructClient(config));

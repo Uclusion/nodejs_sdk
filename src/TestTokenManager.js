@@ -23,7 +23,7 @@ class TestTokenManager{
         if(TOKEN_TYPE_MARKET === this.tokenType) {
           return this.ssoClient.marketCognitoLogin(idToken, this.itemId);
         }
-        return this.ssoClient.accountCognitoLogin(idToken, this.itemId);
+        return this.ssoClient.accountCognitoLogin(idToken);
       })
       .then((loginData) => {
    //     console.log(loginData);

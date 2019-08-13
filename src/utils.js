@@ -20,11 +20,11 @@ export function loginUserToIdentity(configuration) {
         .then(() => getIdentity());
 }
 
-export function loginUserToAccount(configuration, accountId) {
+export function loginUserToAccount(configuration) {
   return getSSOInfo(configuration)
     .then(info => {
       const { ssoClient, idToken } = info;
-      const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, accountId, ssoClient);
+      const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
       return tokenManager.getToken()
         .then(() => uclusion.constructClient({ ...configuration, tokenManager }));
     });

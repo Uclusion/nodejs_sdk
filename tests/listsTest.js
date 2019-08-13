@@ -13,7 +13,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
     const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     describe('#doList', () => {
         it('should list without error', async () => {
-            let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+            let promise = loginUserToAccount(adminConfiguration);
             let adminClient;
             let userClient;
             let adminId;

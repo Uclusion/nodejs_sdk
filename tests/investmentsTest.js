@@ -19,7 +19,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
 
     describe('#doInvestment', () => {
         it('should create investment without error', async () => {
-            let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+            let promise = loginUserToAccount(adminConfiguration);
             let adminClient;
             let userClient;
             let userId;

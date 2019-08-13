@@ -25,7 +25,7 @@ module.exports = function(adminConfiguration) {
                         assert(_.isEmpty(result), "Associated with a market");
                         return result;
                     }).then(() => {
-                        return loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+                        return loginUserToAccount(adminConfiguration);
                     }).then(client => client.markets.createMarket(marketOptions))
                     .then((response) => {
                         createdMarketId = response.market_id;

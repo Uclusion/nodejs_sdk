@@ -13,7 +13,7 @@ module.exports = function(adminConfiguration) {
     webSocketRunner.connect();
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
-            let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+            let promise = loginUserToAccount(adminConfiguration);
             let adminClient;
             let createdMarketId;
             let marketInvestibleId;

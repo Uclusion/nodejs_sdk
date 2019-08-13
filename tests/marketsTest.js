@@ -16,7 +16,7 @@ module.exports = function(adminConfiguration) {
     webSocketRunner.connect();
     describe('#doCreate, update, grant and follow market', () => {
         it('should create market without error', async() => {
-            let promise = loginUserToAccount(adminConfiguration, adminConfiguration.accountId);
+            let promise = loginUserToAccount(adminConfiguration);
             let adminClient;
             let createdMarketId;
             await promise.then((client) => {
