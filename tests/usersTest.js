@@ -25,7 +25,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 }).then((tokenManager) => {
                     const config = {...adminConfiguration, tokenManager};
-                    return sleep(30000).then(() => uclusion.constructClient(config));
+                    return uclusion.constructClient(config);
                 }).then((client) => {
                     adminAccountClient = client;
                     return adminAccountClient.users.update('Daniel', '{ "code": "red" }');
