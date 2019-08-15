@@ -14,7 +14,7 @@ module.exports = function(adminConfiguration) {
     };
     const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     webSocketRunner.connect();
-    describe('#doCreate, update, grant and follow market', () => {
+    describe('#doCreate and asynchronously expire market', () => {
         it('should create market without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
             let adminClient;

@@ -15,9 +15,12 @@ module.exports = function(adminConfiguration) {
         it('create investible and deletion without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
             let adminClient;
+            let accountClient;
             let createdMarketId;
+            let clonedMarketId;
             let marketInvestibleId;
             await promise.then((client) => {
+                accountClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;
@@ -30,10 +33,6 @@ module.exports = function(adminConfiguration) {
                 return adminClient.investibles.create('salmon', 'good on bagels');
             }).then((investible) => {
                 marketInvestibleId = investible.id;
-                return adminClient.investibles.delete(investible.id);
-            }).then(() => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
-            }).then((investible) => {
                 return adminClient.markets.updateMarket({active: false});
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
@@ -45,6 +44,24 @@ module.exports = function(adminConfiguration) {
                     });
             }).then((response) => {
                 assert(response.includes('Market inactive'), 'Wrong response = ' + response);
+                return accountClient.markets.createMarket(marketOptions);
+            }).then((response) => {
+                clonedMarketId = response.market_id;
+                return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
+            }).then((investibleId) => {
+                marketInvestibleId = investibleId;
+                return adminClient.markets.deleteMarket();
+            }).then(() => {
+                return loginUserToMarket(adminConfiguration, clonedMarketId);
+            }).then((client) => {
+                adminClient = client;
+                return adminClient.users.get();
+            }).then((user) => {
+                webSocketRunner.subscribe(user.id, { market_id : clonedMarketId });
+                return adminClient.investibles.delete(marketInvestibleId);
+            }).then(() => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
+            }).then((response) => {
                 return adminClient.markets.deleteMarket();
             }).then(() => {
                 webSocketRunner.terminate();

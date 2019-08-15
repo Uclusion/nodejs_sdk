@@ -10,9 +10,9 @@ module.exports = function (adminConfiguration) {
                 const {ssoClient, idToken} = ssoInfo;
                 return ssoClient.availableMarkets(idToken, true)
                     .then((markets) => {
-                        const deletions = Object.keys(markets).map((marketId) => {
-                            console.log('Found ' + marketId);
-                            return loginUserToMarket(adminConfiguration, marketId)
+                        const deletions = markets.map((market) => {
+                            console.log('Found ' + market.id);
+                            return loginUserToMarket(adminConfiguration, market.id)
                                 .then(client => client.markets.deleteMarket());
                         });
                         deletions.push(sleep(20000));
