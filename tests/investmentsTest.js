@@ -79,7 +79,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment');
+                return userClient.investibles.createComment(null, 'body of my comment');
             }).then((response) => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                   .then((payload) => response);
