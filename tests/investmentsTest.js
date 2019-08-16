@@ -38,13 +38,11 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;
-                return sleep(7000);
-            }).then(() => userClient.users.get()).then((user) => {
-                let userPresence = user.market_presence;
-                assert(userPresence.quantity === fishOptions.new_user_grant, 'Quantity is ' + userPresence.quantity);
-                webSocketRunner.connect();
-                webSocketRunner.subscribe(user.id, { market_id : createdMarketId });
+                return userClient.users.get();
+            }).then((user) => {
                 userId = user.id;
+                webSocketRunner.connect();
+                webSocketRunner.subscribe(userId, { market_id : createdMarketId });
                 return userClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 marketInvestibleId = response.id;
@@ -62,8 +60,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then(() => {
                 return adminClient.users.grant(userId, 9000);
             }).then((response) => {
-                // Give async processing time to complete - including the grants to user
-                return sleep(5000);
+                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                    .then(() => response);
             }).then(() => {
                 const current_stage = globalStages.find(stage => { return stage.name === 'In Moderation'});
                 const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
