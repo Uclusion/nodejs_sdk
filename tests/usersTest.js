@@ -1,7 +1,6 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager';
-import { sleep } from './commonTestFunctions';
 import {getSSOInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
 
 /*
@@ -9,6 +8,11 @@ Admin Configuration and User Configuration are used as in/out params here,
 so that we don't have to keep making accounts for every seperate test
  */
 module.exports = function (adminConfiguration, userConfiguration) {
+    const marketOptions = {
+        name : 'Default',
+        expiration_minutes: 20,
+        new_user_grant: 313
+    };
     describe('#doCreate account and update user', () => {
         it('should login and pull without error', async () => {
             let adminAccountClient;
@@ -17,6 +21,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
             let ssoClient;
+            let createdMarketId;
+            let adminClient;
             await getSSOInfo(adminConfiguration).then(ssoInfo => {
                     ssoClient = ssoInfo.ssoClient;
                     adminIdToken = ssoInfo.idToken;
@@ -38,6 +44,23 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return adminAccountClient.users.update('Default');
                 }).then((response) => {
                     assert(response.success_message === 'User updated', 'Update not successful');
+                    return loginUserToAccount(adminConfiguration);
+                }).then((client) => {
+                    return client.markets.createMarket(marketOptions);
+                }).then((response) => {
+                    createdMarketId = response.market_id;
+                    return loginUserToMarket(adminConfiguration, createdMarketId);
+                }).then((client) => {
+                    adminClient = client;
+                    return adminClient.markets.updateMarket({locked: true});
+                }).then(() => {
+                    return loginUserToMarket(userConfiguration, createdMarketId).catch(function(error) {
+                        assert(error.status === 401, 'Wrong error = ' + JSON.stringify(error));
+                        return 'Market locked';
+                    });
+                }).then((response) => {
+                    assert(response.includes('Market locked'), 'Wrong response = ' + response);
+                    return adminClient.markets.deleteMarket();
                 }).catch(function (error) {
                     console.log(error);
                     throw error;
