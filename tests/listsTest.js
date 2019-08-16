@@ -54,9 +54,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
                 return adminClient.users.grant(userId, 10000);
             }).then((response) => {
-                // Give async processing time to complete - including the grants to user
-                return sleep(5000);
-            }).then((response) => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                    .then(() => response);
+            }).then(() => {
                 return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
             }).then((investment) => {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
@@ -72,6 +72,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === userId;
                 });
                 assert(pokedUser.users_poked.length === 0, 'Should not have poked anyone');
+                assert(pokedUser.quantity === 4099, 'Quantity wrong is ' + pokedUser.quantity);
+                assert(pokedUser.quantity_invested === 6001, 'Quantity invested wrong is ' + pokedUser.quantity_invested);
                 const userPoking = users.find(obj => {
                     return obj.id !== userId;
                 });
@@ -108,6 +110,14 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === globalCSMMarketInvestibleId;
                 });
                 assert(!investible, 'Should not be able to see other\'s investible in Created');
+                return userClient.markets.followMarket(true);
+            }).then((response) => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                    .then(() => response);
+            }).then(() => {
+                return adminClient.markets.listUsers();
+            }).then((users) => {
+                assert(users.length === 1, '1 user remaining in this dialog');
                 webSocketRunner.terminate();
                 return adminClient.markets.deleteMarket();
             }).catch(function(error) {
