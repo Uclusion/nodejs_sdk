@@ -118,8 +118,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.listUsers();
             }).then((users) => {
                 assert(users.length === 1, '1 user remaining in this dialog');
-                webSocketRunner.terminate();
-                return adminClient.markets.deleteMarket();
+                return webSocketRunner.terminate();
             }).catch(function(error) {
                 webSocketRunner.terminate();
                 console.log(error);

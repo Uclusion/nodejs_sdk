@@ -45,7 +45,6 @@ module.exports = function(adminConfiguration) {
                 assert(login_info.active === true, 'Market should be active for 20m');
                 assert(login_info.name === marketOptions.name, 'Market name should be correct');
                 assert(login_info.description === marketOptions.description, 'Market description should be correct');
-                return adminClient.markets.deleteMarket();
             }).catch(function(error) {
                 console.log(error);
                 throw error;

@@ -5,7 +5,7 @@ import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 module.exports = function(adminConfiguration) {
     const marketOptions = {
         name : 'Default',
-        expiration_minutes: 2,
+        expiration_minutes: 3,
         new_user_grant: 313
     };
     const updateOptions = {
@@ -28,14 +28,10 @@ module.exports = function(adminConfiguration) {
                 adminClient = client;
                 return adminClient.users.get();
             }).then((user) => {
-                // Have 2 minutes to get here so that can receive the market update for the market expiring
                 webSocketRunner.subscribe(user.id, {market_id: createdMarketId});
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
-            }).then(() => {
                 return adminClient.markets.get();
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
-                assert(market.active === false, 'Market should have expired while waiting above');
                 assert(market.expiration_minutes === marketOptions.expiration_minutes, 'expiration_minutes is incorrect');
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.new_user_grant === 313, 'New user grant should match definition');
@@ -43,8 +39,10 @@ module.exports = function(adminConfiguration) {
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
             }).then(() => {
-                webSocketRunner.terminate();
-                return adminClient.markets.deleteMarket();
+                // Have 3 minutes to get here so that can receive the market update for the market expiring
+                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
+            }).then(() => {
+                return webSocketRunner.terminate();
             }).catch(function(error) {
                 webSocketRunner.terminate();
                 console.log(error);

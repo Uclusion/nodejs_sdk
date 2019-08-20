@@ -147,12 +147,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
                 assert(investible.quantity === 0, 'investment should be updated to zero');
-                return adminClient.markets.deleteMarket();
+                return webSocketRunner.terminate();
             }).catch(function (error) {
-                    console.log(error);
-                    //close our websocket
-                    webSocketRunner.terminate();
-                    throw error;
+                console.log(error);
+                //close our websocket
+                webSocketRunner.terminate();
+                throw error;
             });
         }).timeout(120000);
     });

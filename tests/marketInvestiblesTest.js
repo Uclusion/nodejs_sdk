@@ -50,8 +50,6 @@ module.exports = function(adminConfiguration) {
                 return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
-                return adminClient.markets.deleteMarket();
-            }).then(() => {
                 return loginUserToMarket(adminConfiguration, clonedMarketId);
             }).then((client) => {
                 adminClient = client;
@@ -65,10 +63,8 @@ module.exports = function(adminConfiguration) {
                 return adminClient.investibles.delete(marketInvestibleId);
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
-            }).then((response) => {
-                return adminClient.markets.deleteMarket();
             }).then(() => {
-                webSocketRunner.terminate();
+                return webSocketRunner.terminate();
             }).catch(function(error) {
                 console.log(error);
                 //close our websocket

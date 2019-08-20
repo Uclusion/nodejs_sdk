@@ -26,7 +26,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             await getSSOInfo(adminConfiguration).then(ssoInfo => {
                     ssoClient = ssoInfo.ssoClient;
                     adminIdToken = ssoInfo.idToken;
-                    return ssoClient.cognitoAccountCreate(accountName, adminIdToken, 'Advanced', true);
+                    return ssoClient.cognitoAccountCreate(accountName, adminIdToken, 'Advanced', 0, true);
                 }).then(response => {
                     return new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 }).then((tokenManager) => {
@@ -60,7 +60,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     });
                 }).then((response) => {
                     assert(response.includes('Market locked'), 'Wrong response = ' + response);
-                    return adminClient.markets.deleteMarket();
+                    // Set active to false to avoid ssoTest error
+                    return adminClient.markets.updateMarket({active: false});
                 }).catch(function (error) {
                     console.log(error);
                     throw error;
