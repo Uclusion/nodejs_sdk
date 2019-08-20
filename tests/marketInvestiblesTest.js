@@ -58,6 +58,10 @@ module.exports = function(adminConfiguration) {
                 return adminClient.users.get();
             }).then((user) => {
                 webSocketRunner.subscribe(user.id, { market_id : clonedMarketId });
+                return adminClient.markets.viewedInvestible(marketInvestibleId);
+            }).then(() => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED', payload: {'type_object_id': 'investible_' + marketInvestibleId}});
+            }).then(() => {
                 return adminClient.investibles.delete(marketInvestibleId);
             }).then(() => {
                 return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});

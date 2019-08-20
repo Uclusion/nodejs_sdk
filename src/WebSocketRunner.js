@@ -100,7 +100,7 @@ class WebSocketRunner {
                 console.log("Testing message against signature:");
                 console.log(signature);
                 for(const key of Object.keys(signature)){
-                    stillMatching &= (payload[key] === signature[key]);
+                    stillMatching &= (payload[key] === signature[key] || isSubsetEquivalent(payload[key], signature[key]));
                 }
                 if (stillMatching) {
                     console.log("Found match");
@@ -113,12 +113,20 @@ class WebSocketRunner {
         });
     }
 
-
     terminate(){
         // kill the reconnect handler and close the socket
         this.socket.onclose = (event) => {};
         this.socket.close();
     }
+}
+
+function isSubsetEquivalent(payload, signature) {
+    for(const key of Object.keys(signature)){
+        if (payload[key] !== signature[key]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 export { WebSocketRunner };

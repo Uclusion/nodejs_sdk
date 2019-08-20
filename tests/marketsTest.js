@@ -39,6 +39,10 @@ module.exports = function(adminConfiguration) {
                 assert(market.expiration_minutes === marketOptions.expiration_minutes, 'expiration_minutes is incorrect');
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.new_user_grant === 313, 'New user grant should match definition');
+                return adminClient.markets.viewed();
+            }).then(() => {
+                return webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
+            }).then(() => {
                 webSocketRunner.terminate();
                 return adminClient.markets.deleteMarket();
             }).catch(function(error) {
