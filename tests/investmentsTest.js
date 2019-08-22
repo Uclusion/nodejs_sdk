@@ -1,5 +1,4 @@
 import assert from 'assert';
-import { WebSocketRunner } from '../src/WebSocketRunner';
 import { arrayEquals, sleep } from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 
@@ -10,7 +9,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
         expiration_minutes: 30,
         new_user_grant: 313
     };
-    const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     const updateFish = {
         name: 'pufferfish',
         description: 'possibly poisonous',
@@ -41,8 +39,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
-                webSocketRunner.connect();
-                webSocketRunner.subscribe(userId, { market_id : createdMarketId });
                 return userClient.investibles.create('salmon', 'good on bagels');
             }).then((response) => {
                 marketInvestibleId = response.id;
@@ -60,7 +56,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then(() => {
                 return adminClient.users.grant(userId, 9000);
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
                     .then(() => response);
             }).then(() => {
                 const current_stage = globalStages.find(stage => { return stage.name === 'In Moderation'});
@@ -79,7 +75,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(response.following === true, 'follow should return true');
                 return userClient.investibles.createComment(null, 'body of my comment');
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                   .then((payload) => response);
             }).then((comment) => {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
@@ -104,7 +100,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return adminClient.investibles.update(marketInvestibleId, updateFish.name,
                     updateFish.description, updateFish.label_list);
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
                   .then((payload) => response);
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
@@ -135,10 +131,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(todaysSummary.num_users === numUsers, 'There are ' + todaysSummary.num_users + ' in the market');
                 return userClient.markets.updateInvestment(marketInvestibleId, 0, 2000);
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
                     .then((payload) => response);
-            }).then(() => {
-                return webSocketRunner.terminate();
             }).then(() => userClient.markets.getMarketInvestibles([marketInvestibleId])
             ).then((investibles) => {
                 let investible = investibles[0];
@@ -147,11 +141,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.open_for_investment === true, 'open_for_investment true');
                 assert(investible.open_for_refunds === true, 'open_for_refunds true');
                 assert(investible.quantity === 0, 'investment should be updated to zero');
-                return webSocketRunner.terminate();
             }).catch(function (error) {
                 console.log(error);
-                //close our websocket
-                webSocketRunner.terminate();
                 throw error;
             });
         }).timeout(120000);

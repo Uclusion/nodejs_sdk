@@ -1,5 +1,4 @@
 import assert from 'assert'
-import {WebSocketRunner} from "../src/WebSocketRunner";
 import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 
 module.exports = function(adminConfiguration) {
@@ -12,8 +11,6 @@ module.exports = function(adminConfiguration) {
         name : 'fish',
         description: 'this is a fish market'
     };
-    const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
-    webSocketRunner.connect();
     describe('#doCreate and asynchronously expire market', () => {
         it('should create market without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -26,9 +23,6 @@ module.exports = function(adminConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
-                return adminClient.users.get();
-            }).then((user) => {
-                webSocketRunner.subscribe(user.id, {market_id: createdMarketId});
                 return adminClient.markets.get();
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
@@ -37,14 +31,11 @@ module.exports = function(adminConfiguration) {
                 assert(market.new_user_grant === 313, 'New user grant should match definition');
                 return adminClient.markets.viewed();
             }).then(() => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
             }).then(() => {
                 // Have 3 minutes to get here so that can receive the market update for the market expiring
-                return webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
-            }).then(() => {
-                return webSocketRunner.terminate();
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
             }).catch(function(error) {
-                webSocketRunner.terminate();
                 console.log(error);
                 throw error;
             });

@@ -1,7 +1,7 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager';
-import {getSSOInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
+import {getSSOInfo, loginUserToAccount, loginUserToMarket, getWebSocketRunner} from '../src/utils';
 
 /*
 Admin Configuration and User Configuration are used as in/out params here,
@@ -27,9 +27,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     ssoClient = ssoInfo.ssoClient;
                     adminIdToken = ssoInfo.idToken;
                     return ssoClient.cognitoAccountCreate(accountName, adminIdToken, 'Advanced', 0, true);
-                }).then(response => {
-                    return new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
-                }).then((tokenManager) => {
+                }).then(() => {
+                    return getWebSocketRunner(adminConfiguration);
+                }).then((webSocketRunner) => {
+                    adminConfiguration.webSocketRunner = webSocketRunner;
+                    const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                     const config = {...adminConfiguration, tokenManager};
                     return uclusion.constructClient(config);
                 }).then((client) => {
@@ -60,6 +62,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     });
                 }).then((response) => {
                     assert(response.includes('Market locked'), 'Wrong response = ' + response);
+                    return getWebSocketRunner(userConfiguration);
+                }).then((webSocketRunner) => {
+                    userConfiguration.webSocketRunner = webSocketRunner;
                     // Set active to false to avoid ssoTest error
                     return adminClient.markets.updateMarket({active: false});
                 }).catch(function (error) {

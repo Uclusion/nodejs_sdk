@@ -2,6 +2,7 @@ import { Auth } from 'aws-amplify';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, { TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET } from './TestTokenManager';
 import {getIdentity} from './amplifyAuth';
+import {WebSocketRunner} from './WebSocketRunner';
 
 
 export function getSSOInfo(configuration) {
@@ -13,6 +14,16 @@ export function getSSOInfo(configuration) {
           return { idToken, ssoClient };
         });
     });
+}
+
+export function getWebSocketRunner(configuration) {
+    return loginUserToIdentity(configuration)
+        .then(idToken => {
+            const webSocketRunner = new WebSocketRunner({ wsUrl: configuration.websocketURL, reconnectInterval: 3000});
+            webSocketRunner.connect();
+            webSocketRunner.subscribe(idToken);
+            return webSocketRunner;
+        });
 }
 
 export function loginUserToIdentity(configuration) {

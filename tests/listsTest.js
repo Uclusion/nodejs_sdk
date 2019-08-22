@@ -1,7 +1,6 @@
 import assert from 'assert'
 import { checkStages } from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket} from "../src/utils";
-import {WebSocketRunner} from "../src/WebSocketRunner";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
@@ -10,7 +9,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
         expiration_minutes: 10,
     };
     const adminExpectedStageNames = [ 'Created', 'In Moderation', 'In Dialog'];
-    const webSocketRunner = new WebSocketRunner({ wsUrl: adminConfiguration.websocketURL, reconnectInterval: 3000});
     describe('#doList', () => {
         it('should list without error', async () => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -38,8 +36,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
-                webSocketRunner.connect();
-                webSocketRunner.subscribe(user.id, { market_id : createdMarketId });
                 return adminClient.markets.listStages();
             }).then((stageList) => {
                 globalStages = stageList;
@@ -54,7 +50,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investible.quantity === 0, 'market investible quantity incorrect');
                 return adminClient.users.grant(userId, 10000);
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
                     .then(() => response);
             }).then(() => {
                 return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
@@ -62,7 +58,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                 return adminClient.users.poke(userId, 'Please add the thing.');
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'})
                     .then(() => response);
             }).then(() => {
                 return adminClient.markets.listUsers();
@@ -112,15 +108,17 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(!investible, 'Should not be able to see other\'s investible in Created');
                 return userClient.markets.followMarket(true);
             }).then((response) => {
-                return webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
                     .then(() => response);
             }).then(() => {
                 return adminClient.markets.listUsers();
             }).then((users) => {
                 assert(users.length === 1, '1 user remaining in this dialog');
-                return webSocketRunner.terminate();
+                adminConfiguration.webSocketRunner.terminate();
+                return userConfiguration.webSocketRunner.terminate();
             }).catch(function(error) {
-                webSocketRunner.terminate();
+                adminConfiguration.webSocketRunner.terminate();
+                userConfiguration.webSocketRunner.terminate();
                 console.log(error);
                 throw error;
             });
