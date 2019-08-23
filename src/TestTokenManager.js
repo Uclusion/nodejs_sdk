@@ -32,6 +32,10 @@ class TestTokenManager{
         return Promise.resolve(this.token);
       });
   }
+
+  setToken(uclusionToken) {
+    this.token = uclusionToken;
+  }
 }
 
 export default TestTokenManager;

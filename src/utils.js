@@ -41,6 +41,12 @@ export function loginUserToAccount(configuration) {
     });
 }
 
+export function loginUserWithToken(configuration, uclusionToken, marketId) {
+    const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET, marketId);
+    tokenManager.setToken(uclusionToken);
+    return uclusion.constructClient({ ...configuration, tokenManager });
+}
+
 export function loginUserToMarket(configuration, marketId) {
   return getSSOInfo(configuration)
     .then(info => {

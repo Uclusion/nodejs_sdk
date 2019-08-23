@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {getSSOInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
+import {getSSOInfo, loginUserToAccount, loginUserToMarket, loginUserWithToken} from '../src/utils';
 import _ from 'lodash';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, {TOKEN_TYPE_MARKET} from '../src/TestTokenManager';
@@ -19,23 +19,25 @@ module.exports = function(adminConfiguration) {
             let adminClient;
             await authPromise.then((ssoInfo) => {
                 const { ssoClient, idToken } = ssoInfo;
-                return ssoClient.availableMarkets(idToken, true)
+                return ssoClient.availableMarkets(idToken)
                     .then((result) => {
-                        console.log(result);
-                        assert(_.isEmpty(result), "Associated with a market");
-                        return result;
+                        const activeMarkets = result.filter(market => market.active);
+                        console.log(activeMarkets);
+                        assert(_.isEmpty(activeMarkets), "Associated with a market");
+                        return activeMarkets;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration);
                     }).then(client => client.markets.createMarket(marketOptions))
                     .then((response) => {
                         createdMarketId = response.market_id;
-                        return ssoClient.availableMarkets(idToken, true);
+                        return ssoClient.availableMarkets(idToken);
                     }).then((result) => {
-                        assert(!_.isEmpty(result), "Should have one market associated");
-                        return result;
+                        const activeMarkets = result.filter(market => market.active);
+                        assert(!_.isEmpty(activeMarkets), "Should have one market associated");
+                        return activeMarkets[0];
                     })
-            }).then((response) => {
-                return loginUserToMarket(adminConfiguration, createdMarketId);
+            }).then((market) => {
+                return loginUserWithToken(adminConfiguration, market.uclusion_token, market.id);
             }).then((client) => {
                 adminClient = client;
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET, createdMarketId);
