@@ -5,7 +5,7 @@ module.exports = function(adminConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
-        expiration_minutes: 30,
+        expiration_minutes: 20,
         new_user_grant: 313
     };
     describe('#do market investible tests', () => {
@@ -27,6 +27,10 @@ module.exports = function(adminConfiguration) {
                 return adminClient.investibles.create('salmon', 'good on bagels');
             }).then((investible) => {
                 marketInvestibleId = investible.id;
+                return adminClient.markets.updateMarket({expiration_minutes: 30});
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
+            }).then(() => {
                 return adminClient.markets.updateMarket({active: false});
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
