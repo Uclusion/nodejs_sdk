@@ -73,7 +73,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                return userClient.investibles.createComment(null, 'body of my comment');
+                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment');
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                   .then((payload) => response);
@@ -84,7 +84,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
                 assert(comment.is_resolved, 'updated comment is_resolved incorrect');
-                return adminClient.investibles.createComment(marketInvestibleId, 'comment to fetch');
+                return adminClient.investibles.createComment(null, 'comment to fetch', null, true);
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
                 assert(comment.is_official === true, 'comment should be official');
