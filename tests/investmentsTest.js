@@ -66,10 +66,24 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                     stage_id: stage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then((response) => {
+            }).then(() => {
+                return userClient.users.getMessages();
+            }).then((messages) => {
+                const invalidVoting = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                });
+                assert(invalidVoting, 'Should be not voted till first investment');
                 return userClient.markets.updateInvestment(marketInvestibleId, 2000, 0);
             }).then((investment) => {
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'});
+            }).then(() => {
+                return userClient.users.getMessages();
+            }).then((messages) => {
+                const invalidVoting = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                });
+                assert(!invalidVoting, 'Invalid vote gone after first investment');
                 return userClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');

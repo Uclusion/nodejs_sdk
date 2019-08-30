@@ -11,11 +11,9 @@ module.exports = function (adminConfiguration) {
                 return ssoClient.availableMarkets(idToken)
                     .then((markets) => {
                         const deletions = markets.map((market) => {
-                            if (market.active) {
-                                console.log('Found ' + market.id);
-                                return loginUserWithToken(adminConfiguration, market.uclusion_token, market.id)
-                                    .then(client => client.markets.deleteMarket());
-                            }
+                            console.log('Found ' + market.id);
+                            return loginUserWithToken(adminConfiguration, market.uclusion_token, market.id)
+                                .then(client => client.markets.deleteMarket());
                         });
                         if (deletions) {
                             deletions.push(sleep(20000));

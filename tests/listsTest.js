@@ -80,7 +80,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'USER_POKED_' + adminId;
                 });
                 assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
-                return userClient.users.acknowledge(adminId, 'USER_POKED');
+                return userClient.markets.viewed();
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
             }).then(() => {
                 return userClient.users.getMessages();
             }).then((messages) => {

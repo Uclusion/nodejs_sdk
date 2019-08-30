@@ -4,7 +4,7 @@ import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 module.exports = function(adminConfiguration) {
     const marketOptions = {
         name : 'Default',
-        expiration_minutes: 3,
+        expiration_minutes: 2,
         new_user_grant: 313
     };
     const updateOptions = {
@@ -29,11 +29,7 @@ module.exports = function(adminConfiguration) {
                 assert(market.expiration_minutes === marketOptions.expiration_minutes, 'expiration_minutes is incorrect');
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.new_user_grant === 313, 'New user grant should match definition');
-                return adminClient.markets.viewed();
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
-            }).then(() => {
-                // Have 3 minutes to get here so that can receive the market update for the market expiring
+                // Have 2 minutes to get here so that can receive the market update for the market expiring
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
             }).catch(function(error) {
                 console.log(error);
