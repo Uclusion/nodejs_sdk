@@ -31,7 +31,7 @@ module.exports = function(adminConfiguration) {
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.markets.updateMarket({active: false});
+                return adminClient.markets.updateMarket({market_stage: 'Inactive'});
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
             }).then(() => {

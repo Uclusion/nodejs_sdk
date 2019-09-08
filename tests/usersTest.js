@@ -66,7 +66,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 }).then((webSocketRunner) => {
                     userConfiguration.webSocketRunner = webSocketRunner;
                     // Set active to false to avoid ssoTest error
-                    return adminClient.markets.updateMarket({active: false});
+                    return adminClient.markets.updateMarket({market_stage: 'Inactive'});
                 }).catch(function (error) {
                     console.log(error);
                     throw error;

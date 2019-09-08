@@ -21,7 +21,7 @@ module.exports = function(adminConfiguration) {
                 const { ssoClient, idToken } = ssoInfo;
                 return ssoClient.availableMarkets(idToken)
                     .then((result) => {
-                        const activeMarkets = result.filter(market => market.active);
+                        const activeMarkets = result.filter(market => market.stage === 'Active');
                         console.log(activeMarkets);
                         assert(_.isEmpty(activeMarkets), "Associated with a market");
                         return activeMarkets;
@@ -32,7 +32,7 @@ module.exports = function(adminConfiguration) {
                         createdMarketId = response.market_id;
                         return ssoClient.availableMarkets(idToken);
                     }).then((result) => {
-                        const activeMarkets = result.filter(market => market.active);
+                        const activeMarkets = result.filter(market => market.stage === 'Active');
                         assert(!_.isEmpty(activeMarkets), "Should have one market associated");
                         return activeMarkets[0];
                     })
@@ -44,13 +44,13 @@ module.exports = function(adminConfiguration) {
                 return uclusion.constructSSOClient(adminConfiguration, tokenManager).then(client => client.marketLoginInfo(createdMarketId));
             }).then((login_info) => {
                 console.log(login_info);
-                assert(login_info.active === true, 'Market should be active for 20m');
+                assert(login_info.stage === 'Active', 'Market should be active for 20m');
                 assert(login_info.name === marketOptions.name, 'Market name should be correct');
                 assert(login_info.description === marketOptions.description, 'Market description should be correct');
             }).catch(function(error) {
                 console.log(error);
                 throw error;
             });
-        }).timeout(30000);
+        }).timeout(60000);
     });
 };
