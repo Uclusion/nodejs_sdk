@@ -24,6 +24,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             let createdMarketId;
             let marketInvestibleId;
             let globalStages;
+            let parentCommentId;
             await promise.then((client) => {
                 return client.markets.createMarket(fishOptions);
             }).then((response) => {
@@ -87,18 +88,28 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment');
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
-                  .then((payload) => response);
+                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, null, false);
             }).then((comment) => {
+                parentCommentId = comment.id;
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.is_official === false, 'comment should not be official');
-                return userClient.investibles.updateComment(comment.id, 'new body', true);
+                assert(!comment.is_resolved, 'comment is_resolved incorrect');
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
+                  .then((payload) => comment);
+            }).then((comment) => {
+                return userClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
+            }).then((comment) => {
+                assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
+                return userClient.investibles.updateComment(parentCommentId, 'new body', true);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
-                assert(comment.is_resolved, 'updated comment is_resolved incorrect');
+                assert(comment.is_resolved === true, 'updated comment is_resolved incorrect');
+                assert(comment.children, 'now parent should have children');
                 return adminClient.investibles.createComment(null, 'comment to fetch', null, true);
+            }).then((comment) => {
+                // Can't do consistent read on GSI so need to wait before do the getMarketComments call
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
+                    .then((payload) => comment);
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
                 assert(comment.is_official === true, 'comment should be official');
