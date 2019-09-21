@@ -41,8 +41,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((user) => {
                 userId = user.id;
                 return userClient.investibles.create('salmon', 'good on bagels');
-            }).then((response) => {
-                marketInvestibleId = response.id;
+            }).then((investibleId) => {
+                marketInvestibleId = investibleId;
                 console.log('Investible ID is ' + marketInvestibleId);
                 return adminClient.markets.listStages();
             }).then((stages) => {
@@ -88,12 +88,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, null, false);
+                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, null, true);
             }).then((comment) => {
                 parentCommentId = comment.id;
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.is_official === false, 'comment should not be official');
-                assert(!comment.is_resolved, 'comment is_resolved incorrect');
+                assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                   .then((payload) => comment);
             }).then((comment) => {
@@ -103,7 +103,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
-                assert(comment.is_resolved === true, 'updated comment is_resolved incorrect');
+                assert(comment.comment_type === 'RESOLVED', 'updated comment_type incorrect');
                 assert(comment.children, 'now parent should have children');
                 return adminClient.investibles.createComment(null, 'comment to fetch', null, true);
             }).then((comment) => {
@@ -122,8 +122,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((user) => {
                 let userPresence = user.market_presence;
                 assert(userPresence.quantity === fishOptions.new_user_grant + 7000, 'Quantity was instead ' + userPresence.quantity + ' for ' + user.id);
-                return adminClient.investibles.update(marketInvestibleId, updateFish.name,
-                    updateFish.description, updateFish.label_list);
+                return adminClient.investibles.update(marketInvestibleId, updateFish.name, updateFish.description, updateFish.label_list);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
                   .then((payload) => response);
@@ -133,12 +132,16 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(arrayEquals(response.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
-                let investible = investibles[0];
+                const fullInvestible = investibles[0];
+                const investible = fullInvestible.investible;
+                const marketInfo = fullInvestible.market_infos.find(info => {
+                    return info.market_id === createdMarketId;
+                });
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
-                assert(investible.quantity === 2000, 'get market investible quantity incorrect');
-                assert(investible.current_user_is_following === true, 'current_user_is_following should return true');
+                assert(marketInfo.quantity === 2000, 'get market investible quantity incorrect');
+                assert(marketInfo.current_user_is_following === true, 'current_user_is_following should return true');
                 return userClient.markets.get();
             }).then((market) => {
                 //console.log(market);
@@ -160,12 +163,15 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                     .then((payload) => response);
             }).then(() => userClient.markets.getMarketInvestibles([marketInvestibleId])
             ).then((investibles) => {
-                let investible = investibles[0];
+                const fullInvestible = investibles[0];
+                const marketInfo = fullInvestible.market_infos.find(info => {
+                    return info.market_id === createdMarketId;
+                });
                 const current_stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
-                assert(investible.stage === current_stage.id, 'Instead of ' + investible.stage + ' which is ' + investible.stage_name);
-                assert(investible.open_for_investment === true, 'open_for_investment true');
-                assert(investible.open_for_refunds === true, 'open_for_refunds true');
-                assert(investible.quantity === 0, 'investment should be updated to zero');
+                assert(marketInfo.stage === current_stage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
+                assert(marketInfo.open_for_investment === true, 'open_for_investment true');
+                assert(marketInfo.open_for_refunds === true, 'open_for_refunds true');
+                assert(marketInfo.quantity === 0, 'investment should be updated to zero');
             }).catch(function (error) {
                 console.log(error);
                 throw error;

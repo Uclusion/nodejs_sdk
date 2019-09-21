@@ -41,13 +41,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalStages = stageList;
                 checkStages(adminExpectedStageNames, stageList);
                 return userClient.investibles.create('butter', 'good on bagels');
-            }).then((response) => {
-                marketInvestibleId = response.id;
+            }).then((investibleId) => {
+                marketInvestibleId = investibleId;
                 return adminClient.investibles.create('peanut butter', 'good with jelly');
-            }).then((investible) => {
-                globalCSMMarketInvestibleId = investible.id;
-                assert(investible.name === 'peanut butter', 'name not passed on correctly');
-                assert(investible.quantity === 0, 'market investible quantity incorrect');
+            }).then((investibleId) => {
+                globalCSMMarketInvestibleId = investibleId;
                 return adminClient.users.grant(userId, 10000);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
@@ -92,20 +90,23 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(!userPoked, 'Ack failed');
                 return userClient.markets.listInvestibles();
             }).then((result) => {
-                let investibles = result.investibles;
-                let investible = investibles.find(obj => {
+                const investibles = result.investibles;
+                const investible = investibles.find(obj => {
                     return obj.id === marketInvestibleId;
                 });
                 assert(investible.id === marketInvestibleId, 'should find the investible');
                 return userClient.markets.getMarketInvestibles([marketInvestibleId, globalCSMMarketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
-                    return obj.id === marketInvestibleId;
+                    return obj.investible.id === marketInvestibleId;
                 });
-                let stage = globalStages.find(stage => { return stage.id === investible.stage});
+                const marketInfo = investible.market_infos.find(info => {
+                    return info.market_id === createdMarketId;
+                });
+                const stage = globalStages.find(stage => { return stage.id === marketInfo.stage});
                 assert(stage.name === 'Created', 'investible stage should be Created');
                 investible = investibles.find(obj => {
-                    return obj.id === globalCSMMarketInvestibleId;
+                    return obj.investible.id === globalCSMMarketInvestibleId;
                 });
                 assert(!investible, 'Should not be able to see other\'s investible in Created');
                 return userClient.markets.followMarket(true);

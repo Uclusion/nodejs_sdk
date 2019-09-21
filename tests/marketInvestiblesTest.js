@@ -25,8 +25,8 @@ module.exports = function(adminConfiguration) {
             }).then((client) => {
                 adminClient = client;
                 return adminClient.investibles.create('salmon', 'good on bagels');
-            }).then((investible) => {
-                marketInvestibleId = investible.id;
+            }).then((investibleId) => {
+                marketInvestibleId = investibleId;
                 return adminClient.markets.updateMarket({expiration_minutes: 30});
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
