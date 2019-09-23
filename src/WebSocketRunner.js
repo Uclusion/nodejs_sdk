@@ -119,6 +119,9 @@ class WebSocketRunner {
 }
 
 function isSubsetEquivalent(payload, signature) {
+    if ((!payload && signature) || (!signature && payload)) {
+        return false
+    }
     for(const key of Object.keys(signature)){
         if (payload[key] !== signature[key]) {
             return false;

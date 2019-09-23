@@ -44,6 +44,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
                 console.log('Investible ID is ' + marketInvestibleId);
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
+            }).then(() => {
                 return adminClient.markets.listStages();
             }).then((stages) => {
                 globalStages = stages;
