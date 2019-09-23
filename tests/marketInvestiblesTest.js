@@ -6,7 +6,8 @@ module.exports = function(adminConfiguration) {
         name : 'Default',
         description: 'This is default.',
         expiration_minutes: 20,
-        new_user_grant: 313
+        new_user_grant: 313,
+        is_public: true
     };
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
@@ -16,6 +17,7 @@ module.exports = function(adminConfiguration) {
             let createdMarketId;
             let clonedMarketId;
             let marketInvestibleId;
+            let copiedInvestibleId;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -30,10 +32,34 @@ module.exports = function(adminConfiguration) {
                 return adminClient.markets.updateMarket({expiration_minutes: 30});
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
+            }).then((response) => {
+                return accountClient.markets.createMarket(marketOptions);
+            }).then((response) => {
+                clonedMarketId = response.market_id;
+                return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
+            }).then((investibleId) => {
+                copiedInvestibleId = investibleId;
+                return loginUserToMarket(adminConfiguration, clonedMarketId);
+            }).then((client) => {
+                adminClient = client;
+                return adminClient.users.get();
+            }).then((user) => {
+                adminConfiguration.webSocketRunner.subscribe(user.id, { market_id : clonedMarketId });
+                return adminClient.markets.viewedInvestible(copiedInvestibleId);
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED', payload: {'type_object_id': 'investible_' + copiedInvestibleId}});
+            }).then(() => {
+                return adminClient.investibles.share(marketInvestibleId);
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
+            }).then(() => {
+                return adminClient.investibles.delete(marketInvestibleId);
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
             }).then(() => {
                 return adminClient.markets.updateMarket({market_stage: 'Inactive'});
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: clonedMarketId});
             }).then(() => {
                 return adminClient.investibles.create('salmon', 'good on bagels')
                     .catch(function(error) {
@@ -42,25 +68,6 @@ module.exports = function(adminConfiguration) {
                     });
             }).then((response) => {
                 assert(response.includes('Market inactive'), 'Wrong response = ' + response);
-                return accountClient.markets.createMarket(marketOptions);
-            }).then((response) => {
-                clonedMarketId = response.market_id;
-                return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
-            }).then((investibleId) => {
-                marketInvestibleId = investibleId;
-                return loginUserToMarket(adminConfiguration, clonedMarketId);
-            }).then((client) => {
-                adminClient = client;
-                return adminClient.users.get();
-            }).then((user) => {
-                adminConfiguration.webSocketRunner.subscribe(user.id, { market_id : clonedMarketId });
-                return adminClient.markets.viewedInvestible(marketInvestibleId);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED', payload: {'type_object_id': 'investible_' + marketInvestibleId}});
-            }).then(() => {
-                return adminClient.investibles.delete(marketInvestibleId);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
             }).catch(function(error) {
                 console.log(error);
                 throw error;
