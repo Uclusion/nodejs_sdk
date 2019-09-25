@@ -99,9 +99,17 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                   .then((payload) => comment);
             }).then((comment) => {
-                return userClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
+                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'});
+            }).then(() => {
+                return userClient.users.getMessages();
+            }).then((messages) => {
+                const repliedComment = messages.find(obj => {
+                    return obj.type_object_id === 'INVESTIBLE_COMMENT_' + marketInvestibleId;
+                });
+                assert(repliedComment.level === 'YELLOW', 'replied to your comment is yellow');
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
