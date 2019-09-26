@@ -1,6 +1,6 @@
 import assert from 'assert'
 import { checkStages } from './commonTestFunctions';
-import {loginUserToAccount, loginUserToMarket} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
@@ -73,7 +73,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id !== userId;
                 });
                 assert(userPoking.users_poked.length === 1, 'Should have poked someone');
-                return userClient.users.getMessages();
+                return getMessages(userConfiguration);
             }).then((messages) => {
                 const userPoked = messages.find(obj => {
                     return obj.type_object_id === 'USER_POKED_' + adminId;
@@ -83,7 +83,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
             }).then(() => {
-                return userClient.users.getMessages();
+                return getMessages(userConfiguration);
             }).then((messages) => {
                 const userPoked = messages.find(obj => {
                     return obj.type_object_id === 'USER_POKED_' + adminId;

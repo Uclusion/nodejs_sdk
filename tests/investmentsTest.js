@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { arrayEquals, sleep } from './commonTestFunctions';
-import {loginUserToAccount, loginUserToMarket} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const fishOptions = {
@@ -70,7 +70,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return userClient.users.getMessages();
+                return getMessages(userConfiguration);
             }).then((messages) => {
                 const invalidVoting = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
@@ -81,7 +81,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'});
             }).then(() => {
-                return userClient.users.getMessages();
+                return getMessages(userConfiguration);
             }).then((messages) => {
                 const invalidVoting = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
@@ -104,12 +104,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'});
             }).then(() => {
-                return userClient.users.getMessages();
-            }).then((messages) => {
-                const repliedComment = messages.find(obj => {
-                    return obj.type_object_id === 'INVESTIBLE_COMMENT_' + marketInvestibleId;
-                });
-                assert(repliedComment.level === 'YELLOW', 'replied to your comment is yellow');
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
@@ -182,6 +176,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(marketInfo.open_for_investment === true, 'open_for_investment true');
                 assert(marketInfo.open_for_refunds === true, 'open_for_refunds true');
                 assert(marketInfo.quantity === 0, 'investment should be updated to zero');
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const repliedComment = messages.find(obj => {
+                    return obj.type_object_id === 'INVESTIBLE_COMMENT_' + marketInvestibleId;
+                });
+                assert(repliedComment.level === 'YELLOW', 'replied to your comment is yellow');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
