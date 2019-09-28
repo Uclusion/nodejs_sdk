@@ -79,7 +79,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 2000, 0);
             }).then((investment) => {
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED', object_id: userId, indirect_object_id: createdMarketId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -145,7 +145,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 assert(marketInfo.quantity === 2000, 'get market investible quantity incorrect');
-                assert(marketInfo.current_user_is_following === true, 'current_user_is_following should return true');
+                const userPresence = marketInfo.user_presences.find(presence => {
+                    return presence.user_id === userId;
+                });
+                assert(userPresence.quantity === 2000, 'investment should match made above');
                 return userClient.markets.get();
             }).then((market) => {
                 //console.log(market);

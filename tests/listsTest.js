@@ -66,9 +66,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === userId;
                 });
                 assert(pokedUser.users_poked.length === 0, 'Should not have poked anyone');
-                assert(pokedUser.quantity === 4099, 'Quantity wrong is ' + pokedUser.quantity);
-                assert(pokedUser.quantity_invested === 6001, 'Quantity invested wrong is ' + pokedUser.quantity_invested);
-                assert(pokedUser.investments.length === 1, '1 investment');
                 const userPoking = users.find(obj => {
                     return obj.id !== userId;
                 });
@@ -81,7 +78,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
                 return userClient.markets.viewed();
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'VIEWED'});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
