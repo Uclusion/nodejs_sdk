@@ -45,10 +45,6 @@ module.exports = function(adminConfiguration) {
                 return adminClient.users.get();
             }).then((user) => {
                 adminConfiguration.webSocketRunner.subscribe(user.id, { market_id : clonedMarketId });
-                return adminClient.markets.viewedInvestible(copiedInvestibleId, true);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: copiedInvestibleId});
-            }).then(() => {
                 return adminClient.investibles.share(marketInvestibleId);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});

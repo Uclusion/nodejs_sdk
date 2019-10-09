@@ -76,7 +76,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'USER_POKED_' + adminId;
                 });
                 assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
-                return userClient.markets.viewed();
+                return userClient.users.removeNotification(adminId, 'USER_POKED');
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'});
             }).then(() => {

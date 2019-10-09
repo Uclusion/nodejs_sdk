@@ -145,10 +145,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 assert(marketInfo.quantity === 2000, 'get market investible quantity incorrect');
-                const userPresence = marketInfo.user_presences.find(presence => {
-                    return presence.user_id === userId;
-                });
-                assert(userPresence.quantity === 2000, 'investment should match made above');
                 return userClient.markets.get();
             }).then((market) => {
                 //console.log(market);
