@@ -52,6 +52,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     .then(() => response);
             }).then(() => {
                 return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
+            }).then((response) => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED', object_id: userId, indirect_object_id: createdMarketId})
+                    .then(() => response);
             }).then((investment) => {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                 return adminClient.users.poke(userId, 'Please add the thing.');
@@ -66,6 +69,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === userId;
                 });
                 assert(pokedUser.users_poked.length === 0, 'Should not have poked anyone');
+                const { investments } = pokedUser;
+                assert(investments.length === 1, 'Should have 1 investment');
+                const investment = investments[0];
+                const { quantity: investmentQuantity, investible_id: investmentInvestibleId } = investment;
+                assert(investmentQuantity === 6001, 'Should match investment amount above');
+                assert(investmentInvestibleId === marketInvestibleId, 'Should match investment ID above');
                 const userPoking = users.find(obj => {
                     return obj.id !== userId;
                 });
