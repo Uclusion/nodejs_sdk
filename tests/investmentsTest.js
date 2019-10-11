@@ -104,11 +104,27 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'});
             }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const investibleIssue = messages.find(obj => {
+                    return obj.type_object_id === 'INVESTIBLE_ISSUE_' + marketInvestibleId;
+                });
+                assert(investibleIssue, 'No investible issue notification');
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true);
+            }).then((comment) => {
+                // Can't do consistent read on GSI so need to wait before do the getMarketComments call
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
+                    .then((payload) => comment);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
                 assert(comment.comment_type === 'RESOLVED', 'updated comment_type incorrect');
                 assert(comment.children, 'now parent should have children');
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const investibleIssue = messages.find(obj => {
+                    return obj.type_object_id === 'INVESTIBLE_ISSUE_' + marketInvestibleId;
+                });
+                assert(!investibleIssue, 'Investible issue notification should have been deleted');
                 return adminClient.investibles.createComment(null, 'comment to fetch', null, true);
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
