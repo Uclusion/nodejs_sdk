@@ -150,35 +150,9 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const investible = fullInvestible.investible;
-                const marketInfo = fullInvestible.market_infos.find(info => {
-                    return info.market_id === createdMarketId;
-                });
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
-                assert(marketInfo.quantity === 2000, 'get market investible quantity incorrect');
-                return userClient.markets.get();
-            }).then((market) => {
-                //console.log(market);
-                assert(market.active_investments === 2000, 'active investments should be 2000');
-                assert(market.users_in === numUsers, 'There are ' + market.users_in + ' users in this market');
-                assert(market.unspent === 2*fishOptions.new_user_grant + 7000, 'Unspent is in fact ' + market.unspent);
-                return sleep(10000);
-            }).then((response) => {
-                return adminClient.summaries.marketSummary();
-            }).then((summaries) => {
-                assert(summaries.market_id === createdMarketId);
-                assert(summaries.summaries.length === 1, 'There should be 1 day of summary data for a new market');
-                const todaysSummary = summaries.summaries[0];
-                assert(todaysSummary.unspent_shares === 2*fishOptions.new_user_grant + 7000, 'Unspent wrong in summary');
-                assert(todaysSummary.num_users === numUsers, 'There are ' + todaysSummary.num_users + ' in the market');
-                return userClient.markets.updateInvestment(marketInvestibleId, 0, 2000);
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
-                    .then((payload) => response);
-            }).then(() => userClient.markets.getMarketInvestibles([marketInvestibleId])
-            ).then((investibles) => {
-                const fullInvestible = investibles[0];
                 const marketInfo = fullInvestible.market_infos.find(info => {
                     return info.market_id === createdMarketId;
                 });
@@ -186,9 +160,16 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(marketInfo.stage === current_stage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 assert(marketInfo.open_for_investment === true, 'open_for_investment true');
                 assert(marketInfo.open_for_refunds === true, 'open_for_refunds true');
-                assert(marketInfo.quantity === 0, 'investment should be updated to zero');
-                return getMessages(userConfiguration);
-            }).then((messages) => {
+                return userClient.markets.updateInvestment(marketInvestibleId, 0, 2000);
+            }).then((response) => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED', object_id: userId, indirect_object_id: createdMarketId})
+                    .then(() => response);
+            }).then(() => getMessages(userConfiguration)
+            ).then((messages) => {
+                const invalidVoting = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                });
+                assert(invalidVoting, 'Should be not voted after removing investment');
                 const repliedComment = messages.find(obj => {
                     return obj.type_object_id === 'INVESTIBLE_COMMENT_' + marketInvestibleId;
                 });
