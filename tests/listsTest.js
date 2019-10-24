@@ -8,7 +8,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         description: 'this is a butter market',
         expiration_minutes: 10,
     };
-    const adminExpectedStageNames = [ 'Created', 'In Moderation', 'In Dialog'];
+    const adminExpectedStageNames = [ 'Created', 'In Dialog'];
     describe('#doList', () => {
         it('should list without error', async () => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -115,7 +115,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 investible = investibles.find(obj => {
                     return obj.investible.id === globalCSMMarketInvestibleId;
                 });
-                assert(!investible, 'Should not be able to see other\'s investible in Created');
+                assert(investible, 'Should be able to see other\'s investible in Created');
                 return userClient.markets.followMarket(true);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})

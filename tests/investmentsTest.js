@@ -49,26 +49,18 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return adminClient.markets.listStages();
             }).then((stages) => {
                 globalStages = stages;
-                const current_stage = globalStages.find(stage => { return stage.name === 'Created'});
-                const stage = globalStages.find(stage => { return stage.name === 'In Moderation'});
+                const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
+                const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 let stateOptions = {
-                    current_stage_id: current_stage.id,
+                    current_stage_id: currentStage.id,
                     stage_id: stage.id
                 };
-                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
                 return adminClient.users.grant(userId, 9000);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
                     .then(() => response);
-            }).then(() => {
-                const current_stage = globalStages.find(stage => { return stage.name === 'In Moderation'});
-                const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
-                let stateOptions = {
-                    current_stage_id: current_stage.id,
-                    stage_id: stage.id
-                };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -90,11 +82,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, null, true);
+                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'ISSUE');
             }).then((comment) => {
                 parentCommentId = comment.id;
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
-                assert(comment.is_official === false, 'comment should not be official');
                 assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                   .then((payload) => comment);
@@ -125,14 +116,14 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                     return obj.type_object_id === 'INVESTIBLE_ISSUE_' + marketInvestibleId;
                 });
                 assert(!investibleIssue, 'Investible issue notification should have been deleted');
-                return adminClient.investibles.createComment(null, 'comment to fetch', null, true);
+                return adminClient.investibles.createComment(null, 'comment to fetch', null, 'QUESTION');
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
                     .then((payload) => comment);
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
-                assert(comment.is_official === true, 'comment should be official');
+                assert(comment.comment_type === 'QUESTION', 'comment should be question');
                 return userClient.investibles.getMarketComments([comment.id]);
             }).then((comments) => {
                 let comment = comments[0];
