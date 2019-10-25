@@ -63,7 +63,7 @@ module.exports = function(adminConfiguration) {
                         return 'Market inactive';
                     });
             }).then((response) => {
-                assert(response.includes('Market inactive'), 'Wrong response = ' + response);
+                assert(response === 'Market inactive', 'Wrong response = ' + response);
             }).catch(function(error) {
                 console.log(error);
                 throw error;
