@@ -1,5 +1,6 @@
 import assert from 'assert'
-import {loginUserToAccount, loginUserToMarket} from "../src/utils";
+import {getMessages, loginUserToAccount, loginUserToMarket} from "../src/utils";
+import {arrayEquals} from "./commonTestFunctions";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -19,6 +20,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let userClient;
             let accountClient;
             let createdMarketId;
+            let userId;
+            let adminId;
+            let marketInvestibleId;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -42,6 +46,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
+                return adminClient.users.get();
+            }).then((user) => {
+                adminId = user.id;
                 return adminClient.markets.get();
             }).then((market) => {
                 assert(market.name === planningOptions.name, 'Name is incorrect');
@@ -52,7 +59,29 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 userClient = client;
                 return userClient.users.get();
             }).then((user) => {
+                userId = user.id;
                 assert(user.flags.market_admin, 'Should be admin in planning');
+                return userClient.investibles.create('salmon spawning', 'plan to catch', null, [userId]);
+            }).then((investibleId) => {
+                marketInvestibleId = investibleId;
+                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const investible = fullInvestible.investible;
+                const marketInfo = fullInvestible.market_infos.find(info => {
+                    return info.market_id === createdMarketId;
+                });
+                assert(arrayEquals(marketInfo.assigned, [userId]), 'assigned should be correct');
+                return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId, adminId]);
+            }).then((response) => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
+                    .then((payload) => response);
+            }).then(() => getMessages(userConfiguration)
+            ).then((messages) => {
+                const unread = messages.find(obj => {
+                    return obj.type_object_id === 'INVESTIBLE_UNREAD_' + marketInvestibleId;
+                });
+                assert(unread && unread.level === 'RED', 'changing assignment should mark unread');
             }).catch(function(error) {
                 console.log(error);
                 throw error;
