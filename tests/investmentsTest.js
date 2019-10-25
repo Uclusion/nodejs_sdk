@@ -59,7 +59,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then(() => {
                 return adminClient.users.grant(userId, 9000);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED', object_id: userId, indirect_object_id: createdMarketId})
                     .then(() => response);
             }).then(() => {
                 return getMessages(userConfiguration);
