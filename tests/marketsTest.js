@@ -13,7 +13,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         description: 'this is a fish planning market',
         market_type: 'PLANNING'
     };
-    const plannedStageNames = [ 'Created', 'In Dialog', 'In Progress', 'Archived'];
+    const plannedStageNames = [ 'Created', 'In Dialog', 'Accepted', 'Archived'];
     describe('#doCreate and asynchronously expire market', () => {
         it('should create market without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -25,8 +25,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let adminId;
             let marketInvestibleId;
             let globalStages;
-            let progressStage;
+            let acceptedStage;
             let currentStage;
+            let inDialogStage;
             let stateOptions;
             let investible;
             await promise.then((client) => {
@@ -83,12 +84,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(arrayEquals(marketInfo.assigned, [userId]), 'assigned should be correct');
                 currentStage = globalStages.find(stage => { return stage.name === 'Created'});
+                inDialogStage = globalStages.find(stage => { return stage.appears_in_market_summary });
                 assert(marketInfo.stage === currentStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 assert(!marketInfo.appears_in_market_summary, 'not in tabs yet');
-                progressStage = globalStages.find(stage => { return stage.name === 'In Progress'});
+                acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
                 stateOptions = {
                     current_stage_id: currentStage.id,
-                    stage_id: progressStage.id
+                    stage_id: acceptedStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions).catch(function(error) {
                     assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
@@ -96,19 +98,31 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
             }).then((response) => {
                 assert(response === 'Not participant', 'Wrong response = ' + response);
+                const inDialogOptions = {
+                    current_stage_id: currentStage.id,
+                    stage_id: inDialogStage.id
+                };
+                return adminClient.investibles.stateChange(marketInvestibleId, inDialogOptions);
+            }).then(() => {
                 return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId, adminId]);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
                     .then((payload) => response);
             }).then(() => getMessages(userConfiguration)
             ).then((messages) => {
+                // Note both of these messages should have already been there even before the assignment change
                 const unread = messages.find(obj => {
                     return obj.type_object_id === 'INVESTIBLE_UNREAD_' + marketInvestibleId;
                 });
                 assert(unread && unread.level === 'RED', 'changing assignment should mark unread');
+                const help_assign = messages.find(obj => {
+                    return obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId;
+                });
+                assert(help_assign && help_assign.level === 'RED', 'changing assignment should create assigned empty notification');
+                stateOptions.current_stage_id = inDialogStage.id;
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
-                assert(response.success_message === 'Investible state updated', 'Should be able to put in progress - wrong response = ' + response);
+                assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
             }).catch(function(error) {
                 console.log(error);
                 throw error;
