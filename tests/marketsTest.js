@@ -115,14 +115,25 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'INVESTIBLE_UNREAD_' + marketInvestibleId;
                 });
                 assert(unread && unread.level === 'RED', 'changing assignment should mark unread');
-                const help_assign = messages.find(obj => {
+                const helpAssign = messages.find(obj => {
                     return obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId;
                 });
-                assert(help_assign && help_assign.level === 'RED', 'changing assignment should create assigned empty notification');
+                assert(helpAssign && helpAssign.level === 'RED', 'changing assignment should create assigned empty notification');
                 stateOptions.current_stage_id = inDialogStage.id;
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
                 assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
+                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
+            }).then((investment) => {
+                assert(investment.quantity === 100, 'investment quantity should be 100');
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED', object_id: userId, indirect_object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const helpAssign = messages.find(obj => {
+                    return obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId;
+                });
+                assert(!helpAssign, 'USER_ASSIGNED_EMPTY gone after investment');
             }).catch(function(error) {
                 console.log(error);
                 throw error;
