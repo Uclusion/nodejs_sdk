@@ -31,7 +31,7 @@ module.exports = function(adminConfiguration) {
                 marketInvestibleId = investibleId;
                 return adminClient.markets.updateMarket({expiration_minutes: 30});
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then((response) => {
                 return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -47,15 +47,11 @@ module.exports = function(adminConfiguration) {
                 adminConfiguration.webSocketRunner.subscribe(user.id, { market_id : clonedMarketId });
                 return adminClient.investibles.share(marketInvestibleId);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
-            }).then(() => {
-                return adminClient.investibles.delete(marketInvestibleId);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_DELETED', object_id: marketInvestibleId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
                 return adminClient.markets.updateMarket({market_stage: 'Inactive'});
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: clonedMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
                 return adminClient.investibles.create('salmon', 'good on bagels')
                     .catch(function(error) {

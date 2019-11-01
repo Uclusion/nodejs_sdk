@@ -22,6 +22,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let accountClient;
             let createdMarketId;
             let userId;
+            let userExternalId;
             let adminId;
             let marketInvestibleId;
             let globalStages;
@@ -45,7 +46,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.account_name, 'Market should have an account name');
                 assert(market.new_user_grant === 313, 'New user grant should match definition');
                 // Have 2 minutes to get here so that can receive the market update for the market expiring
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_UPDATED', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
                 return accountClient.markets.createMarket(planningOptions);
             }).then((response) => {
@@ -67,6 +68,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
+                userExternalId = user.external_id;
                 assert(user.flags.market_admin, 'Should be admin in planning');
                 return adminClient.markets.listStages();
             }).then((stageList) => {
@@ -106,7 +108,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId, adminId]);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then((payload) => response);
             }).then(() => getMessages(userConfiguration)
             ).then((messages) => {
@@ -116,7 +118,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(unread && unread.level === 'RED', 'changing assignment should mark unread');
                 const helpAssign = messages.find(obj => {
-                    return obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId;
+                    return (obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(helpAssign && helpAssign.level === 'RED', 'changing assignment should create assigned empty notification');
                 stateOptions.current_stage_id = inDialogStage.id;
@@ -126,12 +128,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED', object_id: userId, indirect_object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const helpAssign = messages.find(obj => {
-                    return obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId;
+                    return (obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(!helpAssign, 'USER_ASSIGNED_EMPTY gone after investment');
             }).catch(function(error) {

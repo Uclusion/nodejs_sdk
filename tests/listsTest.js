@@ -16,6 +16,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let userClient;
             let adminId;
             let userId;
+            let userExternalId;
             let globalCSMMarketInvestibleId;
             let marketInvestibleId;
             let globalStages;
@@ -36,6 +37,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
+                userExternalId = user.external_id;
                 return adminClient.markets.listStages();
             }).then((stageList) => {
                 globalStages = stageList;
@@ -48,18 +50,18 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalCSMMarketInvestibleId = investibleId;
                 return adminClient.users.grant(userId, 10000);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then(() => {
                 return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED', object_id: userId, indirect_object_id: createdMarketId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then((investment) => {
                 assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
                 return adminClient.users.poke(userId, 'Please add the thing.');
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId})
                     .then(() => response);
             }).then(() => {
                 return adminClient.markets.listUsers();
@@ -87,7 +89,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
                 return userClient.users.removeNotification(adminId, 'USER_POKED');
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED'});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -118,7 +120,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investible, 'Should be able to see other\'s investible in Created');
                 return userClient.markets.followMarket(true);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then(() => {
                 return adminClient.markets.listUsers();

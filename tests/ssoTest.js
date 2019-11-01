@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {getSSOInfo, loginUserToAccount, loginUserToMarket, loginUserWithToken} from '../src/utils';
+import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
 import _ from 'lodash';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, {TOKEN_TYPE_MARKET} from '../src/TestTokenManager';
@@ -14,30 +14,34 @@ module.exports = function(adminConfiguration) {
 
     describe('#do identity sso tests, ', () => {
         it('should retrieve login info without error', async () => {
-            let authPromise = getSSOInfo(adminConfiguration);
+            let authPromise = getSummariesInfo(adminConfiguration);
             let createdMarketId;
             let adminClient;
-            await authPromise.then((ssoInfo) => {
-                const { ssoClient, idToken } = ssoInfo;
-                return ssoClient.availableMarkets(idToken)
-                    .then((result) => {
-                        const activeMarkets = result.filter(market => market.stage === 'Active');
-                        console.log(activeMarkets);
-                        assert(_.isEmpty(activeMarkets), "Associated with a market");
-                        return activeMarkets;
+            await authPromise.then((summariesInfo) => {
+                const {summariesClient, idToken} = summariesInfo;
+                return summariesClient.versions(idToken)
+                    .then((versions) => {
+                        const marketVersions = versions.filter((versionRow) => versionRow.type_object_id.includes('market'));
+                        console.log(marketVersions);
+                        assert(_.isEmpty(marketVersions), "Associated with a market");
+                        return marketVersions;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration);
                     }).then(client => client.markets.createMarket(marketOptions))
                     .then((response) => {
                         createdMarketId = response.market_id;
-                        return ssoClient.availableMarkets(idToken);
-                    }).then((result) => {
-                        const activeMarkets = result.filter(market => market.stage === 'Active');
-                        assert(!_.isEmpty(activeMarkets), "Should have one market associated");
-                        return activeMarkets[0];
+                        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
                     })
-            }).then((market) => {
-                return loginUserWithToken(adminConfiguration, market.uclusion_token, market.id);
+                    .then((response) => {
+                        assert(response.version === 1, "Should be first version instead of " + response.version);
+                        return summariesClient.versions(idToken);
+                    }).then((versions) => {
+                        const marketVersions = versions.filter((versionRow) => versionRow.type_object_id.includes('market'));
+                        assert(!_.isEmpty(marketVersions), "Should have one market associated");
+                        return marketVersions[0].type_object_id.split('_')[1];
+                    })
+            }).then((marketId) => {
+                return loginUserToMarket(adminConfiguration, marketId);
             }).then((client) => {
                 adminClient = client;
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET, createdMarketId);

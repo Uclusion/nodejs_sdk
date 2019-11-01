@@ -8,12 +8,21 @@ import {WebSocketRunner} from './WebSocketRunner';
 export function getSSOInfo(configuration) {
   return loginUserToIdentity(configuration)
     .then(idToken => {
-//      console.log(`got new idtoken ${idToken}`);
       return uclusion.constructSSOClient(configuration)
         .then((ssoClient) => {
           return { idToken, ssoClient };
         });
     });
+}
+
+export function getSummariesInfo(configuration) {
+    return loginUserToIdentity(configuration)
+        .then(idToken => {
+            return uclusion.constructSummariesClient(configuration)
+                .then((summariesClient) => {
+                    return { idToken, summariesClient };
+                });
+        });
 }
 
 export function getWebSocketRunner(configuration) {
@@ -47,12 +56,6 @@ export function getMessages(configuration) {
             const { ssoClient, idToken } = info;
             return ssoClient.getMessages(idToken);
         });
-}
-
-export function loginUserWithToken(configuration, uclusionToken, marketId) {
-    const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET, marketId);
-    tokenManager.setToken(uclusionToken);
-    return uclusion.constructClient({ ...configuration, tokenManager });
 }
 
 export function loginUserToMarket(configuration, marketId) {

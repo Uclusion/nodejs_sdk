@@ -21,6 +21,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             let adminClient;
             let userClient;
             let userId;
+            let userExternalId;
             let createdMarketId;
             let marketInvestibleId;
             let globalStages;
@@ -40,11 +41,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
+                userExternalId = user.external_id;
                 return userClient.investibles.create('salmon', 'good on bagels');
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
                 console.log('Investible ID is ' + marketInvestibleId);
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.listStages();
             }).then((stages) => {
@@ -59,7 +61,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then(() => {
                 return adminClient.users.grant(userId, 9000);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED', object_id: userId, indirect_object_id: createdMarketId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then(() => {
                 return getMessages(userConfiguration);
@@ -71,7 +73,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 2000, 0);
             }).then((investment) => {
                 assert(investment.quantity === 2000, 'investment quantity should be 2000');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_MESSAGES_UPDATED', object_id: userId, indirect_object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -87,13 +89,13 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 parentCommentId = comment.id;
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                   .then((payload) => comment);
             }).then((comment) => {
                 return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -104,7 +106,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true);
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then((payload) => comment);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
@@ -119,7 +121,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return adminClient.investibles.createComment(null, 'comment to fetch', null, 'QUESTION');
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'INVESTIBLE_COMMENT_UPDATED'})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then((payload) => comment);
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
@@ -131,7 +133,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(comment.market_id === createdMarketId, 'market was not set properly on the comment');
                 return adminClient.investibles.update(marketInvestibleId, updateFish.name, updateFish.description, updateFish.label_list);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'MARKET_INVESTIBLE_UPDATED', object_id: marketInvestibleId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                   .then((payload) => response);
             }).then((response) => {
                 assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
@@ -153,7 +155,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(marketInfo.open_for_refunds === true, 'open_for_refunds true');
                 return userClient.markets.updateInvestment(marketInvestibleId, 0, 2000);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_UPDATED', object_id: userId, indirect_object_id: createdMarketId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then(() => getMessages(userConfiguration)
             ).then((messages) => {
