@@ -131,6 +131,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 let comment = comments[0];
                 assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
                 assert(comment.market_id === createdMarketId, 'market was not set properly on the comment');
+                return adminClient.investibles.lock(marketInvestibleId);
+            }).then((investible) => {
+                assert(investible.name === 'salmon', 'lock investible name not passed correctly');
+                assert(investible.description === 'good on bagels', 'lock investible description not passed correctly');
                 return adminClient.investibles.update(marketInvestibleId, updateFish.name, updateFish.description, updateFish.label_list);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})

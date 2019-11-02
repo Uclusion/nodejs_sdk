@@ -106,6 +106,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, inDialogOptions);
             }).then(() => {
+                return userClient.investibles.lock(marketInvestibleId);
+            }).then(() => {
                 return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId, adminId]);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
