@@ -13,7 +13,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
         description: 'this is a fish planning market',
         market_type: 'PLANNING'
     };
+    const initiativeOptions = {
+        name : 'fish initiative',
+        description: 'this is a fish initiative',
+        market_type: 'INITIATIVE'
+    };
     const plannedStageNames = [ 'Created', 'In Dialog', 'Accepted', 'Archived'];
+    const initiativeStageNames = ['In Dialog'];
     describe('#doCreate and asynchronously expire market', () => {
         it('should create market without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -138,6 +144,28 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(!helpAssign, 'USER_ASSIGNED_EMPTY gone after investment');
+                return accountClient.markets.createMarket(initiativeOptions);
+            }).then((response) => {
+                createdMarketId = response.market_id;
+                return loginUserToMarket(adminConfiguration, createdMarketId);
+            }).then((client) => {
+                adminClient = client;
+                return adminClient.markets.get();
+            }).then((market) => {
+                assert(market.name === initiativeOptions.name, 'Name is incorrect');
+                assert(market.description === initiativeOptions.description, 'Description is incorrect');
+                assert(market.account_name, 'Market should have an account name');
+                return adminClient.markets.listStages();
+            }).then((stageList) => {
+                checkStages(initiativeStageNames, stageList);
+                return adminClient.investibles.create('help salmon spawn', 'fish transport tube');
+            }).then(() => {
+                return adminClient.investibles.create('only one allowed', 'this one should fail').catch(function(error) {
+                    assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
+                    return 'Not allowed';
+                });
+            }).then((response) => {
+                assert(response === 'Not allowed', 'Wrong response = ' + response);
             }).catch(function(error) {
                 console.log(error);
                 throw error;
