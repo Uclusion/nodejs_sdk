@@ -129,6 +129,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(helpAssign && helpAssign.level === 'RED', 'changing assignment should create assigned empty notification');
+                assert(helpAssign.text === 'Please vote for an assignment for Tester Uclusion', 'incorrect text ' + helpAssign.text);
                 stateOptions.current_stage_id = inDialogStage.id;
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
