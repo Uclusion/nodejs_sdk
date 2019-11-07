@@ -112,6 +112,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
                 assert(comment.comment_type === 'RESOLVED', 'updated comment_type incorrect');
                 assert(comment.children, 'now parent should have children');
+                assert(comment.version === 3, 'update, reply and resolve should each bump version');
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
