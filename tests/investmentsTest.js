@@ -95,12 +95,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
-            }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
-                    return obj.type_object_id === 'INVESTIBLE_ISSUE_' + marketInvestibleId;
+                    return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === marketInvestibleId);
                 });
                 assert(investibleIssue, 'No investible issue notification');
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true);
@@ -116,9 +114,13 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
-                    return obj.type_object_id === 'INVESTIBLE_ISSUE_' + marketInvestibleId;
+                    return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === marketInvestibleId);
                 });
                 assert(!investibleIssue, 'Investible issue notification should have been deleted');
+                const investibleIssueResolved = messages.find(obj => {
+                    return (obj.type_object_id === 'ISSUE_RESOLVED_' + parentCommentId)&&(obj.level === 'YELLOW')&&(obj.associated_object_id === marketInvestibleId);
+                });
+                assert(investibleIssueResolved, 'Notification of resolution missing');
                 return adminClient.investibles.createComment(null, 'comment to fetch', null, 'QUESTION');
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
@@ -168,10 +170,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
                 assert(invalidVoting, 'Should be not voted after removing investment');
-                const repliedComment = messages.find(obj => {
-                    return obj.type_object_id === 'INVESTIBLE_COMMENT_' + marketInvestibleId;
-                });
-                assert(repliedComment.level === 'YELLOW', 'replied to your comment is yellow');
             }).catch(function (error) {
                 console.log(error);
                 throw error;

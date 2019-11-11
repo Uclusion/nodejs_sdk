@@ -45,6 +45,14 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.investibles.create('butter', 'good on bagels');
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
+                const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
+                const nextStage = globalStages.find(stage => { return stage.name === 'In Dialog'});
+                let stateOptions = {
+                    current_stage_id: currentStage.id,
+                    stage_id: nextStage.id
+                };
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
                 return adminClient.investibles.create('peanut butter', 'good with jelly');
             }).then((investibleId) => {
                 globalCSMMarketInvestibleId = investibleId;
@@ -113,7 +121,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return info.market_id === createdMarketId;
                 });
                 const stage = globalStages.find(stage => { return stage.id === marketInfo.stage});
-                assert(stage.name === 'Created', 'investible stage should be Created');
+                assert(stage.name === 'In Dialog', 'investible stage should be Created');
                 investible = investibles.find(obj => {
                     return obj.investible.id === globalCSMMarketInvestibleId;
                 });

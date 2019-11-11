@@ -122,7 +122,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             ).then((messages) => {
                 // Note both of these messages should have already been there even before the assignment change
                 const unread = messages.find(obj => {
-                    return obj.type_object_id === 'INVESTIBLE_UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
                 });
                 assert(unread && unread.level === 'RED', 'changing assignment should mark unread');
                 const helpAssign = messages.find(obj => {
@@ -130,10 +130,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(helpAssign && helpAssign.level === 'RED', 'changing assignment should create assigned empty notification');
                 assert(helpAssign.text === 'Please vote for an assignment for Tester Uclusion', 'incorrect text ' + helpAssign.text);
-                stateOptions.current_stage_id = inDialogStage.id;
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then((response) => {
-                assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
@@ -145,6 +141,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(!helpAssign, 'USER_ASSIGNED_EMPTY gone after investment');
+                stateOptions.current_stage_id = inDialogStage.id;
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then((response) => {
+                assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;
