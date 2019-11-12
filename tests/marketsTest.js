@@ -18,7 +18,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         description: 'this is a fish initiative',
         market_type: 'INITIATIVE'
     };
-    const plannedStageNames = [ 'Created', 'In Dialog', 'Accepted', 'Archived'];
+    const plannedStageNames = ['In Dialog', 'Accepted', 'Archived'];
     const initiativeStageNames = ['In Dialog'];
     describe('#doCreate and asynchronously expire market', () => {
         it('should create market without error', async() => {
@@ -91,13 +91,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return info.market_id === createdMarketId;
                 });
                 assert(arrayEquals(marketInfo.assigned, [userId]), 'assigned should be correct');
-                currentStage = globalStages.find(stage => { return stage.name === 'Created'});
                 inDialogStage = globalStages.find(stage => { return stage.appears_in_market_summary });
-                assert(marketInfo.stage === currentStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
-                assert(!marketInfo.appears_in_market_summary, 'not in tabs yet');
+                assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
                 stateOptions = {
-                    current_stage_id: currentStage.id,
+                    current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions).catch(function(error) {
@@ -106,12 +104,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
             }).then((response) => {
                 assert(response === 'Not participant', 'Wrong response = ' + response);
-                const inDialogOptions = {
-                    current_stage_id: currentStage.id,
-                    stage_id: inDialogStage.id
-                };
-                return adminClient.investibles.stateChange(marketInvestibleId, inDialogOptions);
-            }).then(() => {
                 return userClient.investibles.lock(marketInvestibleId);
             }).then(() => {
                 return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId, adminId]);
