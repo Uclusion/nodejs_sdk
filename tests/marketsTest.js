@@ -16,6 +16,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
     const initiativeOptions = {
         name : 'fish initiative',
         description: 'this is a fish initiative',
+        expiration_minutes: 20,
         market_type: 'INITIATIVE'
     };
     const plannedStageNames = ['In Dialog', 'Accepted', 'Archived'];
@@ -106,7 +107,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(response === 'Not participant', 'Wrong response = ' + response);
                 return userClient.investibles.lock(marketInvestibleId);
             }).then(() => {
-                return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId, adminId]);
+                return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [adminId]);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then((payload) => response);
