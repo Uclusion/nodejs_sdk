@@ -1,8 +1,6 @@
 import assert from 'assert';
-import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
+import {getSummariesInfo, loginUserToAccount} from '../src/utils';
 import _ from 'lodash';
-import uclusion from 'uclusion_sdk';
-import TestTokenManager, {TOKEN_TYPE_MARKET} from '../src/TestTokenManager';
 
 module.exports = function(adminConfiguration) {
     const marketOptions = {
@@ -40,17 +38,6 @@ module.exports = function(adminConfiguration) {
                         assert(!_.isEmpty(marketVersions), "Should have one market associated");
                         return marketVersions[0].type_object_id.split('_')[1];
                     })
-            }).then((marketId) => {
-                return loginUserToMarket(adminConfiguration, marketId);
-            }).then((client) => {
-                adminClient = client;
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET, createdMarketId);
-                return uclusion.constructSSOClient(adminConfiguration, tokenManager).then(client => client.marketLoginInfo(createdMarketId));
-            }).then((login_info) => {
-                console.log(login_info);
-                assert(login_info.stage === 'Active', 'Market should be active for 20m');
-                assert(login_info.name === marketOptions.name, 'Market name should be correct');
-                assert(login_info.description === marketOptions.description, 'Market description should be correct');
             }).catch(function(error) {
                 console.log(error);
                 throw error;
