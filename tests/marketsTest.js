@@ -113,16 +113,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     .then((payload) => response);
             }).then(() => getMessages(userConfiguration)
             ).then((messages) => {
-                // Note both of these messages should have already been there even before the assignment change
                 const unread = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(unread && unread.level === 'RED', 'changing assignment should mark unread');
+                assert(unread && unread.level === 'RED', 'changing assignment should mark unvoted');
                 const helpAssign = messages.find(obj => {
-                    return (obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId) && (obj.market_id_user_id.startsWith(createdMarketId));
+                    return (obj.type_object_id === 'NO_PIPELINE_' + createdMarketId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(helpAssign && helpAssign.level === 'RED', 'changing assignment should create assigned empty notification');
-                assert(helpAssign.text === 'Please vote for an assignment for Tester Uclusion', 'incorrect text ' + helpAssign.text);
+                assert(helpAssign && helpAssign.level === 'RED', 'changing assignment notify no pipeline');
+                assert(helpAssign.text === 'Please add or assign an option to yourself', 'incorrect text ' + helpAssign.text);
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
@@ -131,9 +130,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const helpAssign = messages.find(obj => {
-                    return (obj.type_object_id === 'USER_ASSIGNED_EMPTY_' + adminId) && (obj.market_id_user_id.startsWith(createdMarketId));
+                    return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(!helpAssign, 'USER_ASSIGNED_EMPTY gone after investment');
+                assert(!helpAssign, 'NOT_FULLY_VOTED gone after investment');
                 stateOptions.current_stage_id = inDialogStage.id;
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
