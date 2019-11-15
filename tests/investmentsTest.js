@@ -108,7 +108,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                     .then((payload) => comment);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
-                assert(comment.comment_type === 'RESOLVED', 'updated comment_type incorrect');
+                assert(comment.resolved, 'updated resolved incorrect');
                 assert(comment.children, 'now parent should have children');
                 assert(comment.version === 3, 'update, reply and resolve should each bump version');
                 return getMessages(userConfiguration);
@@ -129,6 +129,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
                 assert(comment.comment_type === 'QUESTION', 'comment should be question');
+                assert(!comment.resolved, 'QUESTION resolved incorrect');
                 return userClient.investibles.getMarketComments([comment.id]);
             }).then((comments) => {
                 let comment = comments[0];
