@@ -11,7 +11,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
     const planningOptions = {
         name : 'fish planning',
         description: 'this is a fish planning market',
-        market_type: 'PLANNING'
+        market_type: 'PLANNING',
+        investment_expiration: 1
     };
     const initiativeOptions = {
         name : 'fish initiative',
@@ -137,6 +138,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
                 assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
+                return adminClient.investibles.lock(marketInvestibleId);
+            }).then((response) => {
+                return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
+            }).then(() => {
+                return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0);
+            }).then(() => {
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;
