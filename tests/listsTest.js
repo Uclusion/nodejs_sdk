@@ -56,17 +56,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.create('peanut butter', 'good with jelly');
             }).then((investibleId) => {
                 globalCSMMarketInvestibleId = investibleId;
-                return adminClient.users.grant(userId, 10000);
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
-                    .then(() => response);
-            }).then(() => {
-                return userClient.markets.updateInvestment(marketInvestibleId, 6001, 0);
+                return userClient.markets.updateInvestment(marketInvestibleId, 0, 0);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then((investment) => {
-                assert(investment.quantity === 6001, 'investment quantity should be 6001 instead of ' + investment.quantity);
+                assert(investment.quantity === 0, 'investment quantity should be 0 instead of ' + investment.quantity);
                 return adminClient.users.poke(userId, 'Please add the thing.');
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId})
@@ -83,7 +78,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investments.length === 1, 'Should have 1 investment');
                 const investment = investments[0];
                 const { quantity: investmentQuantity, investible_id: investmentInvestibleId } = investment;
-                assert(investmentQuantity === 6001, 'Should match investment amount above');
+                assert(investmentQuantity === 0, 'Should match investment amount above');
                 assert(investmentInvestibleId === marketInvestibleId, 'Should match investment ID above');
                 const userPoking = users.find(obj => {
                     return obj.id !== userId;

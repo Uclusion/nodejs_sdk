@@ -59,20 +59,15 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return adminClient.users.grant(userId, 9000);
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
-                    .then(() => response);
-            }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const invalidVoting = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
                 assert(invalidVoting, 'Should be not voted till first investment');
-                return userClient.markets.updateInvestment(marketInvestibleId, 2000, 0);
+                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((investment) => {
-                assert(investment.quantity === 2000, 'investment quantity should be 2000');
+                assert(investment.quantity === 100, 'investment quantity should be 100');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
             }).then(() => {
                 return getMessages(userConfiguration);
@@ -161,7 +156,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(marketInfo.stage === current_stage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 assert(marketInfo.open_for_investment === true, 'open_for_investment true');
                 assert(marketInfo.open_for_refunds === true, 'open_for_refunds true');
-                return userClient.markets.updateInvestment(marketInvestibleId, 0, 2000);
+                return userClient.markets.removeInvestment(marketInvestibleId);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
