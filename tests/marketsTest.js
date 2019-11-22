@@ -134,7 +134,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(!helpAssign, 'NOT_FULLY_VOTED gone after investment');
-            }).then((response) => {
                 // done with the user now. So lets have them leave the market
                 return userClient.users.leave();
             }).then(() => {
