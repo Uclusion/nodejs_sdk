@@ -134,20 +134,22 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(!helpAssign, 'NOT_FULLY_VOTED gone after investment');
-                stateOptions.current_stage_id = inDialogStage.id;
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then(() => {
-                return adminClient.investibles.lock(marketInvestibleId);
-            }).then((response) => {
-                return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
-            }).then(() => {
-                return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((response) => {
                 // done with the user now. So lets have them leave the market
                 return userClient.users.leave();
             }).then(() => {
                 // now we wait for the websockets
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});
+            }).then(() => {
+                stateOptions.current_stage_id = inDialogStage.id;
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then((response) => {
+                assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
+                return adminClient.investibles.lock(marketInvestibleId);
+            }).then((response) => {
+                return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
+            }).then(() => {
+                return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then(() => {
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
