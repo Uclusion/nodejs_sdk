@@ -70,6 +70,14 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.name === planningOptions.name, 'Name is incorrect');
                 assert(market.description === planningOptions.description, 'Description is incorrect');
                 assert(market.account_name, 'Market should have an account name');
+                return adminClient.markets.lock();
+            }).then(() => {
+                return adminClient.markets.updateMarket({name: 'See if can change name', description: 'See if can change description'});
+            }).then(() => {
+                return adminClient.markets.get();
+            }).then((market) => {
+                assert(market.name === 'See if can change name', 'Name is incorrect');
+                assert(market.description === 'See if can change description', 'Description is incorrect');
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;

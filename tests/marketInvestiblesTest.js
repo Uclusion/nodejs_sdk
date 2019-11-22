@@ -49,7 +49,7 @@ module.exports = function(adminConfiguration) {
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
-                return adminClient.markets.updateMarket({market_stage: 'Inactive'});
+                return adminClient.markets.updateMarket({name: 'See if can change name without lock', market_stage: 'Inactive'});
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
