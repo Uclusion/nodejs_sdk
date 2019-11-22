@@ -135,11 +135,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(!helpAssign, 'NOT_FULLY_VOTED gone after investment');
                 // done with the user now. So lets have them leave the market
-                return userClient.users.leave();
-            }).then(() => {
-                // now we wait for the websockets
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});
-            }).then(() => {
                 stateOptions.current_stage_id = inDialogStage.id;
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
@@ -147,6 +142,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.lock(marketInvestibleId);
             }).then((response) => {
                 return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
+            }).then(() => {
+                return userClient.users.leave();
+            }).then(() => {
+                // now we wait for the websockets
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then(() => {
