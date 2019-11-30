@@ -35,7 +35,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let globalStages;
             let acceptedStage;
-            let currentStage;
+            let archivedStage;
             let inDialogStage;
             let stateOptions;
             let investible;
@@ -104,6 +104,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 inDialogStage = globalStages.find(stage => { return stage.appears_in_market_summary });
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
+                archivedStage = globalStages.find(stage => { return !stage.allows_refunds });
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
@@ -131,7 +132,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(helpAssign && helpAssign.level === 'RED', 'changing assignment notify no pipeline');
                 assert(helpAssign.text === 'Please add or assign an option to yourself', 'incorrect text ' + helpAssign.text);
-                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
+                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 4);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
@@ -142,8 +143,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(!helpAssign, 'NOT_FULLY_VOTED gone after investment');
-                // done with the user now. So lets have them leave the market
-                stateOptions.current_stage_id = inDialogStage.id;
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
                 assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
@@ -151,13 +150,29 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((response) => {
                 return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
             }).then(() => {
+                // done with the user now. So lets have them leave the market
                 return userClient.users.leave();
             }).then(() => {
                 // now we wait for the websockets
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});
             }).then(() => {
-                return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0);
+                return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 3);
             }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+            }).then(() => {
+                stateOptions = {
+                    current_stage_id: inDialogStage.id,
+                    stage_id: archivedStage.id
+                };
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+            }).then(() => {
+                return adminClient.summaries.getMarketSummary();
+            }).then((summaries) => {
+                const summary = summaries[0];
+                const  { archived_budget_total: totalBudget } = summary;
+                assert(totalBudget === 3, 'Summary should have budget 3');
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;
