@@ -20,7 +20,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         expiration_minutes: 20,
         market_type: 'INITIATIVE'
     };
-    const plannedStageNames = ['In Dialog', 'Accepted', 'Archived'];
+    const plannedStageNames = ['In Dialog', 'Accepted', 'In Review', 'Verified', 'Not Doing'];
     const initiativeStageNames = ['In Dialog'];
     describe('#doCreate and asynchronously expire market', () => {
         it('should create market without error', async() => {
@@ -101,10 +101,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return info.market_id === createdMarketId;
                 });
                 assert(arrayEquals(marketInfo.assigned, [userId]), 'assigned should be correct');
-                inDialogStage = globalStages.find(stage => { return stage.appears_in_market_summary });
+                inDialogStage = globalStages.find(stage => { return stage.allows_investment });
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
-                archivedStage = globalStages.find(stage => { return !stage.allows_refunds });
+                archivedStage = globalStages.find(stage => { return stage.appears_in_market_summary });
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
@@ -150,12 +150,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((response) => {
                 return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
             }).then(() => {
-                // done with the user now. So lets have them leave the market
-                return userClient.users.leave();
-            }).then(() => {
-                // now we wait for the websockets
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});
-            }).then(() => {
                 return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 3);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
@@ -164,7 +158,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     current_stage_id: inDialogStage.id,
                     stage_id: archivedStage.id
                 };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
@@ -173,6 +167,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const summary = summaries[0];
                 const  { archived_budget_total: totalBudget } = summary;
                 assert(totalBudget === 3, 'Summary should have budget 3');
+                // done with the user now. So lets have them leave the market
+                return userClient.users.leave();
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});
+            }).then(() => {
+                // now we wait for the websockets
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;

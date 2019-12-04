@@ -155,7 +155,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 const current_stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 assert(marketInfo.stage === current_stage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 assert(marketInfo.open_for_investment === true, 'open_for_investment true');
-                assert(marketInfo.open_for_refunds === true, 'open_for_refunds true');
                 return userClient.markets.removeInvestment(marketInvestibleId);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
