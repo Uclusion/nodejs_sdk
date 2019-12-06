@@ -5,8 +5,7 @@ import {arrayEquals, checkStages} from "./commonTestFunctions";
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
         name : 'Default',
-        expiration_minutes: 2,
-        new_user_grant: 313
+        expiration_minutes: 2
     };
     const planningOptions = {
         name : 'fish planning',
@@ -52,7 +51,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.name === 'Default', 'Name is incorrect');
                 assert(market.expiration_minutes === marketOptions.expiration_minutes, 'expiration_minutes is incorrect');
                 assert(market.account_name, 'Market should have an account name');
-                assert(market.new_user_grant === 313, 'New user grant should match definition');
                 // Have 2 minutes to get here so that can receive the market update for the market expiring
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {

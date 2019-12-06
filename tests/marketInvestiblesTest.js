@@ -6,7 +6,6 @@ module.exports = function(adminConfiguration) {
         name : 'Default',
         description: 'This is default.',
         expiration_minutes: 20,
-        new_user_grant: 313,
         is_public: true
     };
     describe('#do market investible tests', () => {

@@ -6,8 +6,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const fishOptions = {
         name: 'fish',
         description: 'this is a fish market',
-        expiration_minutes: 30,
-        new_user_grant: 313
+        expiration_minutes: 30
     };
     const updateFish = {
         name: 'pufferfish',

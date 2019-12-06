@@ -6,8 +6,7 @@ module.exports = function(adminConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
-        expiration_minutes: 20,
-        new_user_grant: 313
+        expiration_minutes: 20
     };
 
     describe('#do identity sso tests, ', () => {
