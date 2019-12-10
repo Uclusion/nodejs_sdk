@@ -12,20 +12,17 @@ Amplify.configure({Auth: cognitoConfiguration});
 
 const adminConfiguration = {
   baseURL:  'https://stage.api.uclusion.com/v1',
-  websocketURL: 'wss://stage.ws.uclusion.com/v1'
+  websocketURL: 'wss://stage.ws.uclusion.com/v1',
   username: 'sue.admin@uclude.com',
   password: 'Uclusi0n_test',
 };
 
 const userConfiguration = {
   baseURL:  'https://stage.api.uclusion.com/v1',
-  websocketURL: 'wss://stage.ws.uclusion.com/v1'
+  websocketURL: 'wss://stage.ws.uclusion.com/v1',
   username: 'jim.user@uclude.com',
   password: 'Uclusi0n_test',
 };
-
-
-
 
 describe('uclusion', () => {
   require('../tests/identityTests.js')(adminConfiguration);
