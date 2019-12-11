@@ -123,7 +123,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [adminId]);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
+                    {event_type: 'notification', object_id: userExternalId}])
                     .then((payload) => response);
             }).then(() => getMessages(userConfiguration)
             ).then((messages) => {
@@ -181,9 +182,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
-                return userClient.users.get();
-            }).then((presence) => {
-                assert(presence.market_hidden, 'market should be hidden');
+                return userClient.markets.listUsers();
+            }).then((users) => {
+                const myUser = users.find(obj => {
+                    return obj.id === userId;
+                });
+                assert(myUser.market_hidden, 'market should be hidden');
                 return userClient.users.leave();
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});

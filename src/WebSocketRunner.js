@@ -86,29 +86,42 @@ class WebSocketRunner {
      * otherwise rejects
      */
     waitForReceivedMessage(signature){
-        console.log("Waiting on message signature:");
-        console.log(signature);
+        return this.waitForReceivedMessages([signature]).then((responses) => responses[0]);
+    }
 
-        return new Promise((resolve, reject) => {
-       //     const timeoutHandler = setTimeout(() => { reject(signature) }, timeout);
-            this.messageHanders.push((payload) => {
-                console.log("Received payload for matching:");
-                console.log(payload);
-                let stillMatching = true;
-                console.log("Testing message against signature:");
-                console.log(signature);
-                for(const key of Object.keys(signature)){
-                    stillMatching &= (payload[key] === signature[key] || isSubsetEquivalent(payload[key], signature[key]));
-                }
-                if (stillMatching) {
-                    console.log("Found match");
-        //            clearTimeout(timeoutHandler);
-                    resolve(payload);
-                    return true;
-                }
-                return false;
+    /** Waits for a received messages matching the signature passed in
+     *
+     * @param signatures an array of object of key/value pairs we'll wait for
+     * @return A promise that resolves if the message is received within timeout milliseconds,
+     * otherwise rejects
+     */
+    waitForReceivedMessages(signatures){
+        console.log("Waiting on message signatures:");
+        console.log(signatures);
+
+        const promises = signatures.map(signature => {
+            return new Promise((resolve, reject) => {
+                //     const timeoutHandler = setTimeout(() => { reject(signature) }, timeout);
+                this.messageHanders.push((payload) => {
+                    console.log("Received payload for matching:");
+                    console.log(payload);
+                    let stillMatching = true;
+                    console.log("Testing message against signature:");
+                    console.log(signature);
+                    for(const key of Object.keys(signature)){
+                        stillMatching &= (payload[key] === signature[key] || isSubsetEquivalent(payload[key], signature[key]));
+                    }
+                    if (stillMatching) {
+                        console.log("Found match");
+                        //            clearTimeout(timeoutHandler);
+                        resolve(payload);
+                        return true;
+                    }
+                    return false;
+                });
             });
         });
+        return Promise.all(promises);
     }
 
     terminate(){
