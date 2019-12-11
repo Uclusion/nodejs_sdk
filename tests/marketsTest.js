@@ -57,6 +57,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return accountClient.markets.createMarket(planningOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;
+                console.log(`logging into planning market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
@@ -68,7 +69,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.name === planningOptions.name, 'Name is incorrect');
                 assert(market.description === planningOptions.description, 'Description is incorrect');
                 assert(market.account_name, 'Market should have an account name');
+                console.log(`locking market ${market.id}`);
                 return adminClient.markets.lock();
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
             }).then(() => {
                 return adminClient.markets.updateMarket({name: 'See if can change name', description: 'See if can change description'});
             }).then(() => {
