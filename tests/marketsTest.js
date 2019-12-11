@@ -151,8 +151,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((response) => {
                 assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
                 return adminClient.investibles.lock(marketInvestibleId);
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then((response) => {
                 return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 3);
             }).then(() => {
