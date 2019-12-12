@@ -148,6 +148,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(!helpAssign, 'NOT_FULLY_VOTED gone after investment');
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const newVoting = messages.find(obj => {
+                    return obj.type_object_id === 'NEW_VOTES_' + marketInvestibleId;
+                });
+                assert(newVoting, 'Assigned should be notified of investment');
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then((response) => {
                 assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);

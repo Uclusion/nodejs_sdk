@@ -75,6 +75,12 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
                 assert(!invalidVoting, 'Invalid vote gone after first investment');
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const newVoting = messages.find(obj => {
+                    return obj.type_object_id === 'NEW_VOTES_' + marketInvestibleId;
+                });
+                assert(newVoting, 'Moderator should be notified of investment');
                 return userClient.investibles.follow(marketInvestibleId, false);
             }).then((response) => {
                 assert(response.following === true, 'follow should return true');
