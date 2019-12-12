@@ -182,7 +182,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const summary = summaries[0];
                 const { archived_budget_total: totalBudget } = summary;
                 assert(totalBudget === 3, 'Summary should have budget 3');
-                // done with the user now. So lets have them hide then leave the market
+                // done with the user now. So lets have them hide
                 console.log('Hiding market');
                 return userClient.markets.hide();
             }).then(() => {
@@ -194,11 +194,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.id === userId;
                 });
                 assert(myUser.market_hidden, 'market should be hidden');
-                return userClient.users.leave();
-            }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'USER_LEFT_MARKET', indirect_object_id: createdMarketId});
-            }).then(() => {
-                // now we wait for the websockets
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;

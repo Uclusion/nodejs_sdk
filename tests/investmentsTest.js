@@ -89,13 +89,14 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 parentCommentId = comment.id;
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
+                    {event_type: 'notification'}])
                   .then((payload) => comment);
             }).then((comment) => {
                 return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
-                return getMessages(userConfiguration);
+                return getMessages(adminConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
                     return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === marketInvestibleId);
@@ -104,14 +105,15 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true);
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
+                    {event_type: 'notification'}])
                     .then((payload) => comment);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
                 assert(comment.resolved, 'updated resolved incorrect');
                 assert(comment.children, 'now parent should have children');
                 assert(comment.version === 3, 'update, reply and resolve should each bump version');
-                return getMessages(userConfiguration);
+                return getMessages(adminConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
                     return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === marketInvestibleId);
