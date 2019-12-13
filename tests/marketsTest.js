@@ -19,7 +19,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         expiration_minutes: 20,
         market_type: 'INITIATIVE'
     };
-    const plannedStageNames = ['In Dialog', 'Accepted', 'In Review', 'Verified', 'Not Doing'];
+    const plannedStageNames = ['In Dialog', 'Accepted', 'In Review', 'Blocked', 'Verified', 'Not Doing'];
     const initiativeStageNames = ['In Dialog'];
     describe('#doCreate and asynchronously expire market', () => {
         it('should create market without error', async() => {
