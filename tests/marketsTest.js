@@ -36,6 +36,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let acceptedStage;
             let archivedStage;
             let inDialogStage;
+            let notDoingStage;
             let stateOptions;
             let investible;
             await promise.then((client) => {
@@ -117,6 +118,23 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
             }).then((response) => {
                 assert(response === 'Not participant', 'Wrong response = ' + response);
+                notDoingStage = globalStages.find(stage => { return !stage.appears_in_market_summary && !stage.appears_in_context});
+                stateOptions = {
+                    current_stage_id: inDialogStage.id,
+                    stage_id: notDoingStage.id
+                };
+                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+            }).then(() => {
+                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const market_info = market_infos[0];
+                const { assigned, stage } = market_info;
+                assert(!assigned, 'Moving to Not Doing clears assignments');
+                assert(stage === notDoingStage.id, 'Should be in Not Doing stage');
                 return userClient.investibles.lock(marketInvestibleId);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
