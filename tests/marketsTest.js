@@ -70,8 +70,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.name === planningOptions.name, 'Name is incorrect');
                 assert(market.description === planningOptions.description, 'Description is incorrect');
                 assert(market.account_name, 'Market should have an account name');
-                console.log(`locking market ${market.id}`);
+                console.log(`locking market ${createdMarketId}`);
                 return adminClient.markets.lock();
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
+            }).then(() => {
+                console.log(`Locking market ${createdMarketId} and breaking lock with same user`);
+                return adminClient.markets.lock(true);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
             }).then(() => {
@@ -136,6 +141,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(!assigned, 'Moving to Not Doing clears assignments');
                 assert(stage === notDoingStage.id, 'Should be in Not Doing stage');
                 return userClient.investibles.lock(marketInvestibleId);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+            }).then(() => {
+                return userClient.investibles.lock(marketInvestibleId, true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
