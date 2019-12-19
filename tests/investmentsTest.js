@@ -58,6 +58,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+            }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const invalidVoting = messages.find(obj => {
@@ -81,9 +83,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                     return obj.type_object_id === 'NEW_VOTES_' + marketInvestibleId;
                 });
                 assert(newVoting, 'Moderator should be notified of investment');
-                return userClient.investibles.follow(marketInvestibleId, false);
-            }).then((response) => {
-                assert(response.following === true, 'follow should return true');
                 return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'ISSUE');
             }).then((comment) => {
                 parentCommentId = comment.id;
@@ -165,9 +164,9 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(marketInfo.stage === current_stage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 assert(marketInfo.open_for_investment === true, 'open_for_investment true');
                 return userClient.markets.removeInvestment(marketInvestibleId);
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
-                    .then(() => response);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
+                    {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => getMessages(userConfiguration)
             ).then((messages) => {
                 const invalidVoting = messages.find(obj => {
