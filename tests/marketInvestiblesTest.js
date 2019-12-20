@@ -1,7 +1,7 @@
 import assert from 'assert'
 import {loginUserToAccount, loginUserToMarket} from "../src/utils";
 
-module.exports = function(adminConfiguration) {
+module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
@@ -16,7 +16,8 @@ module.exports = function(adminConfiguration) {
             let createdMarketId;
             let clonedMarketId;
             let marketInvestibleId;
-            let copiedInvestibleId;
+            let otherUserId;
+            let otherAccountId;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -28,25 +29,32 @@ module.exports = function(adminConfiguration) {
                 return adminClient.investibles.create('salmon', 'good on bagels');
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
-                return adminClient.markets.updateMarket({expiration_minutes: 30});
-            }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
-            }).then((response) => {
+            }).then(() => {
+                // Add user to this market and get user_id so can user below to test add user api
+                return loginUserToMarket(userConfiguration, createdMarketId);
+            }).then((client) => {
+                // Add user to this market and get user_id so can user below to test add user api
+                return client.users.get();
+            }).then((user) => {
+                otherUserId = user.id;
+                otherAccountId = user.account_id;
                 return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
                 clonedMarketId = response.market_id;
                 return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
-            }).then((investibleId) => {
-                copiedInvestibleId = investibleId;
+            }).then(() => {
                 return loginUserToMarket(adminConfiguration, clonedMarketId);
             }).then((client) => {
                 adminClient = client;
-                return adminClient.users.get();
-            }).then((user) => {
-                adminConfiguration.webSocketRunner.subscribe(user.id, { market_id : clonedMarketId });
+                // Add user to the market
+                return adminClient.users.addUsers([{user_id: otherUserId, account_id: otherAccountId}]);
+            }).then((response) => {
+                assert(response.success_message === 'Capabilities added', 'Add not successful');
                 return adminClient.investibles.share(marketInvestibleId);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
+                // Verify user successfully getting push as a result of addUsers api
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
                 return adminClient.markets.updateMarket({name: 'See if can change name without lock', market_stage: 'Inactive'});
             }).then(() => {

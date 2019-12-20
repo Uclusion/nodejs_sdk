@@ -155,8 +155,17 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
                     {event_type: 'notification', object_id: userExternalId}])
                     .then((payload) => response);
-            }).then(() => getMessages(userConfiguration)
-            ).then((messages) => {
+            }).then(() => {
+                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const market_info = market_infos[0];
+                const { assigned, stage } = market_info;
+                assert(assigned[0] === adminId, 'Should be assigned');
+                assert(stage === inDialogStage.id, 'Should be in voting stage');
+                return getMessages(userConfiguration);
+            }).then((messages) => {
                 const unread = messages.find(obj => {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
