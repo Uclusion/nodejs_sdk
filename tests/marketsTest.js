@@ -175,7 +175,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(helpAssign && helpAssign.level === 'RED', 'changing assignment notify no pipeline');
                 assert(helpAssign.text === 'Please add or assign an option to yourself', 'incorrect text ' + helpAssign.text);
-                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 4);
+                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 3);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
@@ -192,26 +192,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NEW_VOTES_' + marketInvestibleId;
                 });
                 assert(newVoting, 'Assigned should be notified of investment');
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then((response) => {
-                assert(response.success_message === 'Investible state updated', 'Should be able to put accepted - wrong response = ' + response);
-                return adminClient.investibles.lock(marketInvestibleId);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
-            }).then((response) => {
-                return adminClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [userId]);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 3);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
-            }).then(() => {
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: archivedStage.id
                 };
-                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {

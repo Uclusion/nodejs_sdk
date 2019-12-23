@@ -19,7 +19,7 @@ module.exports = function (adminConfiguration) {
                                 .then(client => client.markets.deleteMarket());
                         });
                         if (deletions) {
-                            deletions.push(sleep(30000));
+                            deletions.push(sleep(40000));
                         }
                         return Promise.all(deletions).then(() => console.log('Done waiting for cleanup'));
                     });
