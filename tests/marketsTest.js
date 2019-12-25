@@ -175,7 +175,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(helpAssign && helpAssign.level === 'RED', 'changing assignment notify no pipeline');
                 assert(helpAssign.text === 'Please add or assign an option to yourself', 'incorrect text ' + helpAssign.text);
-                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 3);
+                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
@@ -204,7 +204,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((summaries) => {
                 const summary = summaries[0];
                 const { archived_budget_total: totalBudget } = summary;
-                assert(totalBudget === 3, 'Summary should have budget 3');
+                assert(totalBudget === 1, 'Summary should have budget from above');
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
                 return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'ISSUE');
             }).then(() => {
