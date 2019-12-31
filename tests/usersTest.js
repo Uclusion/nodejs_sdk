@@ -30,6 +30,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getWebSocketRunner(adminConfiguration);
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
+        return ssoClient.userSignup('Test UserAdmin', adminConfiguration.username, adminConfiguration.password)
+          .then((result) => {
+            // if we don't get an error here it's a failure
+            fail('User account already registered so signup should not have succeeded');
+          }).catch((error) => {
+            console.log('Signup error caught as expected')
+          });
+      }).then(() => {
         const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
         const config = { ...adminConfiguration, tokenManager };
         return uclusion.constructClient(config);
