@@ -31,13 +31,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
         return ssoClient.userSignup('Test UserAdmin', adminConfiguration.username, adminConfiguration.password)
-          .then((result) => {
-            // if we don't get an error here it's a failure
-            fail('User account already registered so signup should not have succeeded');
-          }).catch((error) => {
-            console.log('Signup error caught as expected')
-          });
-      }).then(() => {
+      }).then((result) => {
+        assert(result.response === 'ACCOUNT_EXISTS', 'Account should have existed');
         const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
         const config = { ...adminConfiguration, tokenManager };
         return uclusion.constructClient(config);
