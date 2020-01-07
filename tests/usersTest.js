@@ -38,14 +38,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return uclusion.constructClient(config);
       }).then((client) => {
         adminAccountClient = client;
-        return adminAccountClient.users.update('Daniel', '{ "code": "red" }');
+        return adminAccountClient.users.update({'name': 'Daniel', 'uiPreferences': '{ "code": "red" }'});
       }).then((response) => {
         assert(response.success_message === 'User updated', 'User update was not successful');
         return adminAccountClient.users.get(adminConfiguration.userId);
       }).then((user) => {
         assert(user.name === 'Daniel', 'Name not updated properly');
         assert(user.ui_preferences === '{ "code": "red" }', 'UI preferences not updated properly');
-        return adminAccountClient.users.update('Default');
+        return adminAccountClient.users.update({'name': 'Default'});
       }).then((response) => {
         assert(response.success_message === 'User updated', 'Update not successful');
         return loginUserToAccount(adminConfiguration);
