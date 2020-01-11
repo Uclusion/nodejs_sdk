@@ -4,7 +4,7 @@ global.fetch = fetch;
 
 const cognitoConfiguration = {
   userPoolId: 'us-west-2_tvPAGQR2e',
-  userPoolWebClientId: '3uudu732sp3m31h8n0easmr7h1',
+  userPoolWebClientId: '4dp5u64591fc43hbc2bcvodm9j',
   region: 'us-west-2',
 };
 
