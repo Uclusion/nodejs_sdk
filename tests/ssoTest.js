@@ -20,7 +20,7 @@ module.exports = function(adminConfiguration) {
                     .then((versions) => {
                         const marketVersions = versions.filter((versionRow) => versionRow.type_object_id.includes('market'));
                         console.log(marketVersions);
-                        assert(marketVersions.length === 1, "Should be associated with a single market even after activity");
+                        assert(marketVersions.length === 1, "Should be associated with a single market after activity");
                         return marketVersions;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration);

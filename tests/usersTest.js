@@ -25,8 +25,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
       await getSSOInfo(adminConfiguration).then(ssoInfo => {
         ssoClient = ssoInfo.ssoClient;
         adminIdToken = ssoInfo.idToken;
-        return ssoClient.cognitoAccountCreate(accountName, adminIdToken, 'Advanced', 0, true);
-      }).then(() => {
         return getWebSocketRunner(adminConfiguration);
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
@@ -58,12 +56,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
           adminClient = client;
           return adminClient.markets.updateMarket({ locked: true });
       }).then(() => {
-        return loginUserToMarket(userConfiguration, createdMarketId).catch(function (error) {
-          assert(error.status === 401, 'Wrong error = ' + JSON.stringify(error));
-          return 'Market locked';
-        });
-      }).then((response) => {
-        assert(response.includes('Market locked'), 'Wrong response = ' + response);
         return getWebSocketRunner(userConfiguration);
       }).then((webSocketRunner) => {
         userConfiguration.webSocketRunner = webSocketRunner;
