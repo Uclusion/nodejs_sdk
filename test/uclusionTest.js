@@ -3,8 +3,8 @@ import Amplify from 'aws-amplify';
 global.fetch = fetch;
 
 const cognitoConfiguration = {
-    userPoolId: 'us-west-2_NVPcNPhKS',
-    userPoolWebClientId: '4knr08iqujrprrkpimqm04dnp',
+    userPoolId: 'us-west-2_DF7pMdI6r',
+    userPoolWebClientId: '375e3ronmppclr3onap4ndguvi',
     region: 'us-west-2',
 };
 
