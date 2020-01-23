@@ -47,14 +47,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
+                // Have 2 minutes to get here so that can receive the market update for the market expiring
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+            }).then(() => {
                 return adminClient.markets.get();
             }).then((market) => {
                 assert(market.name === 'Default', 'Name is incorrect');
                 assert(market.expiration_minutes === marketOptions.expiration_minutes, 'expiration_minutes is incorrect');
                 assert(market.account_name, 'Market should have an account name');
-                // Have 2 minutes to get here so that can receive the market update for the market expiring
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
-            }).then(() => {
+                assert(market.market_stage === 'Inactive', 'Market inactive after expires');
                 return accountClient.markets.createMarket(planningOptions);
             }).then((response) => {
                 createdMarketId = response.market_id;
