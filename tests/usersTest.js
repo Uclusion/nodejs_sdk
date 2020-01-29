@@ -31,6 +31,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return ssoClient.userSignup('Test UserAdmin', adminConfiguration.username, adminConfiguration.password)
       }).then((result) => {
         assert(result.response === 'ACCOUNT_EXISTS', 'Account should have existed');
+        return ssoClient.resendVerification(adminConfiguration.username);
+      }).then((result) => {
+        assert(result.response === 'ACCOUNT_EXISTS', 'Account should have existed');
         const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
         const config = { ...adminConfiguration, tokenManager };
         return uclusion.constructClient(config);
