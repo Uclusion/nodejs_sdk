@@ -89,6 +89,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return adminClient.markets.get();
             }).then((market) => {
+                assert(market.updated_by_you, 'Market should have been updated by marked admin');
                 assert(market.name === 'See if can change name', 'Name is incorrect');
                 assert(market.description === 'See if can change description', 'Description is incorrect');
                 return loginUserToMarket(userConfiguration, createdMarketId);

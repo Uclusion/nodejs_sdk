@@ -155,6 +155,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 const fullInvestible = investibles[0];
                 const investible = fullInvestible.investible;
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
+                assert(!investible.updated_by_you, 'Market investible should have been updated by the admin not the user');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 const marketInfo = fullInvestible.market_infos.find(info => {
