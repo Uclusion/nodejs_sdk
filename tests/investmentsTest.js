@@ -65,6 +65,9 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 const invalidVoting = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
+                if (!invalidVoting) {
+                    console.log(messages);
+                }
                 assert(invalidVoting, 'Should be not voted till first investment');
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((investment) => {
