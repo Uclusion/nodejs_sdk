@@ -13,7 +13,6 @@ module.exports = function(adminConfiguration) {
         it('should retrieve login info without error', async () => {
             let authPromise = getSummariesInfo(adminConfiguration);
             let createdMarketId;
-            let adminClient;
             await authPromise.then((summariesInfo) => {
                 const {summariesClient, idToken} = summariesInfo;
                 return summariesClient.versions(idToken)
@@ -30,7 +29,6 @@ module.exports = function(adminConfiguration) {
                         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
                     })
                     .then((response) => {
-                        assert(response.version === 1, "Should be first version instead of " + response.version);
                         return summariesClient.versions(idToken);
                     }).then((versions) => {
                         const { signatures } = versions;
