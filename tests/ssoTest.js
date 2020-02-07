@@ -18,10 +18,10 @@ module.exports = function(adminConfiguration) {
                 const {summariesClient, idToken} = summariesInfo;
                 return summariesClient.versions(idToken)
                     .then((versions) => {
-                        const marketVersions = versions.filter((versionRow) => versionRow.type_object_id.includes('market'));
-                        console.log(marketVersions);
-                        assert(marketVersions.length === 1, "Should be associated with a single market after activity");
-                        return marketVersions;
+                        const { signatures } = versions;
+                        console.log(signatures);
+                        assert(signatures.length === 1, "Should be associated with a single market after activity");
+                        return signatures;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration);
                     }).then(client => client.markets.createMarket(marketOptions))
@@ -33,9 +33,9 @@ module.exports = function(adminConfiguration) {
                         assert(response.version === 1, "Should be first version instead of " + response.version);
                         return summariesClient.versions(idToken);
                     }).then((versions) => {
-                        const marketVersions = versions.filter((versionRow) => versionRow.type_object_id.includes('market'));
-                        assert(!_.isEmpty(marketVersions), "Should have one market associated");
-                        return marketVersions[0].type_object_id.split('_')[1];
+                        const { signatures } = versions;
+                        assert(!_.isEmpty(signatures), "Should have one market associated");
+                        return signatures[0].market_id;
                     })
             }).catch(function(error) {
                 console.log(error);

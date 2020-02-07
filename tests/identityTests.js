@@ -10,10 +10,9 @@ module.exports = function (adminConfiguration) {
                 const {summariesClient, idToken} = summariesInfo;
                 return summariesClient.versions(idToken)
                     .then((versions) => {
-                        const marketVersions = versions.filter((versionRow) => versionRow.type_object_id.includes('market'));
-                        const deletions = marketVersions.map((versionRow) => {
-                            const {type_object_id} = versionRow;
-                            const marketId = type_object_id.split('_')[1];
+                        const { signatures } = versions;
+                        const deletions = signatures.map((signature) => {
+                            const {market_id: marketId} = signature;
                             console.log('Found ' + marketId);
                             return loginUserToMarket(adminConfiguration, marketId)
                                 .then(client => client.markets.deleteMarket());

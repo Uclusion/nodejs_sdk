@@ -100,13 +100,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'USER_POKED_' + adminId;
                 });
                 assert(!userPoked, 'Ack failed');
-                return userClient.markets.listInvestibles();
-            }).then((result) => {
-                const investibles = result.investibles;
-                const investible = investibles.find(obj => {
-                    return obj.id === marketInvestibleId;
-                });
-                assert(investible.id === marketInvestibleId, 'should find the investible');
                 return userClient.markets.getMarketInvestibles([marketInvestibleId, globalCSMMarketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
