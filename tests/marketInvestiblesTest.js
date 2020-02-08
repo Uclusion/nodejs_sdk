@@ -29,7 +29,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.create('salmon', 'good on bagels');
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId});
             }).then(() => {
                 // Add user to this market and get user_id so can user below to test add user api
                 return loginUserToMarket(userConfiguration, createdMarketId);
@@ -54,7 +54,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.share(marketInvestibleId);
             }).then(() => {
                 // Verify user successfully getting push as a result of addUsers api
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: clonedMarketId});
             }).then(() => {
                 return adminClient.markets.updateMarket({name: 'See if can change name without lock', market_stage: 'Inactive'});
             }).then(() => {

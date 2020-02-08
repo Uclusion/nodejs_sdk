@@ -136,7 +136,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 };
                 return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
@@ -148,15 +148,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(stage === notDoingStage.id, 'Should be in Not Doing stage');
                 return userClient.investibles.lock(marketInvestibleId);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId});
             }).then(() => {
                 return userClient.investibles.lock(marketInvestibleId, true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId});
             }).then(() => {
                 return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [adminId]);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
                     {event_type: 'notification', object_id: userExternalId}])
                     .then((payload) => response);
             }).then(() => {
@@ -202,7 +202,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.summaries.getMarketSummary();
             }).then((summaries) => {
@@ -212,12 +212,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
                 return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'ISSUE');
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
                 console.log('Hiding market');
                 return userClient.markets.hide();
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
             }).then(() => {
                 return userClient.markets.listUsers();
             }).then((users) => {
