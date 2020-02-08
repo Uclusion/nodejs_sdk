@@ -38,17 +38,34 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalIdToken = idToken;
                 return summariesClient.versions(idToken);
             }).then((versions) => {
-                const { signatures } = versions;
-                signatures.map((signature) => {
-                    const {type, object_versions: objectVersions} = signature;
-                    console.log(type);
-                    objectVersions && objectVersions.map((version) => console.log(version));
+                const { global_version: globalVersion, signatures } = versions;
+                console.log(globalVersion);
+                signatures.forEach((signature) => {
+                    const {market_id: marketId, signatures: marketSignatures} = signature;
+                    console.log(marketId);
+                    marketSignatures.forEach((marketSignature) => {
+                        const {type: aType, object_versions: objectVersions} = marketSignature;
+                        console.log(aType);
+                        objectVersions.forEach((objectVersion) => {
+                            const {object_id: objectId, version} = objectVersion;
+                            console.log(`Object ID is ${objectId} and version is ${version}`);
+                        })
+                    });
                 });
                 return globalSummariesClient.notifications(globalIdToken);
             }).then((notifications) => {
-                notifications.map((notification) => {
-                    console.log(notification);
+                let foundNotificationType = false;
+                let foundAppVersionType = false;
+                notifications.forEach((notification) => {
+                    const { type_object_id: typeObjectId } = notification;
+                    if (typeObjectId.startsWith('notification')) {
+                        foundNotificationType = true;
+                    }
+                    if (typeObjectId === 'app_version') {
+                        foundAppVersionType = true;
+                    }
                 });
+                assert(foundNotificationType && foundAppVersionType, 'notifications incomplete');
                 // Add user to this market and get user_id so can user below to test add user api
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
