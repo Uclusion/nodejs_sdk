@@ -1,5 +1,5 @@
 import assert from 'assert'
-import {loginUserToAccount, loginUserToMarket} from "../src/utils";
+import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -18,6 +18,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let otherUserId;
             let otherAccountId;
+            let globalSummariesClient;
+            let globalIdToken;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -30,7 +32,23 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
+            }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
+                const {summariesClient, idToken} = summariesInfo;
+                globalSummariesClient = summariesClient;
+                globalIdToken = idToken;
+                return summariesClient.versions(idToken);
+            }).then((versions) => {
+                const { signatures } = versions;
+                signatures.map((signature) => {
+                    const {type, object_versions: objectVersions} = signature;
+                    console.log(type);
+                    objectVersions && objectVersions.map((version) => console.log(version));
+                });
+                return globalSummariesClient.notifications(globalIdToken);
+            }).then((notifications) => {
+                notifications.map((notification) => {
+                    console.log(notification);
+                });
                 // Add user to this market and get user_id so can user below to test add user api
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
