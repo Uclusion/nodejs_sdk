@@ -74,7 +74,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 1 && marketCapabilityVersion === 1, 'signature versions incorrect');
                 assert(!foundAnythingElse, 'unchanged object present');
-                return summariesClient.versions(globalIdToken, globalVersion);
+                return globalSummariesClient.versions(globalIdToken, globalVersion);
             }).then((versions) => {
                 let foundMarket = false;
                 let foundAnythingElse = false;
