@@ -29,7 +29,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.create('salmon', 'good on bagels');
             }).then((investibleId) => {
                 marketInvestibleId = investibleId;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 // Add user to this market and get user_id so can user below to test add user api
                 return loginUserToMarket(userConfiguration, createdMarketId);

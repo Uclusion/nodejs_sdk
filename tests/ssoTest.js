@@ -18,7 +18,11 @@ module.exports = function(adminConfiguration) {
                 return summariesClient.versions(idToken)
                     .then((versions) => {
                         const { signatures } = versions;
-                        signatures.map((signature) => console.log(signature));
+                        signatures.map((signature) => {
+                            const {type, object_versions: objectVersion} = signature;
+                            console.log(type);
+                            objectVersion.map((version) => console.log(version));
+                        });
                         assert(signatures.length === 1, "Should be associated with a single market after activity");
                         return signatures;
                     }).then(() => {
