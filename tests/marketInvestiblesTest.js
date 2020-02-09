@@ -43,6 +43,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let investibleVersion = 0;
                 let marketInvestibleVersion = 0;
                 let marketCapabilityVersion = 0;
+                let marketInvestibleSecondaryId = null;
+                let investibleIdOne = null;
                 let foundAnythingElse = false;
                 const { global_version: globalVersion, signatures } = versions;
                 globalGlobalVersion = globalVersion;
@@ -52,15 +54,17 @@ module.exports = function(adminConfiguration, userConfiguration) {
                         marketSignatures.forEach((marketSignature) => {
                             const {type: aType, object_versions: objectVersions} = marketSignature;
                             objectVersions.forEach((objectVersion) => {
-                                const {object_id: objectId, version} = objectVersion;
+                                const {object_id_one: objectId, object_id_two: objectIdSecondary, version} = objectVersion;
                                 if (aType === 'market') {
                                     marketVersion = version;
                                 }
                                 else if (aType === 'investible') {
+                                    investibleIdOne = objectId;
                                     investibleVersion = version;
                                 }
                                 else if (aType === 'market_investible') {
                                     marketInvestibleVersion = version;
+                                    marketInvestibleSecondaryId = objectIdSecondary;
                                 }
                                 else if (aType === 'market_capability') {
                                     marketCapabilityVersion = version;
@@ -74,6 +78,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 1 && marketCapabilityVersion === 1, 'signature versions incorrect');
                 assert(!foundAnythingElse, 'unchanged object present');
+                assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
+                assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
                 return globalSummariesClient.versions(globalIdToken, globalVersion);
             }).then((versions) => {
                 let foundMarket = false;
