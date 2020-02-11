@@ -20,7 +20,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let otherAccountId;
             let globalSummariesClient;
             let globalIdToken;
-            let globalGlobalVersion;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -47,7 +46,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let investibleIdOne = null;
                 let foundAnythingElse = false;
                 const { global_version: globalVersion, signatures } = versions;
-                globalGlobalVersion = globalVersion;
                 signatures.forEach((signature) => {
                     const {market_id: marketId, signatures: marketSignatures} = signature;
                     if (marketId === createdMarketId) {
@@ -82,24 +80,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
                 return globalSummariesClient.versions(globalIdToken, globalVersion);
             }).then((versions) => {
-                let foundMarket = false;
-                let foundAnythingElse = false;
                 const { global_version: globalVersion, signatures } = versions;
-                assert(globalGlobalVersion === globalVersion, `${globalVersion} and ${globalGlobalVersion} should match`);
-                signatures.forEach((signature) => {
-                    const {market_id: marketId, signatures: marketSignatures} = signature;
-                    if (marketId === createdMarketId) {
-                        foundMarket = true;
-                        marketSignatures.forEach((marketSignature) => {
-                            const {object_versions: objectVersions} = marketSignature;
-                            objectVersions.forEach(() => {
-                                foundAnythingElse = true;
-                            })
-                        })
-                    }
-                });
-                assert(foundMarket, 'market not found after use global version');
-                assert(!foundAnythingElse, 'unchanged object present after use global version');
+                assert(!globalVersion, 'None when nothing changed');
+                assert(signatures.length === 0, 'Empty when nothing changed');
                 return globalSummariesClient.notifications(globalIdToken);
             }).then((notifications) => {
                 let foundNotificationType = false;
