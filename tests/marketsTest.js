@@ -105,8 +105,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalStages = stageList;
                 checkStages(plannedStageNames, stageList);
                 return userClient.investibles.create('salmon spawning', 'plan to catch', null, [userId]);
-            }).then((investibleId) => {
-                marketInvestibleId = investibleId;
+            }).then((investible) => {
+                marketInvestibleId = investible.investible.id;
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];

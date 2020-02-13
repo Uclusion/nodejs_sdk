@@ -29,8 +29,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((client) => {
                 adminClient = client;
                 return adminClient.investibles.create('salmon', 'good on bagels');
-            }).then((investibleId) => {
-                marketInvestibleId = investibleId;
+            }).then((investible) => {
+                marketInvestibleId = investible.investible.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
                 const {summariesClient, idToken} = summariesInfo;

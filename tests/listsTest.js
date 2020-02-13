@@ -43,8 +43,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalStages = stageList;
                 checkStages(adminExpectedStageNames, stageList);
                 return userClient.investibles.create('butter', 'good on bagels');
-            }).then((investibleId) => {
-                marketInvestibleId = investibleId;
+            }).then((investible) => {
+                marketInvestibleId = investible.investible.id;
                 const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
                 const nextStage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 let stateOptions = {
@@ -54,8 +54,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
                 return adminClient.investibles.create('peanut butter', 'good with jelly');
-            }).then((investibleId) => {
-                globalCSMMarketInvestibleId = investibleId;
+            }).then((investible) => {
+                globalCSMMarketInvestibleId = investible.investible.id;
                 return userClient.markets.updateInvestment(marketInvestibleId, 0, 0);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})

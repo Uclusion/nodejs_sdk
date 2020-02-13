@@ -45,7 +45,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         // unassignable users should be able to create users
         return nonAssignableClient.investibles.create(storyTemplate.name, storyTemplate.description, [], [adminUserId]);
       }).then((story) => {
-        storyId = story;
+        storyId = story.investible.id;
         return sleep(2000);
       }).then(() => {
         // unassignable should be able to vote

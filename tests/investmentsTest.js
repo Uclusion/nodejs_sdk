@@ -42,8 +42,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 userId = user.id;
                 userExternalId = user.external_id;
                 return userClient.investibles.create('salmon', 'good on bagels');
-            }).then((investibleId) => {
-                marketInvestibleId = investibleId;
+            }).then((investible) => {
+                marketInvestibleId = investible.investible.id;
                 console.log('Investible ID is ' + marketInvestibleId);
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
