@@ -24,7 +24,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             await promise.then((client) => {
                 return client.markets.createMarket(butterOptions);
             }).then((response) => {
-                createdMarketId = response.market_id;
+                createdMarketId = response.market.id;
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;

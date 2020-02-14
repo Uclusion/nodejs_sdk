@@ -24,7 +24,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
-                createdMarketId = response.market_id;
+                createdMarketId = response.market.id;
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
@@ -107,7 +107,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 otherAccountId = user.account_id;
                 return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
-                clonedMarketId = response.market_id;
+                clonedMarketId = response.market.id;
                 return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
             }).then(() => {
                 return loginUserToMarket(adminConfiguration, clonedMarketId);

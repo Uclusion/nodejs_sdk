@@ -53,7 +53,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((client) => {
         return client.markets.createMarket(marketOptions);
       }).then((response) => {
-        createdMarketId = response.market_id;
+        createdMarketId = response.market.id;
         return loginUserToMarket(adminConfiguration, createdMarketId);
       }).then((client) => {
           adminClient = client;

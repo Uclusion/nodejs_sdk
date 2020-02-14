@@ -28,7 +28,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             await promise.then((client) => {
                 return client.markets.createMarket(fishOptions);
             }).then((response) => {
-                createdMarketId = response.market_id;
+                createdMarketId = response.market.id;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {

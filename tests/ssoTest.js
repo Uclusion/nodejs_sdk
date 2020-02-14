@@ -24,7 +24,7 @@ module.exports = function(adminConfiguration) {
                         return loginUserToAccount(adminConfiguration);
                     }).then(client => client.markets.createMarket(marketOptions))
                     .then((response) => {
-                        createdMarketId = response.market_id;
+                        createdMarketId = response.market.id;
                         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
                     })
                     .then((response) => {

@@ -43,7 +43,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
-                createdMarketId = response.market_id;
+                createdMarketId = response.market.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
@@ -60,7 +60,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.market_stage === 'Inactive', 'Market inactive after expires');
                 return accountClient.markets.createMarket(planningOptions);
             }).then((response) => {
-                createdMarketId = response.market_id;
+                createdMarketId = response.market.id;
                 console.log(`logging into planning market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
@@ -227,7 +227,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(myUser.market_hidden, 'market should be hidden');
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
-                createdMarketId = response.market_id;
+                createdMarketId = response.market.id;
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;

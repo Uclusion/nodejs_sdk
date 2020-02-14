@@ -26,7 +26,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         adminClient = client;
         return adminClient.markets.createMarket(planningMarket);
       }).then((result) => {
-        marketId = result.market_id;
+        marketId = result.market.id;
         return loginUserToMarket(userConfiguration, marketId);
       }).then((client) => {
         nonAssignableClient = client;
