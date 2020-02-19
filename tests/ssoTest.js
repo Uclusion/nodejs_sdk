@@ -18,6 +18,7 @@ module.exports = function(adminConfiguration) {
                 return summariesClient.versions(idToken)
                     .then((versions) => {
                         const { signatures } = versions;
+                        console.log(signatures);
                         assert(signatures.length === 1, "Should be associated with a single market after activity");
                         return signatures;
                     }).then(() => {
