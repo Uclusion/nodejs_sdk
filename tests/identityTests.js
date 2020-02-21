@@ -1,9 +1,11 @@
 import {getSummariesInfo, loginUserToMarket} from '../src/utils';
 import { sleep } from './commonTestFunctions';
 
+const DELETION_TIMEOUT = 40000; // wait 40 seconds to delete a market
 module.exports = function (adminConfiguration) {
 
     describe('#cleanup old runs, ', () => {
+      let timeout;
         it('should cleanup old markets for the identity', async () => {
             const promise = getSummariesInfo(adminConfiguration);
             await promise.then((summariesInfo) => {
@@ -18,14 +20,15 @@ module.exports = function (adminConfiguration) {
                                 .then(client => client.markets.deleteMarket());
                         });
                         if (deletions) {
-                            deletions.push(sleep(40000));
+                            deletions.push(sleep(DELETION_TIMEOUT));
                         }
+                        timeout = DELETION_TIMEOUT + (DELETION_TIMEOUT * deletions.length);
                         return Promise.all(deletions).then(() => console.log('Done waiting for cleanup'));
                     });
             }).catch(function (error) {
                 console.log(error);
                 throw error;
             });
-        }).timeout(120000);
+        }).timeout(timeout);
     });
 };
