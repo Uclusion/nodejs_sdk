@@ -20,6 +20,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let otherAccountId;
             let globalSummariesClient;
             let globalIdToken;
+            let linkedMarketId;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -122,8 +123,19 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Verify user successfully getting push as a result of addUsers api
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: clonedMarketId});
             }).then(() => {
-                return adminClient.markets.updateMarket({name: 'See if can change name without lock', market_stage: 'Inactive'});
+                marketOptions.parent_market_id = clonedMarketId;
+                return accountClient.markets.createMarket(marketOptions);
+            }).then((response) => {
+                linkedMarketId = response.market.id;
+                assert(response.market.parent_market_id === clonedMarketId, 'Link not successful');
+                // Wait for children of cloned market to be updated
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
+                return adminClient.markets.updateMarket({name: 'See if can change name without lock', market_stage: 'Inactive'});
+            }).then((market) => {
+                const { children } = market;
+                assert(children[0] === linkedMarketId, 'Linked children wrong');
+                assert(response.market.parent_market_id === createdMarketId, 'Link not successful');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
                 return adminClient.investibles.create('salmon', 'good on bagels')
