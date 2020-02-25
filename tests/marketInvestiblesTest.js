@@ -135,7 +135,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((market) => {
                 const { children } = market;
                 assert(children[0] === linkedMarketId, 'Linked children wrong');
-                assert(response.market.parent_market_id === createdMarketId, 'Link not successful');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
                 return adminClient.investibles.create('salmon', 'good on bagels')
