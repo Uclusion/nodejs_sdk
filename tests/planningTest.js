@@ -46,7 +46,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return nonAssignableClient.investibles.create(storyTemplate.name, storyTemplate.description, [], [adminUserId]);
       }).then((story) => {
         storyId = story.investible.id;
-        return sleep(2000);
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: storyId});
       }).then(() => {
         // unassignable should be able to vote
         return nonAssignableClient.markets.updateInvestment(storyId, 100, 0, null, 1);
