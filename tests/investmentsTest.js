@@ -37,12 +37,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;
-                // A very imperfect way of checking that the login notification has happened - lower down
-                // we check for not fully voted - hoping it has been sent - note we can't use userExternalId
-                // because its not returned by loginUserToMarket (though it should be) and by the time user get
-                // could miss the notification
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
-            }).then(() => {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
@@ -64,28 +58,24 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
+                    {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
+                const unread = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                });
                 const invalidVoting = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                if (!invalidVoting) {
-                    console.log(messages);
-                }
-                assert(invalidVoting, 'Should be not voted till first investment');
+                assert(unread, 'Should receive unread for new investible');
+                assert(!invalidVoting, 'Should not receive please vote because nothing to vote on when joined');
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
-                return getMessages(userConfiguration);
-            }).then((messages) => {
-                const invalidVoting = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
-                });
-                assert(!invalidVoting, 'Invalid vote gone after first investment');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
