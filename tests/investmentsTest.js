@@ -35,8 +35,14 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 adminClient = client;
                 console.log(`Logging user into market ${createdMarketId}`);
                 return loginUserToMarket(userConfiguration, createdMarketId);
-            }).then((client) => {
+            }).then(() => {
                 userClient = client;
+                // A very imperfect way of checking that the login notification has happened - lower down
+                // we check for not fully voted - hoping it has been sent - note we can't use userExternalId
+                // because its not returned by loginUserToMarket (though it should be) and by the time user get
+                // could miss the notification
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+            }).then((client) => {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
@@ -45,8 +51,6 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 console.log('Investible ID is ' + marketInvestibleId);
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
-            }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.listStages();
