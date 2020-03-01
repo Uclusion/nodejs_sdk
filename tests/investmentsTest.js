@@ -37,16 +37,16 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
-            }).then(() => {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
                 return userClient.investibles.create('salmon', 'good on bagels');
-            }).then((investible) => {
+            }).then((client) => {
                 marketInvestibleId = investible.investible.id;
                 console.log('Investible ID is ' + marketInvestibleId);
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
+            }).then((investible) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.listStages();
