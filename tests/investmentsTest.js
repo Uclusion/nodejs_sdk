@@ -42,11 +42,11 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 userId = user.id;
                 userExternalId = user.external_id;
                 return userClient.investibles.create('salmon', 'good on bagels');
-            }).then((client) => {
+            }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 console.log('Investible ID is ' + marketInvestibleId);
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
-            }).then((investible) => {
+            }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.listStages();
