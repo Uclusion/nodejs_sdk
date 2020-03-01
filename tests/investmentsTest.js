@@ -37,6 +37,8 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
+            }).then(() => {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
