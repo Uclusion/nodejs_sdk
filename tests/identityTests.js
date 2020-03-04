@@ -26,8 +26,11 @@ module.exports = function (adminConfiguration) {
                         return Promise.all(deletions).then(() => console.log('Done waiting for cleanup'));
                     });
             }).catch(function (error) {
-                console.log(error);
-                throw error;
+                const { status } = error;
+                if (status !== 404) {
+                    console.log(error);
+                    throw error;
+                }
             });
         }).timeout(timeout);
     });
