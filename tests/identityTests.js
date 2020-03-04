@@ -1,7 +1,7 @@
 import {getSummariesInfo, loginUserToMarket} from '../src/utils';
 import { sleep } from './commonTestFunctions';
 
-const DELETION_TIMEOUT = 40000; // wait 40 seconds to delete a market
+const DELETION_TIMEOUT = 60000; // wait 60 seconds to delete a market
 module.exports = function (adminConfiguration) {
 
     describe('#cleanup old runs, ', () => {
