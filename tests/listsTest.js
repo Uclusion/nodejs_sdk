@@ -6,7 +6,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
         name : 'butter',
         description: 'this is a butter market',
-        expiration_minutes: 10,
+        expiration_minutes: 1440,
     };
     const adminExpectedStageNames = [ 'Created', 'In Dialog'];
     describe('#doList', () => {
