@@ -49,9 +49,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
-                return getMessages(userConfiguration);
+                return getMessages(adminConfiguration);
             }).then((messages) => {
                 const warnExpiring = messages.find(obj => {
                     return obj.type_object_id === 'DIALOG_CLOSING_' + createdMarketId;
@@ -137,6 +137,14 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
             }).then((response) => {
                 assert(response === 'Not participant', 'Wrong response = ' + response);
+                return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0);
+            }).then(() => {
+                // This first one that the investment was created
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
+            }).then(() => {
+                // Now a second one that investment was deleted since investment expiration is 1 minute
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
+            }).then(() => {
                 notDoingStage = globalStages.find(stage => { return !stage.appears_in_market_summary && !stage.appears_in_context});
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
