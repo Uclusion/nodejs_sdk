@@ -137,7 +137,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
             }).then((response) => {
                 assert(response === 'Not participant', 'Wrong response = ' + response);
-                return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0);
+                return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0, null, 1);
             }).then(() => {
                 // This first one that the investment was created
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
