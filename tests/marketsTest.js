@@ -5,7 +5,7 @@ import {arrayEquals, checkStages} from "./commonTestFunctions";
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
         name : 'Default',
-        expiration_minutes: 2
+        expiration_minutes: 3
     };
     const planningOptions = {
         name : 'fish planning',
@@ -49,7 +49,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
-                // Have 2 minutes to get here so that can receive the market update for the market expiring
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const warnExpiring = messages.find(obj => {
+                    return obj.type_object_id === 'DIALOG_CLOSING_' + createdMarketId;
+                });
+                assert(warnExpiring, 'Should be warned of market closing');
+                // Have 3 minutes to get here so that can receive the market update for the market expiring
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.get();
