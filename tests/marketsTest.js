@@ -198,7 +198,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
