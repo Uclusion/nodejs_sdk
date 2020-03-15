@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { checkStages } from './commonTestFunctions';
+import {checkStages, sleep} from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
@@ -92,7 +92,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
                 return userClient.users.removeNotification(adminId, 'USER_POKED', createdMarketId);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
+                // No push for notification removal so have to sleep
+                return sleep(5000);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
