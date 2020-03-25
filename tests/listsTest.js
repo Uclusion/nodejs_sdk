@@ -56,12 +56,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.create('peanut butter', 'good with jelly');
             }).then((investible) => {
                 globalCSMMarketInvestibleId = investible.investible.id;
-                return userClient.markets.updateInvestment(marketInvestibleId, 0, 0);
+                return userClient.markets.updateInvestment(marketInvestibleId, 5, 0);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then((investment) => {
-                assert(investment.quantity === 0, 'investment quantity should be 0 instead of ' + investment.quantity);
+                assert(investment.quantity === 5, 'investment quantity should be 5 instead of ' + investment.quantity);
                 return adminClient.users.poke(userId, 'Please add the thing.');
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId})
@@ -78,7 +78,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investments.length === 1, `Should have 1 investment instead of ${JSON.stringify(investments)}`);
                 const investment = investments[0];
                 const { quantity: investmentQuantity, investible_id: investmentInvestibleId } = investment;
-                assert(investmentQuantity === 0, 'Should match investment amount above');
+                assert(investmentQuantity === 5, 'Should match investment amount above');
                 assert(investmentInvestibleId === marketInvestibleId, 'Should match investment ID above');
                 const userPoking = users.find(obj => {
                     return obj.id !== userId;
