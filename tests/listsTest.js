@@ -75,7 +75,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(pokedUser.users_poked.length === 0, 'Should not have poked anyone');
                 const { investments } = pokedUser;
-                assert(investments.length === 1, 'Should have 1 investment');
+                assert(investments.length === 1, `Should have 1 investment instead of ${JSON.stringify(investments)}`);
                 const investment = investments[0];
                 const { quantity: investmentQuantity, investible_id: investmentInvestibleId } = investment;
                 assert(investmentQuantity === 0, 'Should match investment amount above');
