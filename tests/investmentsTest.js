@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { arrayEquals, sleep } from './commonTestFunctions';
+import { arrayEquals } from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration, numUsers) {

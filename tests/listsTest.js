@@ -1,5 +1,5 @@
 import assert from 'assert'
-import {checkStages, sleep} from './commonTestFunctions';
+import {checkStages} from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
@@ -64,9 +64,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investment.quantity === 5, 'investment quantity should be 5 instead of ' + investment.quantity);
                 return adminClient.users.poke(userId, 'Please add the thing.');
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId})
-                    .then(() => response);
-            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
+            }).then((payload) => {
+                const { hkey, rkey } = payload;
+                assert(!hkey && !rkey, 'hkey should not be present');
                 return adminClient.markets.listUsers();
             }).then((users) => {
                 assert(users.length === 2, '2 users in this dialog');
@@ -92,9 +93,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
                 return userClient.users.removeNotification(adminId, 'USER_POKED', createdMarketId);
             }).then(() => {
-                // No push for notification removal so have to sleep
-                return sleep(5000);
-            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
+            }).then((payload) => {
+                const { hkey, rkey } = payload;
+                assert(hkey, 'hkey should be present');
+                assert(rkey === 'USER_POKED_' + adminId, 'rkey should be for poke');
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const userPoked = messages.find(obj => {
