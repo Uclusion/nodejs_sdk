@@ -12,6 +12,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
         description: 'This is default.',
         expiration_minutes: 20,
     };
+    const inlineMarketOptions = {
+        name : 'NA',
+        description: 'NA',
+        expiration_minutes: 20,
+        is_inline: true,
+    };
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -25,6 +31,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let globalSummariesClient;
             let globalIdToken;
             let linkedMarketId;
+            let inlineMarketId;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -94,8 +101,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((notifications) => {
                 let foundNotificationType = false;
                 let foundAppVersionType = false;
-                notifications.forEach((notification) => {marketInvestibleId
-                    const { type_object_id: typeObjectId } = notification;
+                notifications.forEach((notification) => {
+                    const {type_object_id: typeObjectId} = notification;
                     if (typeObjectId.startsWith('notification')) {
                         foundNotificationType = true;
                     }
@@ -104,6 +111,20 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }
                 });
                 assert(foundNotificationType && foundAppVersionType, 'notifications incomplete');
+                inlineMarketOptions.parent_market_id = createdMarketId;
+                inlineMarketOptions.parent_investible_id = marketInvestibleId;
+                return adminClient.markets.createMarket(inlineMarketOptions);
+            }).then((response) => {
+                inlineMarketId = response.market.id;
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const marketInfo = fullInvestible.market_infos.find(info => {
+                    return info.market_id === createdMarketId;
+                });
+                assert(marketInfo.inline_market_id === inlineMarketId, 'inline correctly linked');
                 // Add user to this market and get user_id so can user below to test add user api
                 return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
@@ -129,7 +150,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Verify user successfully getting push as a result of addUsers api
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: clonedMarketId});
             }).then(() => {
-                marketOptions.parent_market_id = clonedMarketId;
+                dialogMarketOptions.parent_market_id = clonedMarketId;
                 return accountClient.markets.createMarket(dialogMarketOptions);
             }).then((response) => {
                 linkedMarketId = response.market.id;
