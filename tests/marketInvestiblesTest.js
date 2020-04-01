@@ -5,8 +5,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
-        expiration_minutes: 20,
-        is_public: true
+        market_type: 'PLANNING',
     };
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
@@ -88,7 +87,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((notifications) => {
                 let foundNotificationType = false;
                 let foundAppVersionType = false;
-                notifications.forEach((notification) => {
+                notifications.forEach((notification) => {marketInvestibleId
                     const { type_object_id: typeObjectId } = notification;
                     if (typeObjectId.startsWith('notification')) {
                         foundNotificationType = true;
