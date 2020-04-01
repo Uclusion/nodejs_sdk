@@ -113,7 +113,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(foundNotificationType && foundAppVersionType, 'notifications incomplete');
                 inlineMarketOptions.parent_market_id = createdMarketId;
                 inlineMarketOptions.parent_investible_id = marketInvestibleId;
-                return adminClient.markets.createMarket(inlineMarketOptions);
+                return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
                 inlineMarketId = response.market.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
