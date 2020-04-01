@@ -3,9 +3,14 @@ import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from "../src/ut
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
+        name : 'Default plan',
+        description: 'This is default plan.',
+        market_type: 'PLANNING',
+    };
+    const dialogMarketOptions = {
         name : 'Default',
         description: 'This is default.',
-        market_type: 'PLANNING',
+        expiration_minutes: 20,
     };
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
@@ -107,7 +112,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((user) => {
                 otherUserId = user.id;
                 otherAccountId = user.account_id;
-                return accountClient.markets.createMarket(marketOptions);
+                return accountClient.markets.createMarket(dialogMarketOptions);
             }).then((response) => {
                 clonedMarketId = response.market.id;
                 return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
@@ -125,7 +130,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: clonedMarketId});
             }).then(() => {
                 marketOptions.parent_market_id = clonedMarketId;
-                return accountClient.markets.createMarket(marketOptions);
+                return accountClient.markets.createMarket(dialogMarketOptions);
             }).then((response) => {
                 linkedMarketId = response.market.id;
                 assert(response.market.parent_market_id === clonedMarketId, 'Link not successful');
