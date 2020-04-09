@@ -143,8 +143,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 adminClient = client;
                 // Add user to the market
                 return adminClient.users.addUsers([{user_id: otherUserId, account_id: otherAccountId}]);
-            }).then((response) => {
-                assert(response.success_message === 'Capabilities added', 'Add not successful');
+            }).then((presences) => {
+                const { id } = presences[0];
+                assert(!id, 'Add not successful');
                 return adminClient.investibles.share(marketInvestibleId);
             }).then(() => {
                 // Verify user successfully getting push as a result of addUsers api
