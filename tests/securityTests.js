@@ -43,7 +43,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         bannedUserId = user.id;
         return adminClient.users.banUser(bannedUserId, true);
       }).then(() => {
-        return bannedClient.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
       }).then(() => {
         return loginUserToMarket(userConfiguration, createdMarketId)
           .then(() => {
