@@ -41,6 +41,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const adminPresence = users.find((user) => user.id !== nonAssignableUserId);
         adminUserId = adminPresence.id;
         assert(marketPresence.following === false, "Should not be assignable");
+        assert(marketPresence.market_banned === false, "Should not be banned");
         // unassignable users should be able to create users
         return nonAssignableClient.investibles.create(storyTemplate.name, storyTemplate.description, [], [adminUserId]);
       }).then((story) => {
