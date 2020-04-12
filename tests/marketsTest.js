@@ -262,7 +262,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return 'Not allowed';
                 });
             }).then((response) => {
-                assert(response === 'Not allowed', 'Wrong response = ' + response);
+                assert(response === 'Not allowed', 'Wrong response = ' + JSON.stringify(response));
             }).catch(function(error) {
                 console.log(error);
                 throw error;
