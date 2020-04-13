@@ -189,11 +189,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const unread = messages.find(obj => {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(unread && unread.level === 'RED', 'changing assignment should mark unvoted');
+                assert(unread && unread.level === 'YELLOW', 'changing assignment should mark unvoted');
                 const helpAssign = messages.find(obj => {
                     return (obj.type_object_id === 'NO_PIPELINE_' + createdMarketId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(helpAssign && helpAssign.level === 'RED', 'changing assignment notify no pipeline');
+                assert(helpAssign && helpAssign.level === 'YELLOW', 'changing assignment notify no pipeline');
                 assert(helpAssign.text === 'Please assign a votable option to yourself', 'incorrect text ' + helpAssign.text);
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
