@@ -166,11 +166,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId});
             }).then(() => {
-                return userClient.investibles.lock(marketInvestibleId, true);
-            }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId});
-            }).then(() => {
-                return userClient.investibles.update(marketInvestibleId, investible.name, investible.description, null, null, [adminId]);
+                return userClient.investibles.updateAssignments(marketInvestibleId, [adminId]);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
                     {event_type: 'notification', object_id: userExternalId}])
