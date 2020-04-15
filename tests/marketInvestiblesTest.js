@@ -56,6 +56,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let investibleVersion = 0;
                 let marketInvestibleVersion = 0;
                 let marketCapabilityVersion = 0;
+                let stageVersion = 0;
                 let marketInvestibleSecondaryId = null;
                 let investibleIdOne = null;
                 let foundAnythingElse = false;
@@ -81,6 +82,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                 else if (aType === 'market_capability') {
                                     marketCapabilityVersion = version;
                                 }
+                                else if (aType === 'stage') {
+                                    stageVersion = version;
+                                }
                                 else {
                                     foundAnythingElse = true;
                                 }
@@ -88,7 +92,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                         })
                     }
                 });
-                assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 1 && marketCapabilityVersion === 1, 'signature versions incorrect');
+                assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 1
+                    && marketCapabilityVersion === 1 && stageVersion === 1, 'signature versions incorrect');
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
