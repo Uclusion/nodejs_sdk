@@ -131,12 +131,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions).catch(function(error) {
-                    assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
-                    return 'Not participant';
-                });
-            }).then((response) => {
-                assert(response === 'Not participant', 'Wrong response = ' + response);
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
                 return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0, null, 1);
             }).then(() => {
                 // This first one that the investment was created
@@ -147,7 +143,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 notDoingStage = globalStages.find(stage => { return !stage.appears_in_market_summary && !stage.appears_in_context});
                 stateOptions = {
-                    current_stage_id: inDialogStage.id,
+                    current_stage_id: acceptedStage.id,
                     stage_id: notDoingStage.id
                 };
                 return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
