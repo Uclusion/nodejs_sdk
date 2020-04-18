@@ -127,12 +127,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
                 archivedStage = globalStages.find(stage => { return stage.appears_in_market_summary });
-                stateOptions = {
-                    current_stage_id: inDialogStage.id,
-                    stage_id: acceptedStage.id
-                };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
-            }).then(() => {
                 return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0, null, 1);
             }).then(() => {
                 // This first one that the investment was created
@@ -143,7 +137,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 notDoingStage = globalStages.find(stage => { return !stage.appears_in_market_summary && !stage.appears_in_context});
                 stateOptions = {
-                    current_stage_id: acceptedStage.id,
+                    current_stage_id: inDialogStage.id,
                     stage_id: notDoingStage.id
                 };
                 return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
