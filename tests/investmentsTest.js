@@ -120,9 +120,9 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 });
                 assert(!investibleIssue, 'Investible issue notification should have been deleted');
                 const investibleIssueResolved = messages.find(obj => {
-                    return (obj.type_object_id === 'ISSUE_RESOLVED_' + parentCommentId)&&(obj.level === 'YELLOW')&&(obj.associated_object_id === marketInvestibleId);
+                    return (obj.type_object_id === 'ISSUE_RESOLVED_' + parentCommentId)&&(obj.associated_object_id === marketInvestibleId);
                 });
-                assert(investibleIssueResolved, 'Notification of resolution missing');
+                assert(!investibleIssueResolved, 'Resolution should only notify creator');
                 return adminClient.investibles.createComment(null, 'comment to fetch', null, 'QUESTION');
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
