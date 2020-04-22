@@ -56,7 +56,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const warnExpiring = messages.find(obj => {
                     return obj.type_object_id === 'DIALOG_CLOSING_' + createdMarketId;
                 });
-                assert(warnExpiring, `Should be warned of market closing instead of ${JSON.stringify(messages)}`);
+                const warnClosed = messages.find(obj => {
+                    return obj.type_object_id === 'DIALOG_CLOSED_' + createdMarketId;
+                });
+                assert(warnExpiring || warnClosed, `Should get closed or closing (timing as to which) instead of ${JSON.stringify(messages)}`);
                 // Have 3 minutes to get here so that can receive the market update for the market expiring
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
