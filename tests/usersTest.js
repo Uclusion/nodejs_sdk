@@ -1,7 +1,7 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, { TOKEN_TYPE_ACCOUNT } from '../src/TestTokenManager';
-import { getSSOInfo, loginUserToAccount, loginUserToMarket, getWebSocketRunner } from '../src/utils';
+import {getSSOInfo, loginUserToAccount, loginUserToMarket, getWebSocketRunner, getMessages} from '../src/utils';
 
 /*
 Admin Configuration and User Configuration are used as in/out params here,
@@ -68,6 +68,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
           {event_type: 'notification'}]);
       }).then(() => {
+        return getMessages(adminConfiguration);
+      }).then((messages) => {
+        const warnClosed = messages.find(obj => {
+          return obj.type_object_id === 'DIALOG_CLOSED_' + createdMarketId;
+        });
+        assert(warnClosed, `Should get closed instead of ${JSON.stringify(messages)}`);
         return adminClient.markets.get();
       }).then((market) => {
         assert(market.market_stage === 'Inactive', "Market should be inactive");
