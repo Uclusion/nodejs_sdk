@@ -5,7 +5,7 @@ import {arrayEquals, checkStages} from "./commonTestFunctions";
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
         name : 'Default',
-        expiration_minutes: 3
+        expiration_minutes: 4
     };
     const planningOptions = {
         name : 'fish planning',
@@ -60,7 +60,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'DIALOG_CLOSED_' + createdMarketId;
                 });
                 assert(warnExpiring || warnClosed, `Should get closed or closing (timing as to which) instead of ${JSON.stringify(messages)}`);
-                // Have 3 minutes to get here so that can receive the market update for the market expiring
+                // Have 4 minutes to get here so that can receive the market update for the market expiring
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
             }).then(() => {
                 return adminClient.markets.get();
