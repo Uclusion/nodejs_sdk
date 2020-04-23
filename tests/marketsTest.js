@@ -244,17 +244,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.listStages();
             }).then((stageList) => {
                 checkStages(initiativeStageNames, stageList);
-                return adminClient.investibles.create('help salmon spawn', 'fish transport tube');
-            }).then(() => {
-                // Back to back investible creation can corrupt an initiative because reading from index - but anyone going to that length deserves it
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.investibles.create('only one allowed', 'this one should fail').catch(function(error) {
-                    assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
-                    return 'Not allowed';
-                });
-            }).then((response) => {
-                assert(response === 'Not allowed', 'Wrong response = ' + JSON.stringify(response));
             }).catch(function(error) {
                 console.log(error);
                 throw error;
