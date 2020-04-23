@@ -65,7 +65,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         console.log('Inactivating market');
         return adminClient.markets.updateMarket({ market_stage: 'Inactive' });
       }).then(() => {
-          return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
+        return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
+          {event_type: 'notification'}]);
       }).then(() => {
         return adminClient.markets.get();
       }).then((market) => {
