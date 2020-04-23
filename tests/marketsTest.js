@@ -69,7 +69,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                 const warnClosed2 = messages.find(obj => {
                                     return obj.type_object_id === 'DIALOG_CLOSED_' + createdMarketId;
                                 });
-                                assert(warnExpiring || warnClosed, `Now get closed or closing instead of ${JSON.stringify(messages)}`);
+                                assert(warnExpiring2 || warnClosed2, `Now get closed or closing instead of ${JSON.stringify(messages)}`);
                                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({
                                     event_type: 'market',
                                     object_id: createdMarketId
