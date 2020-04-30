@@ -28,7 +28,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getWebSocketRunner(adminConfiguration);
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
-        return ssoClient.userSignup('Test UserAdmin', adminConfiguration.username, adminConfiguration.password)
+        const info = {
+          name: 'Test UserAdmin',
+          email: adminConfiguration.username,
+          password: adminConfiguration.password,
+          phone: '555-555-1212'
+        };
+        return ssoClient.userSignup(info);
       }).then((result) => {
         assert(result.response === 'ACCOUNT_EXISTS', 'Account should have existed');
         return ssoClient.resendVerification(adminConfiguration.username);
