@@ -5,6 +5,7 @@ import {arrayEquals, checkStages} from "./commonTestFunctions";
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
         name : 'Default',
+        market_type: 'DECISION',
         expiration_minutes: 4
     };
     const planningOptions = {

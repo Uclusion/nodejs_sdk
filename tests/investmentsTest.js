@@ -6,6 +6,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const fishOptions = {
         name: 'fish',
         description: 'this is a fish market',
+        market_type: 'DECISION',
         expiration_minutes: 30
     };
     const updateFish = {

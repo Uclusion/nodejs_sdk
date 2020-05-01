@@ -3,18 +3,20 @@ import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from "../src/ut
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
-        name : 'Default plan',
+        name: 'Default plan',
         description: 'This is default plan.',
         market_type: 'PLANNING',
     };
     const dialogMarketOptions = {
-        name : 'Default',
+        name: 'Default',
         description: 'This is default.',
+        market_type: 'DECISION',
         expiration_minutes: 20,
     };
     const inlineMarketOptions = {
-        name : 'NA',
+        name: 'NA',
         description: 'NA',
+        market_type: 'DECISION',
         is_inline: true,
     };
     describe('#do market investible tests', () => {

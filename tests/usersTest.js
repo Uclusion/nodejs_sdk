@@ -10,6 +10,7 @@ so that we don't have to keep making accounts for every seperate test
 module.exports = function (adminConfiguration, userConfiguration) {
   const marketOptions = {
     name: 'Default',
+    market_type: 'DECISION',
     expiration_minutes: 20
   };
   describe('#doCreate account and update user', () => {

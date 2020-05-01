@@ -6,6 +6,7 @@ module.exports = function(adminConfiguration) {
     const marketOptions = {
         name : 'Default',
         description: 'This is default.',
+        market_type: 'DECISION',
         expiration_minutes: 20
     };
 
