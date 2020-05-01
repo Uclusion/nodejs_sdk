@@ -15,7 +15,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
     const inlineMarketOptions = {
         name : 'NA',
         description: 'NA',
-        expiration_minutes: 20,
         is_inline: true,
     };
     describe('#do market investible tests', () => {
