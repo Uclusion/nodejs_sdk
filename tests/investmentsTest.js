@@ -146,9 +146,10 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId})
                   .then((payload) => response);
             }).then((response) => {
-                assert(response.name === 'pufferfish', 'update market investible name not passed on correctly');
-                assert(response.description === 'possibly poisonous', 'update market investible description not passed on correctly');
-                assert(arrayEquals(response.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
+                const { investible } = response;
+                assert(investible.name === 'pufferfish', 'update market investible name not passed on correctly');
+                assert(investible.description === 'possibly poisonous', 'update market investible description not passed on correctly');
+                assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
