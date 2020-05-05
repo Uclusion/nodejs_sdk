@@ -25,6 +25,7 @@
     "pretest": "npm install",
     "test": "mocha -r esm --recursive test",
     "testStage": "mocha -r esm --recursive testStage",
+    "clearStage": "mocha -r esm --recursive clearStage",
     "testProduction": "mocha -r esm --recursive testProduction",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }
