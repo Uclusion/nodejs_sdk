@@ -15,9 +15,18 @@ module.exports = function (adminConfiguration) {
                         const { signatures } = versions;
                         const deletions = signatures.map((signature) => {
                             const {market_id: marketId} = signature;
-                            console.log('Found ' + marketId);
+                            let globalClient;
                             return loginUserToMarket(adminConfiguration, marketId)
-                                .then(client => client.markets.deleteMarket());
+                                .then((client) => {
+                                    globalClient = client;
+                                    return client.markets.get();
+                                }).then((market) => {
+                                    const { created_by: createdBy, current_user_id: currentUserId } = market;
+                                    if (createdBy === currentUserId) {
+                                        console.log('Deleting ' + marketId);
+                                        return globalClient.markets.deleteMarket();
+                                    }
+                                });
                         });
                         if (deletions) {
                             deletions.push(sleep(DELETION_TIMEOUT));
