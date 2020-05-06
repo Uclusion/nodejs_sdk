@@ -201,7 +201,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'NO_PIPELINE_' + createdMarketId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(helpAssign && helpAssign.level === 'YELLOW', 'changing assignment notify no pipeline');
-                assert(helpAssign.text === 'Please assign a votable option to yourself', 'incorrect text ' + helpAssign.text);
+                assert(helpAssign.text === 'Please assign a votable story to yourself', 'incorrect text ' + helpAssign.text);
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
