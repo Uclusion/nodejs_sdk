@@ -72,15 +72,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         console.log('Inactivating market');
         return adminClient.markets.updateMarket({ market_stage: 'Inactive' });
       }).then(() => {
-        return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId},
-          {event_type: 'notification'}]);
+        return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId}]);
       }).then(() => {
-        return getMessages(adminConfiguration);
-      }).then((messages) => {
-        const warnClosed = messages.find(obj => {
-          return obj.type_object_id === 'DIALOG_CLOSED_' + createdMarketId;
-        });
-        assert(warnClosed, `Should get closed instead of ${JSON.stringify(messages)}`);
         return adminClient.markets.get();
       }).then((market) => {
         assert(market.market_stage === 'Inactive', "Market should be inactive");
