@@ -1,7 +1,9 @@
 import fetch from 'node-fetch';
+import AbortController from 'abort-controller';
 import Amplify from 'aws-amplify';
 
 global.fetch = fetch;
+global.AbortController = AbortController;
 
 const cognitoConfiguration = {
   userPoolId: 'us-west-2_DF7pMdI6r',
