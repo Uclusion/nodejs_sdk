@@ -1,6 +1,6 @@
 import { Auth } from 'aws-amplify';
 import uclusion from 'uclusion_sdk';
-import TestTokenManager, { TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET } from './TestTokenManager';
+import TestTokenManager, {TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET, TOKEN_TYPE_MARKET_INVITE} from './TestTokenManager';
 import {getIdentity} from './amplifyAuth';
 import {WebSocketRunner} from './WebSocketRunner';
 
@@ -66,4 +66,14 @@ export function loginUserToMarket(configuration, marketId) {
       return tokenManager.getToken()
         .then(() => uclusion.constructClient({ ...configuration, tokenManager }));
     });
+}
+
+export function loginUserToMarketInvite(configuration, marketToken) {
+    return getSSOInfo(configuration)
+        .then(info => {
+            const { ssoClient, idToken } = info;
+            const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET_INVITE, marketToken, ssoClient);
+            return tokenManager.getToken()
+                .then(() => uclusion.constructClient({ ...configuration, tokenManager }));
+        });
 }

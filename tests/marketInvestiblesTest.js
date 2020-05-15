@@ -1,5 +1,5 @@
 import assert from 'assert'
-import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from "../src/utils";
+import {getSummariesInfo, loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -33,11 +33,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let globalIdToken;
             let linkedMarketId;
             let inlineMarketId;
+            let createdMarketInvite;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
@@ -132,7 +134,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 assert(marketInfo.inline_market_id === inlineMarketId, 'inline correctly linked');
                 // Add user to this market and get user_id so can user below to test add user api
-                return loginUserToMarket(userConfiguration, createdMarketId);
+                return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
                 // Add user to this market and get user_id so can user below to test add user api
                 return client.users.get();

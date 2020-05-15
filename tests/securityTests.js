@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { loginUserToAccount, loginUserToMarket } from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
 
 /**
  THe only security related thing we have that's not explicitly taken care
@@ -20,11 +20,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let promise = loginUserToAccount(adminConfiguration);
       let bannedUserId;
       let createdMarketId;
+      let createdMarketInvite;
       await promise.then((client) => {
         adminClient = client;
         return client.markets.createMarket(planningMarket);
       }).then((response) => {
         createdMarketId = response.market.id;
+        createdMarketInvite = response.market.invite_capability;
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({
           event_type: 'market',
           object_id: createdMarketId
@@ -33,7 +35,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return loginUserToMarket(adminConfiguration, createdMarketId);
       }).then((admin) => {
         adminClient = admin;
-        return loginUserToMarket(userConfiguration, createdMarketId);
+        return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
       }).then((client) => {
         bannedClient = client;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});

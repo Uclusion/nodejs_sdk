@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { arrayEquals } from './commonTestFunctions';
-import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration, numUsers) {
     const fishOptions = {
@@ -26,16 +26,18 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             let marketInvestibleId;
             let globalStages;
             let parentCommentId;
+            let createdMarketInvite;
             await promise.then((client) => {
                 return client.markets.createMarket(fishOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
                 console.log(`Logging user into market ${createdMarketId}`);
-                return loginUserToMarket(userConfiguration, createdMarketId);
+                return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
                 userClient = client;
                 return userClient.users.get();

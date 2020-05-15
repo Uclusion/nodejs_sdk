@@ -1,6 +1,6 @@
 import assert from 'assert'
 import {checkStages} from './commonTestFunctions';
-import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
@@ -22,17 +22,19 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let globalStages;
             let createdMarketId;
+            let createdMarketInvite;
             await promise.then((client) => {
                 return client.markets.createMarket(butterOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
                 return adminClient.users.get();
             }).then((user) => {
                 adminId = user.id;
-                return loginUserToMarket(userConfiguration, createdMarketId);
+                return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
                 userClient = client;
                 return userClient.users.get();

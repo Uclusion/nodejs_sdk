@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { loginUserToAccount, loginUserToMarket } from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
   const planningMarket = {
@@ -26,7 +26,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminClient.markets.createMarket(planningMarket);
       }).then((result) => {
         marketId = result.market.id;
-        return loginUserToMarket(userConfiguration, marketId);
+        return loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
       }).then((client) => {
         nonAssignableClient = client;
         return nonAssignableClient.users.get();
