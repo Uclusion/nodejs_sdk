@@ -58,7 +58,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         console.log(error);
         throw error;
       });
-    }).timeout(30000);
+    }).timeout(60000);
   });
 };
 
