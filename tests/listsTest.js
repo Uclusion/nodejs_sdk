@@ -97,10 +97,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.users.removeNotification(adminId, 'USER_POKED', createdMarketId);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
-            }).then((payload) => {
-                const { hkey, rkey } = payload;
-                assert(hkey, 'hkey should be present');
-                assert(rkey === 'USER_POKED_' + adminId, 'rkey should be for poke');
+            }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const userPoked = messages.find(obj => {
