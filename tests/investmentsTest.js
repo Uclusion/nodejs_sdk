@@ -67,7 +67,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const unread = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'NEW_OPTION_' + marketInvestibleId;
                 });
                 const invalidVoting = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
