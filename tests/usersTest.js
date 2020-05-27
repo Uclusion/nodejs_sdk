@@ -48,14 +48,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
         adminAccountClient = client;
         return adminAccountClient.users.update({'name': 'Daniel', 'uiPreferences': '{ "code": "red" }'});
       }).then((response) => {
-        assert(response.success_message === 'User updated', 'User update was not successful');
+        assert(response.user.name === 'Daniel', 'User update was not successful');
         return adminAccountClient.users.get(adminConfiguration.userId);
       }).then((user) => {
         assert(user.name === 'Daniel', 'Name not updated properly');
         assert(user.ui_preferences === '{ "code": "red" }', 'UI preferences not updated properly');
         return adminAccountClient.users.update({'name': 'Default'});
       }).then((response) => {
-        assert(response.success_message === 'User updated', 'Update not successful');
+        assert(response.user.name === 'Default', 'Update not successful');
         return loginUserToAccount(adminConfiguration);
       }).then((client) => {
         return client.markets.createMarket(marketOptions);
