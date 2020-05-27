@@ -19,9 +19,10 @@ module.exports = function(adminConfiguration) {
                 return summariesClient.versions(idToken)
                     .then((versions) => {
                         const { signatures } = versions;
-                        console.log(signatures);
-                        assert(signatures.length === 1, "Should be associated with a single market after activity");
-                        return signatures;
+                        const justMarkets = signatures.filter((signature) => 'market_id' in signature);
+                        console.log(justMarkets);
+                        assert(justMarkets.length === 1, "Should be associated with a single market after activity");
+                        return justMarkets;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration);
                     }).then(client => client.markets.createMarket(marketOptions))
@@ -33,8 +34,9 @@ module.exports = function(adminConfiguration) {
                         return summariesClient.versions(idToken);
                     }).then((versions) => {
                         const { signatures } = versions;
-                        assert(!_.isEmpty(signatures), "Should have one market associated");
-                        return signatures[0].market_id;
+                        const justMarkets = signatures.filter((signature) => 'market_id' in signature);
+                        assert(!_.isEmpty(justMarkets), "Should have one market associated");
+                        return justMarkets[0].market_id;
                     })
             }).catch(function(error) {
                 console.log(error);

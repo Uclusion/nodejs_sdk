@@ -13,7 +13,8 @@ module.exports = function (adminConfiguration) {
                 return summariesClient.versions(idToken)
                     .then((versions) => {
                         const { signatures } = versions;
-                        const deletions = signatures.map((signature) => {
+                        const justMarkets = signatures.filter((signature) => 'market_id' in signature);
+                        const deletions = justMarkets.map((signature) => {
                             const {market_id: marketId} = signature;
                             let globalClient;
                             return loginUserToMarket(adminConfiguration, marketId)
