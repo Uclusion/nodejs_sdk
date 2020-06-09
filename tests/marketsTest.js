@@ -197,11 +197,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(unread && unread.level === 'YELLOW', 'changing assignment should mark unvoted');
-                const helpAssign = messages.find(obj => {
-                    return (obj.type_object_id === 'NO_PIPELINE_' + createdMarketId) && (obj.market_id_user_id.startsWith(createdMarketId));
-                });
-                assert(helpAssign && helpAssign.level === 'YELLOW', 'changing assignment notify no pipeline');
-                assert(helpAssign.text === 'Please assign a proposed story to yourself', 'incorrect text ' + helpAssign.text);
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
