@@ -96,7 +96,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }
                 });
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 1
-                    && marketCapabilityVersion === 1 && stageVersion === 1, 'signature versions incorrect');
+                    && marketCapabilityVersion === 1 && stageVersion === 1, `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
