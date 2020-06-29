@@ -67,6 +67,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 signatures.forEach((signature) => {
                     const {market_id: marketId, signatures: marketSignatures} = signature;
                     if (marketId === createdMarketId) {
+                        console.log(`For ${marketId} have ${JSON.stringify(marketSignatures)}`);
                         marketSignatures.forEach((marketSignature) => {
                             const {type: aType, object_versions: objectVersions} = marketSignature;
                             objectVersions.forEach((objectVersion) => {
