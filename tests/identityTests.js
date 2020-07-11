@@ -10,11 +10,12 @@ module.exports = function (adminConfiguration) {
             const promise = getSummariesInfo(adminConfiguration);
             await promise.then((summariesInfo) => {
                 const {summariesClient, idToken} = summariesInfo;
-                return summariesClient.versions(idToken)
-                    .then((versions) => {
+                return summariesClient.idList(idToken).then((result) => {
+                    const { foreground, background } = result;
+                    return summariesClient.versions(idToken, (foreground || []).concat(background || []));
+                }).then((versions) => {
                         const { signatures } = versions;
-                        const justMarkets = signatures.filter((signature) => 'market_id' in signature);
-                        const deletions = justMarkets.map((signature) => {
+                        const deletions = signatures.map((signature) => {
                             const {market_id: marketId} = signature;
                             let globalClient;
                             return loginUserToMarket(adminConfiguration, marketId)

@@ -53,7 +53,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const {summariesClient, idToken} = summariesInfo;
                 globalSummariesClient = summariesClient;
                 globalIdToken = idToken;
-                return summariesClient.versions(idToken);
+                return summariesClient.idList(idToken).then((result) => {
+                    const { foreground, background } = result;
+                    return summariesClient.versions(idToken, (foreground || []).concat(background || []))
+                });
             }).then((versions) => {
                 let marketVersion = 0;
                 let investibleVersion = 0;

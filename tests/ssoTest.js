@@ -30,13 +30,15 @@ module.exports = function(adminConfiguration) {
                         createdMarketId = response.market.id;
                         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
                     })
-                    .then((response) => {
-                        return summariesClient.versions(idToken);
+                    .then(() => {
+                        return summariesClient.idList(idToken).then((result) => {
+                            const { foreground, background } = result;
+                            return summariesClient.versions(idToken, (foreground || []).concat(background || []))
+                        });
                     }).then((versions) => {
                         const { signatures } = versions;
-                        const justMarkets = signatures.filter((signature) => 'market_id' in signature);
-                        assert(!_.isEmpty(justMarkets), "Should have one market associated");
-                        return justMarkets[0].market_id;
+                        assert(!_.isEmpty(signatures), "Should have one market associated");
+                        return signatures[0].market_id;
                     })
             }).catch(function(error) {
                 console.log(error);
