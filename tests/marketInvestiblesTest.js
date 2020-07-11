@@ -104,11 +104,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
-                return globalSummariesClient.versions(globalIdToken, globalVersion);
+                return globalSummariesClient.idList(globalIdToken, globalVersion);
             }).then((versions) => {
-                const { global_version: globalVersion, signatures } = versions;
+                const { global_version: globalVersion, foreground, background } = versions;
                 assert(!globalVersion, 'None when nothing changed');
-                assert(signatures.length === 0, 'Empty when nothing changed');
+                assert(foreground.length === 0, 'Empty when nothing changed');
+                assert(background.length === 0, 'Also empty when nothing changed');
                 return globalSummariesClient.notifications(globalIdToken);
             }).then((notifications) => {
                 let foundNotificationType = false;
