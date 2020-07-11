@@ -16,13 +16,14 @@ module.exports = function(adminConfiguration) {
             let createdMarketId;
             await authPromise.then((summariesInfo) => {
                 const {summariesClient, idToken} = summariesInfo;
-                return summariesClient.versions(idToken)
-                    .then((versions) => {
+                return summariesClient.idList(idToken).then((result) => {
+                    const { foreground, background } = result;
+                    return summariesClient.versions(idToken, (foreground || []).concat(background || []));
+                }).then((versions) => {
                         const { signatures } = versions;
-                        const justMarkets = signatures.filter((signature) => 'market_id' in signature);
-                        console.log(justMarkets);
-                        assert(justMarkets.length === 1, "Should be associated with a single market after activity");
-                        return justMarkets;
+                        console.log(signatures);
+                        assert(signatures.length === 1, "Should be associated with a single market after activity");
+                        return signatures;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration);
                     }).then(client => client.markets.createMarket(marketOptions))
@@ -33,7 +34,7 @@ module.exports = function(adminConfiguration) {
                     .then(() => {
                         return summariesClient.idList(idToken).then((result) => {
                             const { foreground, background } = result;
-                            return summariesClient.versions(idToken, (foreground || []).concat(background || []))
+                            return summariesClient.versions(idToken, (foreground || []).concat(background || []));
                         });
                     }).then((versions) => {
                         const { signatures } = versions;
