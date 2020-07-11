@@ -197,7 +197,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const unread = messages.find(obj => {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(unread && unread.level === 'YELLOW', 'changing assignment should mark unvoted');
+                assert(unread && unread.level === 'YELLOW', `changing assignment should mark unvoted for ${marketInvestibleId}`);
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
