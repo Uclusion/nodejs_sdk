@@ -34,6 +34,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let linkedMarketId;
             let inlineMarketId;
             let createdMarketInvite;
+            let globalGlobalVersion;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -54,7 +55,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalSummariesClient = summariesClient;
                 globalIdToken = idToken;
                 return summariesClient.idList(idToken).then((result) => {
-                    const { foreground, background } = result;
+                    const { foreground, background, global_version: globalVersion } = result;
+                    globalGlobalVersion = globalVersion;
                     return summariesClient.versions(idToken, (foreground || []).concat(background || []))
                 });
             }).then((versions) => {
@@ -66,7 +68,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let marketInvestibleSecondaryId = null;
                 let investibleIdOne = null;
                 let foundAnythingElse = false;
-                const { global_version: globalVersion, signatures } = versions;
+                const { signatures } = versions;
                 signatures.forEach((signature) => {
                     const {market_id: marketId, signatures: marketSignatures} = signature;
                     if (marketId === createdMarketId) {
@@ -104,7 +106,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
-                return globalSummariesClient.idList(globalIdToken, globalVersion);
+                return globalSummariesClient.idList(globalIdToken, globalGlobalVersion);
             }).then((versions) => {
                 const { global_version: globalVersion, foreground, background } = versions;
                 assert(!globalVersion, 'None when nothing changed');
