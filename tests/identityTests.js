@@ -12,7 +12,11 @@ module.exports = function (adminConfiguration) {
                 const {summariesClient, idToken} = summariesInfo;
                 return summariesClient.idList(idToken).then((result) => {
                     const { foreground, background } = result;
-                    return summariesClient.versions(idToken, (foreground || []).concat(background || []));
+                    const all_markets = (foreground || []).concat(background || []);
+                    if (all_markets.length === 0) {
+                        return {signatures: []};
+                    }
+                    return summariesClient.versions(idToken, all_markets);
                 }).then((versions) => {
                         const { signatures } = versions;
                         const deletions = signatures.map((signature) => {
