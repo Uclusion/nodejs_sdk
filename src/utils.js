@@ -57,7 +57,10 @@ export function loginUserToAccountAndGetToken(configuration) {
             const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
             return tokenManager.getToken()
                 .then((accountToken) => {
-                    return {accountToken, client: uclusion.constructClient({ ...configuration, tokenManager })};
+                    return uclusion.constructClient({ ...configuration, tokenManager })
+                        .then((client) => {
+                            return {accountToken, client};
+                        })
                 });
         });
 }
