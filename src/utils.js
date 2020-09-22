@@ -50,6 +50,18 @@ export function loginUserToAccount(configuration) {
     });
 }
 
+export function loginUserToAccountAndGetToken(configuration) {
+    return getSSOInfo(configuration)
+        .then(info => {
+            const { ssoClient, idToken } = info;
+            const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+            return tokenManager.getToken()
+                .then((accountToken) => {
+                    return {accountToken, 'client': uclusion.constructClient({ ...configuration, tokenManager })};
+                });
+        });
+}
+
 export function getMessages(configuration) {
     return getSSOInfo(configuration)
         .then(info => {

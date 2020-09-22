@@ -1,5 +1,10 @@
 import assert from 'assert'
-import {getSummariesInfo, loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
+import {
+    getSummariesInfo,
+    loginUserToAccountAndGetToken,
+    loginUserToMarket,
+    loginUserToMarketInvite
+} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -21,7 +26,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
     };
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
-            let promise = loginUserToAccount(adminConfiguration);
+            let promise = loginUserToAccountAndGetToken(adminConfiguration);
             let adminClient;
             let accountClient;
             let createdMarketId;
@@ -30,13 +35,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let otherUserId;
             let otherAccountId;
             let globalSummariesClient;
-            let globalIdToken;
             let linkedMarketId;
             let inlineMarketId;
             let createdMarketInvite;
             let globalGlobalVersion;
-            await promise.then((client) => {
+            let globalAccountToken;
+            await promise.then((response) => {
+                const { accountToken, client } = response;
                 accountClient = client;
+                globalAccountToken = accountToken;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
@@ -51,13 +58,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 marketInvestibleId = investible.investible.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
-                const {summariesClient, idToken} = summariesInfo;
+                const {summariesClient} = summariesInfo;
                 globalSummariesClient = summariesClient;
-                globalIdToken = idToken;
-                return summariesClient.idList(idToken).then((result) => {
+                return summariesClient.idList(globalAccountToken).then((result) => {
                     const { foreground, background, global_version: globalVersion } = result;
                     globalGlobalVersion = globalVersion;
-                    return summariesClient.versions(idToken, (foreground || []).concat(background || []))
+                    return summariesClient.versions(globalAccountToken, (foreground || []).concat(background || []))
                 });
             }).then((versions) => {
                 let marketVersion = 0;
@@ -106,13 +112,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
-                return globalSummariesClient.idList(globalIdToken, globalGlobalVersion);
+                return globalSummariesClient.idList(globalAccountToken, globalGlobalVersion);
             }).then((versions) => {
                 const { global_version: globalVersion, foreground, background } = versions;
                 assert(!globalVersion, 'None when nothing changed');
                 assert(foreground.length === 0, 'Empty when nothing changed');
                 assert(background.length === 0, 'Also empty when nothing changed');
-                return globalSummariesClient.notifications(globalIdToken);
+                return globalSummariesClient.notifications(globalAccountToken);
             }).then((notifications) => {
                 let foundNotificationType = false;
                 let foundAppVersionType = false;
