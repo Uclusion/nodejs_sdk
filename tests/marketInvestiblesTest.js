@@ -58,12 +58,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 marketInvestibleId = investible.investible.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'QUESTION');
+                return adminConfiguration.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'notification'}])
-                    .then((payload) => comment);
+                    {event_type: 'notification'}]);
             }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
                 const {summariesClient} = summariesInfo;
                 globalSummariesClient = summariesClient;
