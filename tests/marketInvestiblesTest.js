@@ -62,7 +62,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((comment) => {
                 createdCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'notification'}]);
+                    {event_type: 'market_investible', object_id: createdMarketId}, {event_type: 'notification'}]);
             }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
                 const {summariesClient} = summariesInfo;
                 globalSummariesClient = summariesClient;
@@ -119,7 +119,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                         })
                     }
                 });
-                assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 1
+                // marketInvestibleVersion is 2 because creating the Question moved it to Requires Input
+                assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 2
                     && marketCapabilityVersion === 1 && stageVersion === 1 && commentVersion === 1,
                     `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
