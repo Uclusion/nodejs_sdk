@@ -22,7 +22,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
         name: 'NA',
         description: 'NA',
         market_type: 'DECISION',
-        is_inline: true,
     };
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
@@ -40,6 +39,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let createdMarketInvite;
             let globalGlobalVersion;
             let globalAccountToken;
+            let createdCommentId;
             await promise.then((response) => {
                 const { accountToken, client } = response;
                 accountClient = client;
@@ -57,6 +57,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'QUESTION');
+            }).then((comment) => {
+                createdCommentId = comment.id;
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
+                    {event_type: 'notification'}])
+                    .then((payload) => comment);
             }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
                 const {summariesClient} = summariesInfo;
                 globalSummariesClient = summariesClient;
@@ -74,6 +81,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let marketInvestibleSecondaryId = null;
                 let investibleIdOne = null;
                 let foundAnythingElse = false;
+                let commentId = null;
+                let commentVersion = 0;
                 const { signatures } = versions;
                 signatures.forEach((signature) => {
                     const {market_id: marketId, signatures: marketSignatures} = signature;
@@ -94,6 +103,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                     marketInvestibleVersion = version;
                                     marketInvestibleSecondaryId = objectIdSecondary;
                                 }
+                                else if (aType === 'comment') {
+                                    commentVersion = version;
+                                    commentId = objectId;
+                                }
                                 else if (aType === 'market_capability') {
                                     marketCapabilityVersion = version;
                                 }
@@ -108,10 +121,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }
                 });
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 1
-                    && marketCapabilityVersion === 1 && stageVersion === 1, `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion}`);
+                    && marketCapabilityVersion === 1 && stageVersion === 1 && commentVersion === 1,
+                    `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
+                assert(commentId === createdCommentId, 'object id is created comment');
                 return globalSummariesClient.idList(globalAccountToken, globalGlobalVersion);
             }).then((versions) => {
                 const { global_version: globalVersion, foreground, background } = versions;
@@ -132,20 +147,16 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }
                 });
                 assert(foundNotificationType && foundAppVersionType, 'notifications incomplete');
-                inlineMarketOptions.parent_market_id = createdMarketId;
-                inlineMarketOptions.parent_investible_id = marketInvestibleId;
+                inlineMarketOptions.parent_comment_id = createdCommentId;
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
                 inlineMarketId = response.market.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
-            }).then((investibles) => {
-                const fullInvestible = investibles[0];
-                const marketInfo = fullInvestible.market_infos.find(info => {
-                    return info.market_id === createdMarketId;
-                });
-                assert(marketInfo.inline_market_id === inlineMarketId, 'inline correctly linked');
+                return adminClient.markets.getMarketComments([createdCommentId]);
+            }).then((comments) => {
+                const comment = comments[0];
+                assert(comment.inline_market_id === inlineMarketId, 'inline correctly linked');
                 // Add user to this market and get user_id so can user below to test add user api
                 return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
