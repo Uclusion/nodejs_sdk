@@ -153,7 +153,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 inlineMarketId = response.market.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.markets.getMarketComments([createdCommentId]);
+                return adminClient.investibles.getMarketComments([createdCommentId]);
             }).then((comments) => {
                 const comment = comments[0];
                 assert(comment.inline_market_id === inlineMarketId, 'inline correctly linked');
