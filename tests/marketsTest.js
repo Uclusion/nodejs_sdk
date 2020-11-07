@@ -236,7 +236,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return 'State rejected';
                 });
             }).then((response) => {
-                assert(response === 'State rejected', 'Wrong response = ' + response);
+                assert(response === 'State rejected', 'Wrong response = ' + JSON.stringify(response));
                 return userClient.markets.updateStage(acceptedStage.id, 0);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'stage', object_id: createdMarketId});
