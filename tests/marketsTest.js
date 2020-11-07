@@ -224,20 +224,20 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return userClient.investibles.create('check stage update', 'now', null, [userId]);
+                return adminClient.investibles.create('check stage update', 'now', null, [adminId]);
             }).then((investible) => {
                 marketInvestibleTwoId = investible.investible.id;
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
-                return userClient.investibles.stateChange(marketInvestibleTwoId, stateOptions).catch(function(error) {
+                return adminClient.investibles.stateChange(marketInvestibleTwoId, stateOptions).catch(function(error) {
                     assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
                     return 'State rejected';
                 });
             }).then((response) => {
                 assert(response === 'State rejected', 'Wrong response = ' + JSON.stringify(response));
-                return userClient.markets.updateStage(acceptedStage.id, 0);
+                return adminClient.markets.updateStage(acceptedStage.id, 0);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'stage', object_id: createdMarketId});
             }).then(() => {
@@ -245,7 +245,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
-                return userClient.investibles.stateChange(marketInvestibleTwoId, stateOptions);
+                return adminClient.investibles.stateChange(marketInvestibleTwoId, stateOptions);
             }).then(() => {
                 stateOptions = {
                     current_stage_id: acceptedStage.id,
