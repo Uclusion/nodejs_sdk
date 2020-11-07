@@ -34,6 +34,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let userExternalId;
             let adminId;
             let marketInvestibleId;
+            let marketInvestibleTwoId;
             let globalStages;
             let acceptedStage;
             let archivedStage;
@@ -217,6 +218,37 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(newVoting, 'Assigned should be notified of investment');
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
+                    stage_id: acceptedStage.id
+                };
+                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return userClient.investibles.create('check stage update', 'now', null, [userId]);
+            }).then((investible) => {
+                marketInvestibleTwoId = investible.investible.id;
+                stateOptions = {
+                    current_stage_id: inDialogStage.id,
+                    stage_id: acceptedStage.id
+                };
+                return userClient.investibles.stateChange(marketInvestibleTwoId, stateOptions).catch(function(error) {
+                    assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
+                    return 'State rejected';
+                });
+            }).then((response) => {
+                assert(response === 'State rejected', 'Wrong response = ' + response);
+                return userClient.markets.updateStage(acceptedStage.id, 0);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'stage', object_id: createdMarketId});
+            }).then(() => {
+                stateOptions = {
+                    current_stage_id: inDialogStage.id,
+                    stage_id: acceptedStage.id
+                };
+                return userClient.investibles.stateChange(marketInvestibleTwoId, stateOptions);
+            }).then(() => {
+                stateOptions = {
+                    current_stage_id: acceptedStage.id,
                     stage_id: archivedStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
