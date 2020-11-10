@@ -2,7 +2,7 @@ import assert from 'assert';
 import { arrayEquals } from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
 
-module.exports = function (adminConfiguration, userConfiguration, numUsers) {
+module.exports = function (adminConfiguration, userConfiguration) {
     const fishOptions = {
         name: 'fish',
         description: 'this is a fish market',
@@ -92,7 +92,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
                     {event_type: 'notification'}])
-                  .then((payload) => comment);
+                  .then(() => comment);
             }).then((comment) => {
                 return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
             }).then((comment) => {
@@ -110,7 +110,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
                     {event_type: 'notification'}])
-                    .then((payload) => comment);
+                    .then(() => comment);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
                 assert(comment.resolved, 'updated resolved incorrect');
@@ -130,7 +130,7 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId})
-                    .then((payload) => comment);
+                    .then(() => comment);
             }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
                 assert(comment.comment_type === 'QUESTION', 'comment should be question');
@@ -141,13 +141,14 @@ module.exports = function (adminConfiguration, userConfiguration, numUsers) {
                 assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
                 assert(comment.market_id === createdMarketId, 'market was not set properly on the comment');
                 return adminClient.investibles.lock(marketInvestibleId);
-            }).then((investible) => {
+            }).then((fullInvestible) => {
+                const { investible } = fullInvestible;
                 assert(investible.name === 'salmon', 'lock investible name not passed correctly');
                 assert(investible.description === 'good on bagels', 'lock investible description not passed correctly');
                 return adminClient.investibles.update(marketInvestibleId, updateFish.name, updateFish.description, updateFish.label_list);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId})
-                  .then((payload) => response);
+                  .then(() => response);
             }).then((response) => {
                 const { investible } = response;
                 assert(investible.name === 'pufferfish', 'update market investible name not passed on correctly');
