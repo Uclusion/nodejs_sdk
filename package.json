@@ -15,6 +15,7 @@
     "lodash": "^4.17.15",
     "node-fetch": "^2.3.0",
     "abort-controller": "^3.0.0",
+    "stripe": "^8.126.0",
     "uclusion_sdk": "git@github.com:Uclusion/uclusion_sdk.git"
   },
   "devDependencies": {

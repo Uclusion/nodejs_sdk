@@ -2,8 +2,13 @@ import fetch from 'node-fetch';
 import AbortController from 'abort-controller';
 import Amplify from 'aws-amplify';
 
+
 global.fetch = fetch;
 global.AbortController = AbortController;
+
+const stripeConfig = {
+  public_api_key: 'pk_test_4Us5ZKn9MmEpVZNy35alXDof',
+};
 
 const cognitoConfiguration = {
   userPoolId: 'us-west-2_DF7pMdI6r',
@@ -31,6 +36,7 @@ const userConfiguration = {
 describe('uclusion', () => {
   require('../tests/identityTests.js')(adminConfiguration);
   require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
+  require('../tests/billingTest.js')(adminConfiguration, userConfiguration, stripeConfig);
   require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
   require('../tests/securityTests.js')(adminConfiguration, userConfiguration);
   require('../tests/marketsTest.js')(adminConfiguration, userConfiguration);
