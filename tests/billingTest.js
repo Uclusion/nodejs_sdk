@@ -145,6 +145,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.validatePromoCode(validPromoCode);
             }).then((result) => {
                 assert(result.valid, 'Promo Code should have been valid');
+                assert(result.months === 12, 'Code should be 12 months');
+                assert(result.percent_off === 100.0, 'Should be a total discount');
                 return adminAccountClient.users.validatePromoCode(invalidPromoCode);
             }).then((result) => {
                 assert(!result.valid, 'Promo code should have been invalid');
@@ -156,7 +158,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
         }).timeout(60000);
         it('adds a coupon to an existing subscription', async () => {
             let adminAccountClient;
-            const oneUseValidPromoCode = 'Test3MonthSingle';
+            const oneUseValidPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
             const date = new Date();
             const timestamp = date.getTime();
@@ -190,20 +192,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                     }).catch(() => {
                         console.log('Yes, we got an expected error');
                         assert(true, 'Cool, subscription failed')
-                    });
-            }).then(() => {
-                console.log('trying valid code');
-                //now try with valid code
-                return adminAccountClient.users.addPromoToSubscription(oneUseValidPromoCode);
-            }).then((result) => {
-                assert(result.status_message === 'success', 'Promo code should apply');
-                //now try to add the same code aain
-                return adminAccountClient.users.addPromoToSubscription(oneUseValidPromoCode)
-                    .then(() => {
-                        assert(false, 'already had code, shouldnt apply twice');
-                    }).catch(() => {
-                        assert(true, 'code only got redeemed once, great');
-                        console.log('Yes, cant redeem twice');
                     });
             }).catch(function (error) {
                 console.log(error);
