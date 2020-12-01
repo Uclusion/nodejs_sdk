@@ -55,9 +55,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.startSubscription('Standard');
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
-                return adminAccountClient.users.update({'name': 'Default'});
-            }).then(() => {
-                //cancell our sub
+                //cancel our sub
                 return adminAccountClient.users.cancelSubscription()
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
@@ -101,9 +99,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.startSubscription('Standard', undefined, promoCode);
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
-                return adminAccountClient.users.update({'name': 'Default'});
-            }).then(() => {
-                //cancell our sub
+                //cancel our sub
                 return adminAccountClient.users.cancelSubscription()
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
@@ -153,6 +149,62 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((result) => {
                 assert(!result.valid, 'Promo code should have been invalid');
                 return 'done';
+            }).catch(function (error) {
+                console.log(error);
+                throw error;
+            });
+        }).timeout(60000);
+        it('adds a coupon to an existing subscription', async () => {
+            let adminAccountClient;
+            const oneUseValidPromoCode = 'Test3MonthSingle';
+            const invalidPromoCode = 'TestInvalid';
+            const date = new Date();
+            const timestamp = date.getTime();
+            const accountName = 'TestAccount' + timestamp;
+            let adminIdToken;
+            let ssoClient;
+            let createdMarketId;
+            let adminClient;
+            let hadPreviousSub = true;
+            //first load stripe
+            const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
+            await getSSOInfo(adminConfiguration).then((ssoInfo) => {
+                ssoClient = ssoInfo.ssoClient;
+                adminIdToken = ssoInfo.idToken;
+                return getWebSocketRunner(adminConfiguration);
+            }).then((webSocketRunner) => {
+                adminConfiguration.webSocketRunner = webSocketRunner;
+                // make our client
+                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+                const config = {...adminConfiguration, tokenManager};
+                return uclusion.constructClient(config);
+            }).then((client) => {
+                adminAccountClient = client;
+                return adminAccountClient.users.startSubscription('Standard');
+            }).then((account) => {
+                assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                //first try an invalid code
+                return adminAccountClient.users.addPromoToSubscription(invalidPromoCode)
+                    .then(() => {
+                        assert(false, 'Should have failed here')
+                    }).catch(() => {
+                        console.log('Yes, we got an expected error');
+                        assert(true, 'Cool, subscription failed')
+                    });
+            }).then(() => {
+                console.log('trying valid code');
+                //now try with valid code
+                return adminAccountClient.users.addPromoToSubscription(oneUseValidPromoCode);
+            }).then((result) => {
+                assert(result.status_message === 'success', 'Promo code should apply');
+                //now try to add the same code aain
+                return adminAccountClient.users.addPromoToSubscription(oneUseValidPromoCode)
+                    .then(() => {
+                        assert(false, 'already had code, shouldnt apply twice');
+                    }).catch(() => {
+                        assert(true, 'code only got redeemed once, great');
+                        console.log('Yes, cant redeem twice');
+                    });
             }).catch(function (error) {
                 console.log(error);
                 throw error;
