@@ -54,7 +54,9 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 adminAccountClient = client;
                 return adminAccountClient.users.startSubscription('Standard');
             }).then((account) => {
+                console.log(account);
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                assert(new Date(account.billing_subscription_trial_end) > (Date.now() / 1000), 'Trial is in the past');
                 //cancel our sub
                 return adminAccountClient.users.cancelSubscription()
             }).then((account) => {
