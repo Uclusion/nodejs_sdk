@@ -27,7 +27,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
         });
     }
 
-    describe('#Set up billing', () => {
+    describe('#Test without coupons', () => {
         it('create a subscription without coupons', async () => {
             let adminAccountClient;
             const date = new Date();
@@ -43,14 +43,11 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
                 adminIdToken = ssoInfo.idToken;
-                return getWebSocketRunner(adminConfiguration);
-            }).then((webSocketRunner) => {
-                adminConfiguration.webSocketRunner = webSocketRunner;
-                // make our client
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
             }).then((client) => {
+                // make our client
                 adminAccountClient = client;
                 return adminAccountClient.users.startSubscription('Standard');
             }).then((account) => {
@@ -73,6 +70,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 throw error;
             });
         }).timeout(60000);
+    });
+    describe('#Test coupons', () => {
         it('create a subscription with Test12Month coupon', async () => {
             const promoCode = 'Test12Month';
             let adminAccountClient;
@@ -89,14 +88,11 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
                 adminIdToken = ssoInfo.idToken;
-                return getWebSocketRunner(adminConfiguration);
-            }).then((webSocketRunner) => {
-                adminConfiguration.webSocketRunner = webSocketRunner;
-                // make our client
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
             }).then((client) => {
+                //make our client
                 adminAccountClient = client;
                 return adminAccountClient.users.startSubscription('Standard', undefined, promoCode);
             }).then((account) => {
@@ -117,6 +113,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 throw error;
             });
         }).timeout(60000);
+    });
+    describe('#Check validity', () => {
         it('Checks coupon validity', async () => {
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
@@ -134,10 +132,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
                 adminIdToken = ssoInfo.idToken;
-                return getWebSocketRunner(adminConfiguration);
-            }).then((webSocketRunner) => {
-                adminConfiguration.webSocketRunner = webSocketRunner;
-                // make our client
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
@@ -160,6 +154,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 throw error;
             });
         }).timeout(60000);
+    });
+    describe('#Check adding coupons', () => {
         it('adds a coupon to an existing subscription', async () => {
             let adminAccountClient;
             const oneUseValidPromoCode = 'Test12Month';
@@ -177,9 +173,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
                 adminIdToken = ssoInfo.idToken;
-                return getWebSocketRunner(adminConfiguration);
-            }).then((webSocketRunner) => {
-                adminConfiguration.webSocketRunner = webSocketRunner;
                 // make our client
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};
@@ -203,6 +196,4 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             });
         }).timeout(60000);
     });
-
-
 };
