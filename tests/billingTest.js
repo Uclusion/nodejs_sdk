@@ -149,9 +149,11 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 assert(result.valid, 'Promo Code should have been valid');
                 assert(result.months === 12, 'Code should be 12 months');
                 assert(result.percent_off === 100.0, 'Should be a total discount');
+                assert(result.code === validPromoCode, 'Should have been the passed in code')
                 return adminAccountClient.users.validatePromoCode(invalidPromoCode);
             }).then((result) => {
                 assert(!result.valid, 'Promo code should have been invalid');
+                assert(result.code == invalidPromoCode, 'Should have been the passed in invalid code');
                 return 'done';
             }).catch(function (error) {
                 console.log(error);
