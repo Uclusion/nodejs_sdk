@@ -115,6 +115,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                     });
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
+                const {billing_promotions, billing_subscription_status} = account;
+                assert(_.isEmpty(billing_promotions), 'Restart should have emptied promotions');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
