@@ -114,9 +114,61 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                         return adminAccountClient.users.restartSubscription(paymentInfo.id, promoCode);
                     });
             }).then((account) => {
-                assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
                 const {billing_promotions, billing_subscription_status} = account;
-                assert(_.isEmpty(billing_promotions), 'Restart should have emptied promotions');
+                assert(billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
+                assert(billing_promotions.length > 0, 'Should have had coupons')
+                assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
+                assert(billing_promotions[0].consumed === false, 'should not have been used yet');
+            }).catch(function (error) {
+                console.log(error);
+                throw error;
+            });
+        }).timeout(60000);
+    });
+    describe('#Test coupon reset on restart', () => {
+        it('create a subscription with Test12Month coupon', async () => {
+            const promoCode = 'Test12Month';
+            let adminAccountClient;
+            const date = new Date();
+            const timestamp = date.getTime();
+            const accountName = 'TestAccount' + timestamp;
+            let adminIdToken;
+            let ssoClient;
+            let createdMarketId;
+            let adminClient;
+            let hadPreviousSub = true;
+            //first load stripe
+            const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
+            await getSSOInfo(adminConfiguration).then((ssoInfo) => {
+                ssoClient = ssoInfo.ssoClient;
+                adminIdToken = ssoInfo.idToken;
+                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+                const config = {...adminConfiguration, tokenManager};
+                return uclusion.constructClient(config);
+            }).then((client) => {
+                //make our client
+                adminAccountClient = client;
+                return adminAccountClient.users.startSubscription('Standard', undefined, promoCode);
+            }).then((account) => {
+                //console.log(account)
+                const {billing_promotions, billing_subscription_status} = account;
+                assert(billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                assert(billing_promotions.length > 0, 'Should have had coupons')
+                assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
+                assert(billing_promotions[0].consumed === false, 'should not have been used yet');
+                //cancel our sub
+                return adminAccountClient.users.cancelSubscription()
+            }).then((account) => {
+                assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
+                // now restart subscribe without a promo code (the only tier we currently have is Standard)
+                return createTestStripePayment(stripeClient)
+                    .then((paymentInfo) => {
+                        return adminAccountClient.users.restartSubscription(paymentInfo.id);
+                    });
+            }).then((account) => {
+                const {billing_promotions, billing_subscription_status} = account;
+                assert(billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
+                assert(_.isEmpty(billing_promotions), 'Restart should have reset coupons');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
