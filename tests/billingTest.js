@@ -55,11 +55,13 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((account) => {
                 console.log(account);
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                assert(account.tier === 'Standard', 'Should be standard tier');
                 assert(new Date(account.billing_subscription_trial_end) > (Date.now() / 1000), 'Trial is in the past');
                 //cancel our sub
-                return adminAccountClient.users.cancelSubscription()
+                return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
+                assert(account.tier === 'Free', 'Should have been free tier');
                 // now restart subscribe without a promo code (the only tier we currently have is Standard)
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
@@ -67,6 +69,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                     });
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
+                assert(account.tier === 'Standard')
             }).catch(function (error) {
                 console.log(error);
                 throw error;
@@ -105,7 +108,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
                 //cancel our sub
-                return adminAccountClient.users.cancelSubscription()
+                return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
                 // now restart subscribe without a promo code (the only tier we currently have is Standard)
@@ -153,13 +156,15 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 //console.log(account)
                 const {billing_promotions, billing_subscription_status} = account;
                 assert(billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                assert(account.tier === 'Standard', 'Should have been standard tier');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
                 //cancel our sub
-                return adminAccountClient.users.cancelSubscription()
+                return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
+                assert(account.tier === 'Free', 'Should have been free tier');
                 // now restart subscribe without a promo code (the only tier we currently have is Standard)
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
