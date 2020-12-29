@@ -20,12 +20,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let nonAssignableUserId;
       let marketId;
       let storyId;
+      let marketCapability;
       const promise = loginUserToAccount(adminConfiguration);
       await promise.then((client) => {
         adminClient = client;
         return adminClient.markets.createMarket(planningMarket);
       }).then((result) => {
         marketId = result.market.id;
+        marketCapability = result.market.invite_capability;
         return loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
       }).then((client) => {
         nonAssignableClient = client;
@@ -51,6 +53,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         // unassignable should be able to vote
         return nonAssignableClient.markets.updateInvestment(storyId, 100, 0, null, 1);
       }).then(() => {
+        return loginUserToMarketInvite(adminConfiguration, marketCapability);
+      }).then((client) => {
+        adminClient = client;
         return adminClient.investibles.createComment(null, 'a todo to move', null, 'TODO');
       }).then((comment) => {
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: marketId}).then(() => comment);
