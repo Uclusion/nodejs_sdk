@@ -50,6 +50,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         // unassignable should be able to vote
         return nonAssignableClient.markets.updateInvestment(storyId, 100, 0, null, 1);
+      }).then(() => {
+        return adminClient.investibles.createComment(null, 'a todo to move', null, 'TODO');
+      }).then((comment) => {
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: marketId}).then(() => comment);
+      }).then((comment) => {
+        return adminClient.investibles.moveComments(storyId, [comment.id]);
+      }).then((comments) => {
+        const comment = comments[0];
+        assert(comment.investible_id === storyId, 'Investible id is incorrect');
       }).catch(function (error) {
         console.log(error);
         throw error;
