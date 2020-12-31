@@ -213,7 +213,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === 'NEW_VOTES_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
                 });
                 assert(newVoting, 'Assigned should be notified of investment');
                 stateOptions = {
