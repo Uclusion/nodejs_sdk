@@ -61,8 +61,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
+                // Since admin client created the comment we are not expecting a notification here
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'market_investible', object_id: createdMarketId}, {event_type: 'notification'}]);
+                    {event_type: 'market_investible', object_id: createdMarketId}]);
             }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
                 const {summariesClient} = summariesInfo;
                 globalSummariesClient = summariesClient;
