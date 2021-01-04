@@ -82,7 +82,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_VOTE' + marketInvestibleId;
                 });
                 assert(newVoting, 'Moderator should be notified of investment');
                 return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'ISSUE');
