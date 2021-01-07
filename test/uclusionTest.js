@@ -44,6 +44,7 @@ describe('uclusion', () => {
   require('../tests/marketInvestiblesTest')(adminConfiguration, userConfiguration);
   require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, 2);
   require('../tests/listsTest.js')(adminConfiguration, userConfiguration);
+  // require('../tests/decisionNotificationsTest.js')(adminConfiguration, userConfiguration);
 });
 
 
