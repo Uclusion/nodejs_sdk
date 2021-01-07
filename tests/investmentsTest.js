@@ -102,7 +102,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
-                    return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === marketInvestibleId);
+                    return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED');
                 });
                 assert(investibleIssue, 'No investible issue notification');
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true, undefined, [userId]);
