@@ -65,45 +65,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     .then(() => response);
             }).then((investment) => {
                 assert(investment.quantity === 5, 'investment quantity should be 5 instead of ' + investment.quantity);
-                return adminClient.users.poke(userId, 'Please add the thing.');
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
-            }).then((payload) => {
-                const { hkey, rkey } = payload;
-                assert(!hkey && !rkey, 'hkey should not be present');
-                return adminClient.markets.listUsers();
-            }).then((users) => {
-                assert(users.length === 2, '2 users in this dialog');
-                const pokedUser = users.find(obj => {
-                    return obj.id === userId;
-                });
-                assert(pokedUser.users_poked.length === 0, 'Should not have poked anyone');
-                const { investments } = pokedUser;
-                assert(investments.length === 1, `Should have 1 investment instead of ${JSON.stringify(investments)}`);
-                const investment = investments[0];
-                const { quantity: investmentQuantity, investible_id: investmentInvestibleId } = investment;
-                assert(investmentQuantity === 5, 'Should match investment amount above');
-                assert(investmentInvestibleId === marketInvestibleId, 'Should match investment ID above');
-                const userPoking = users.find(obj => {
-                    return obj.id !== userId;
-                });
-                assert(userPoking.users_poked.length === 1, 'Should have poked someone');
-                return getMessages(userConfiguration);
-            }).then((messages) => {
-                const userPoked = messages.find(obj => {
-                    return obj.type_object_id === 'USER_POKED_' + adminId;
-                });
-                assert(userPoked.text === 'Please add the thing.', 'Wrong poke text');
-                return userClient.users.removeNotification(adminId, 'USER_POKED', createdMarketId);
-            }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
-            }).then(() => {
-                return getMessages(userConfiguration);
-            }).then((messages) => {
-                const userPoked = messages.find(obj => {
-                    return obj.type_object_id === 'USER_POKED_' + adminId;
-                });
-                assert(!userPoked, 'Ack failed');
                 return userClient.markets.getMarketInvestibles([marketInvestibleId, globalCSMMarketInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
