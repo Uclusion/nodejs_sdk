@@ -1,6 +1,6 @@
 import assert from 'assert'
 import {checkStages} from './commonTestFunctions';
-import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
     const butterOptions = {
