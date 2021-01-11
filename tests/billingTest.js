@@ -58,7 +58,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 const upgradeReminder = messages.find(obj => {
                     return obj.market_id_user_id.startsWith('upgrade_reminder');
                 });
-                assert(!upgradeReminder, 'Upgrade reminder not received');
+                assert(upgradeReminder, 'Upgrade reminder not received');
                 // now restart subscribe without a promo code (the only tier we currently have is Standard)
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
@@ -74,7 +74,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 const upgradeReminder = messages.find(obj => {
                     return obj.market_id_user_id.startsWith('upgrade_reminder');
                 });
-                assert(upgradeReminder, 'Upgrade reminder should have been cleared');
+                assert(!upgradeReminder, 'Upgrade reminder should have been cleared');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
