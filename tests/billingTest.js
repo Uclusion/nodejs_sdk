@@ -2,19 +2,14 @@ import assert from 'assert';
 import _ from 'lodash';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager';
-import {getSSOInfo, loginUserToAccount, loginUserToMarket, getWebSocketRunner, getMessages} from '../src/utils';
+import {getMessages, getSSOInfo} from '../src/utils';
 import Stripe from 'stripe';
-import {sleep} from "./commonTestFunctions";
+
 /*
 Admin Configuration and User Configuration are used as in/out params here,
-so that we don't have to keep making accounts for every seperate test
+so that we don't have to keep making accounts for every separate test
  */
 module.exports = function (adminConfiguration, userConfiguration, stripeConfiguration) {
-    const marketOptions = {
-        name: 'Default',
-        market_type: 'DECISION',
-        expiration_minutes: 20
-    };
 
     function createTestStripePayment(stripeClient) {
         const card = {
@@ -32,14 +27,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
     describe('#Test without coupons', () => {
         it('create a subscription without coupons', async () => {
             let adminAccountClient;
-            const date = new Date();
-            const timestamp = date.getTime();
-            const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
             let ssoClient;
-            let createdMarketId;
-            let adminClient;
-            let hadPreviousSub = true;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
@@ -62,6 +51,14 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
                 assert(account.tier === 'Free', 'Should have been free tier');
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+            }).then(() => {
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const upgradeReminder = messages.find(obj => {
+                    return obj.market_id_user_id.startsWith('upgrade_reminder');
+                });
+                assert(!upgradeReminder, 'Upgrade reminder not received');
                 // now restart subscribe without a promo code (the only tier we currently have is Standard)
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
@@ -70,6 +67,14 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
                 assert(account.tier === 'Standard')
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+            }).then(() => {
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const upgradeReminder = messages.find(obj => {
+                    return obj.market_id_user_id.startsWith('upgrade_reminder');
+                });
+                assert(upgradeReminder, 'Upgrade reminder should have been cleared');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
@@ -80,14 +85,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
         it('create a subscription with Test12Month coupon', async () => {
             const promoCode = 'Test12Month';
             let adminAccountClient;
-            const date = new Date();
-            const timestamp = date.getTime();
-            const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
             let ssoClient;
-            let createdMarketId;
-            let adminClient;
-            let hadPreviousSub = true;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
@@ -132,14 +131,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
         it('create a subscription with Test12Month coupon', async () => {
             const promoCode = 'Test12Month';
             let adminAccountClient;
-            const date = new Date();
-            const timestamp = date.getTime();
-            const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
             let ssoClient;
-            let createdMarketId;
-            let adminClient;
-            let hadPreviousSub = true;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
@@ -185,16 +178,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
             let adminAccountClient;
-            const date = new Date();
-            const timestamp = date.getTime();
-            const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
             let ssoClient;
-            let createdMarketId;
-            let adminClient;
-            let hadPreviousSub = true;
-            //first load stripe
-            const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
                 adminIdToken = ssoInfo.idToken;
@@ -225,16 +210,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             let adminAccountClient;
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
-            const date = new Date();
-            const timestamp = date.getTime();
-            const accountName = 'TestAccount' + timestamp;
             let adminIdToken;
             let ssoClient;
-            let createdMarketId;
-            let adminClient;
-            let hadPreviousSub = true;
-            //first load stripe
-            const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
                 adminIdToken = ssoInfo.idToken;
