@@ -64,16 +64,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
                     {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
-                return getMessages(userConfiguration);
-            }).then((messages) => {
-                const unread = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
-                });
-                const invalidVoting = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
-                });
-                assert(unread, 'Should receive unread for new investible');
-                assert(!invalidVoting, 'Should not receive please vote because nothing to vote on when joined');
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
