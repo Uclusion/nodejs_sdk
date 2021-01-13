@@ -128,7 +128,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const newOption = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
                 });
-                assert(newOption, 'View notification to check out the new option');
+                assert(!newOption, 'View notification not required since will have not fully voted');
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
