@@ -39,6 +39,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.create(fishInvestibleOptions.name, fishInvestibleOptions.description);
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
                 return adminClient.users.get();
             }).then((user) => {
                 adminId = user.id;
