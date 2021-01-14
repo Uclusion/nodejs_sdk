@@ -31,6 +31,7 @@ describe('uclusion', () => {
   require('../tests/identityTests.js')(adminConfiguration);
   require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
   require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
+  require('../tests/initiativeNotificationsTest.js')(adminConfiguration, userConfiguration);
   require('../tests/decisionNotificationsTest.js')(adminConfiguration, userConfiguration);
   require('../tests/securityTests.js')(adminConfiguration, userConfiguration);
   require('../tests/marketsTest.js')(adminConfiguration, userConfiguration);
