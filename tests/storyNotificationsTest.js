@@ -30,6 +30,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
+                return adminClient.users.get();
+            }).then((user) => {
+                adminId = user.id;
+                adminExternalId = user.external_id;
                 return adminClient.investibles.create('A test story',
                     'See if notifications work.', null, [adminId]);
             }).then((investible) => {
@@ -37,10 +41,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.users.get();
-            }).then((user) => {
-                adminId = user.id;
-                adminExternalId = user.external_id;
                 console.log(`Logging user into market ${createdMarketId}`);
                 return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
