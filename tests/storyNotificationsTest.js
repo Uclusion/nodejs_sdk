@@ -21,6 +21,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let createdMarketInvite;
             let createdCommentId;
+            let globalStages;
+            let acceptedStage;
             await promise.then((client) => {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -144,7 +146,68 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'ISSUE_' + createdCommentId;
                 });
                 assert(openComment, 'Unresolving comment restores issue notification');
-                //TODO need stage change and check that not fully voted and open comment go away
+                return adminClient.markets.listStages();
+            }).then((stageList) => {
+                globalStages = stageList;
+                acceptedStage = globalStages.find(stage => { return stage.assignee_enter_only; });
+                const inDialogStage = globalStages.find(stage => { return stage.allows_investment; });
+                const stateOptions = {
+                    current_stage_id: inDialogStage.id,
+                    stage_id: acceptedStage.id
+                };
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
+                // Comment should be closed and generate this signature
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const openComment = messages.find(obj => {
+                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                });
+                assert(!openComment, 'Resolving comment removes issue notification');
+                const inReview = globalStages.find(stage => { return stage.close_comments_on_entrance
+                    && stage.appears_in_context && !stage.assignee_enter_only; });
+                const stateOptions = {
+                    current_stage_id: acceptedStage.id,
+                    stage_id: inReview.id
+                };
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const review = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                });
+                assert(review, 'Moving to in review with no required reviewers is view level');
+                return adminClient.investibles.createComment(marketInvestibleId, 'body of my todo',
+                    null, 'TODO');
+            }).then((comment) => {
+                createdCommentId = comment.id;
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const review = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                });
+                assert(!review, 'Opening a TODO has removed the review notification');
+                return adminClient.investibles.updateComment(createdCommentId, undefined, true);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const review = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                });
+                assert(review, 'Resolving the last TODO re-sends the review notification');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
