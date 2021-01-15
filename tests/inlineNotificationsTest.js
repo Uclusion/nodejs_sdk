@@ -33,6 +33,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let inlineInvestibleId;
             let inlineUserClient;
             let inlineUserId;
+            let globalStages;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
@@ -97,6 +98,20 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     'See if inline notifications work.');
             }).then((investible) => {
                 inlineInvestibleId = investible.investible.id;
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: inlineMarketId});
+            }).then(() => {
+                return inlineAdminClient.markets.listStages();
+            }).then((stageList) => {
+                globalStages = stageList;
+                const createdStage = globalStages.find(stage => { return !stage.allows_investment; });
+                const inDialogStage = globalStages.find(stage => { return stage.allows_investment; });
+                const stateOptions = {
+                    current_stage_id: createdStage.id,
+                    stage_id: inDialogStage.id
+                };
+                return inlineAdminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: inlineMarketId});
             }).then(() => {
