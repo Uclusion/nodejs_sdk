@@ -123,8 +123,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(unread, 'Should get new option notification');
                 return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
                     undefined, [inlineUserId]);
-            }).then((response) => {
-                inlineMarketId = response.market.id;
+            }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
             }).then(() => {
