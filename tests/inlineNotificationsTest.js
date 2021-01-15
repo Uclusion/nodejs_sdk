@@ -110,7 +110,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     current_stage_id: createdStage.id,
                     stage_id: inDialogStage.id
                 };
-                return inlineAdminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return inlineAdminClient.investibles.stateChange(inlineInvestibleId, stateOptions);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: inlineMarketId});
@@ -121,7 +121,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_' + inlineInvestibleId;
                 });
                 assert(unread, 'Should get new option notification');
-                return userClient.investibles.updateComment(createdCommentId, 'new body', undefined,
+                return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
                     undefined, [inlineUserId]);
             }).then((response) => {
                 inlineMarketId = response.market.id;
