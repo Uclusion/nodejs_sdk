@@ -107,7 +107,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     .then(() => comment);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
-                assert(comment.mentions.length == 1, 'mentions should contain just one person');
+                assert(comment.mentions.length === 1, 'mentions should contain just one person');
                 assert(comment.mentions[0].user_id === userId, 'mention should just be for the user id');
                 assert(comment.resolved, 'updated resolved incorrect');
                 assert(comment.children, 'now parent should have children');
@@ -126,7 +126,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     user_id: userId,
                     external_id: userExternalId,
                 }
-                return adminClient.investibles.createComment(null, 'comment to fetch', null, 'QUESTION', null, [userId]);
+                return adminClient.investibles.createComment(null, 'comment to fetch', null,
+                    'QUESTION', null, [mention]);
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId})
