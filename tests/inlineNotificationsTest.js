@@ -121,8 +121,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_' + inlineInvestibleId;
                 });
                 assert(unread, 'Should get new option notification');
+                const mention = {
+                    user_id: userId,
+                    external_id: userExternalId,
+                    market_id: createdMarketId,
+                };
                 return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
-                    undefined, [inlineUserId]);
+                    undefined, [mention]);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
