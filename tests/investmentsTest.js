@@ -98,7 +98,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const mention = {
                     user_id: userId,
                     external_id: userExternalId,
-                    market_id: createdMarketId,
                 };
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true, undefined, [mention]);
             }).then((comment) => {
@@ -125,7 +124,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(!investibleIssueResolved, 'Resolution should only notify creator');
                 const mention = {
                     user_id: userId,
-                    market_id: createdMarketId,
                     external_id: userExternalId,
                 }
                 return adminClient.investibles.createComment(null, 'comment to fetch', null, 'QUESTION', null, [userId]);

@@ -124,7 +124,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const mention = {
                     user_id: userId,
                     external_id: userExternalId,
-                    market_id: createdMarketId,
                 };
                 return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
                     undefined, [mention]);
