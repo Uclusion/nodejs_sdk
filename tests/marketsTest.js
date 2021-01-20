@@ -152,7 +152,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Now a second one that investment was deleted since investment expiration is 1 minute
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
-                notDoingStage = globalStages.find(stage => { return !stage.appears_in_market_summary && !stage.appears_in_context && stage.allows_issues && !stage.allows_todos});
+                notDoingStage = globalStages.find(stage => { return !stage.allows_assignment && stage.close_comments_on_entrance });
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: notDoingStage.id

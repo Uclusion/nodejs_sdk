@@ -167,8 +167,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'ISSUE_' + createdCommentId;
                 });
                 assert(!openComment, 'Resolving comment removes issue notification');
-                const inReview = globalStages.find(stage => { return stage.close_comments_on_entrance
-                    && stage.appears_in_context && !stage.assignee_enter_only; });
+                const inReview = globalStages.find(stage => { return !stage.appears_in_market_summary
+                    && stage.appears_in_context && !stage.assignee_enter_only && !stage.allows_investment; });
                 const stateOptions = {
                     current_stage_id: acceptedStage.id,
                     stage_id: inReview.id
