@@ -75,7 +75,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + createdCommentId;
+                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
                 });
                 assert(openComment, 'Notification to help with assignees question');
                 inlineMarketOptions.parent_comment_id = createdCommentId;
