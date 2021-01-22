@@ -81,13 +81,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'notification'}])
-                  .then(() => comment);
-            }).then((comment) => {
-                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', comment.id);
-            }).then((comment) => {
-                assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
+                    {event_type: 'notification'}]);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
@@ -95,6 +89,17 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED');
                 });
                 assert(investibleIssue, 'No investible issue notification');
+                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', parentCommentId);
+            }).then((comment) => {
+                assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const investibleIssue = messages.find(obj => {
+                    return obj.type_object_id === 'ISSUE_' + parentCommentId;
+                });
+                assert(!investibleIssue, 'Issue notification cleared by reply');
                 const mention = {
                     user_id: userId,
                     external_id: userExternalId,
