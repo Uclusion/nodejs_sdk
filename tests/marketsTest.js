@@ -192,7 +192,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const unread = messages.find(obj => {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(unread && unread.level === 'YELLOW', `changing assignment should mark unvoted for ${marketInvestibleId}`);
+                assert(unread && unread.level === 'RED', `changing assignment should mark unvoted for ${marketInvestibleId}`);
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
@@ -209,7 +209,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const newVoting = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
                 });
-                assert(newVoting, 'Assigned should be notified of investment');
+                assert(newVoting, 'Assigned should be notified of story');
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
