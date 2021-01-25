@@ -158,15 +158,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
                 // Comment should be closed and generate this signature
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + createdCommentId;
                 });
-                assert(!openComment, 'Resolving comment removes issue notification');
+                assert(!openComment, 'Changing stage removes issue notification');
                 const inReview = globalStages.find(stage => { return !stage.appears_in_market_summary
                     && stage.appears_in_context && !stage.assignee_enter_only && !stage.allows_investment; });
                 const stateOptions = {
