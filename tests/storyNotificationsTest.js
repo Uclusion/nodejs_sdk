@@ -20,7 +20,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let createdMarketId;
             let marketInvestibleId;
             let createdMarketInvite;
-            let createdCommentId;
+            let questionCommentId;
+            let todoCommentId;
             let globalStages;
             let acceptedStage;
             await promise.then((client) => {
@@ -62,14 +63,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return userClient.investibles.createComment(marketInvestibleId, 'body of my comment',
                     null, 'QUESTION');
             }).then((comment) => {
-                createdCommentId = comment.id;
+                questionCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: adminExternalId});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
                 assert(openComment, 'Must respond to user opening comment');
                 return getMessages(userConfiguration);
@@ -78,7 +79,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
                 });
                 assert(!vote, 'Not fully voted removed if leave comment');
-                return adminClient.investibles.updateComment(createdCommentId, undefined, true);
+                return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
@@ -86,7 +87,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
                 assert(!openComment, 'Resolving comment removes issue notification');
                 return getMessages(userConfiguration);
@@ -129,7 +130,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
                 });
                 assert(vote, 'Removing investment restores not fully voted');
-                return userClient.investibles.updateComment(createdCommentId, undefined, false);
+                return userClient.investibles.updateComment(questionCommentId, undefined, false);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
@@ -143,7 +144,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
                 assert(openComment, 'Unresolving comment restores issue notification');
                 return adminClient.markets.listStages();
@@ -157,14 +158,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                // Comment should be closed and generate this signature
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
                 assert(!openComment, 'Changing stage removes issue notification');
                 const inReview = globalStages.find(stage => { return !stage.appears_in_market_summary
@@ -187,7 +187,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.createComment(marketInvestibleId, 'body of my todo',
                     null, 'TODO');
             }).then((comment) => {
-                createdCommentId = comment.id;
+                todoCommentId = comment.id;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
             }).then(() => {
@@ -197,7 +197,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
                 });
                 assert(!review, 'Opening a TODO has removed the review notification');
-                return adminClient.investibles.updateComment(createdCommentId, undefined, true);
+                return adminClient.investibles.updateComment(todoCommentId, undefined, true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
@@ -207,7 +207,18 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
                 });
-                assert(review, 'Resolving the last TODO re-sends the review notification');
+                assert(!review, 'Resolving the last with open question does not send please review');
+                return adminClient.investibles.updateComment(questionCommentId, undefined, true);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const review = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                });
+                assert(review, 'Resolving the last TODO and open question re-sends the review notification');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
