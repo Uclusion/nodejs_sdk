@@ -207,7 +207,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
                 });
-                assert(!review, 'Resolving the last with open question does not send please review');
+                assert(!review, 'Resolving the last todo with open question does not send please review');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
