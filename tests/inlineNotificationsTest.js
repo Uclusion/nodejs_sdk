@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -26,6 +26,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let adminExternalId;
             let createdMarketId;
             let marketInvestibleId;
+            let createdMarketInvite;
             let createdCommentId;
             let inlineMarketId;
             let inlineAdminClient;
@@ -38,6 +39,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
@@ -54,7 +56,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 console.log(`Logging user into market ${createdMarketId}`);
-                return loginUserToMarket(userConfiguration, createdMarketId);
+                return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
                 userClient = client;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
