@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, getMessages} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -26,7 +26,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let adminExternalId;
             let createdMarketId;
             let marketInvestibleId;
-            let createdMarketInvite;
             let createdCommentId;
             let inlineMarketId;
             let inlineAdminClient;
@@ -39,7 +38,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
-                createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
@@ -56,7 +54,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 console.log(`Logging user into market ${createdMarketId}`);
-                return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
+                return loginUserToMarket(userConfiguration, createdMarketId);
             }).then((client) => {
                 userClient = client;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
@@ -82,8 +80,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
                 inlineMarketId = response.market.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_capability', object_id: inlineMarketId});
             }).then(() => {
                 return loginUserToMarket(userConfiguration, inlineMarketId);
             }).then((client) => {
