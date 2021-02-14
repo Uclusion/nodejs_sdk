@@ -98,15 +98,14 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.name === planningOptions.name, 'Name is incorrect');
                 assert(market.description === planningOptions.description, 'Description is incorrect');
                 assert(market.account_name, 'Market should have an account name');
-                console.log(`locking market ${createdMarketId}`);
-                return adminClient.markets.lock();
+                return adminClient.markets.listStages();
+            }).then((stageList) => {
+                globalStages = stageList;
+                checkStages(plannedStageNames, stageList);
+                acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
+                return adminClient.markets.updateStage(acceptedStage.id, 1)
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
-            }).then(() => {
-                console.log(`Locking market ${createdMarketId} and breaking lock with same user`);
-                return adminClient.markets.lock(true);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'stage', object_id: createdMarketId}));
             }).then(() => {
                 return adminClient.markets.updateMarket({name: 'See if can change name', description: 'See if can change description'});
             }).then(() => {
@@ -125,10 +124,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 userId = user.id;
                 userExternalId = user.external_id;
                 assert(user.flags.market_admin, 'Should be admin in planning');
-                return adminClient.markets.listStages();
-            }).then((stageList) => {
-                globalStages = stageList;
-                checkStages(plannedStageNames, stageList);
                 return userClient.investibles.create('salmon spawning', 'plan to catch', null, [userId]);
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
@@ -142,7 +137,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(arrayEquals(marketInfo.assigned, [userId]), 'assigned should be correct');
                 inDialogStage = globalStages.find(stage => { return stage.allows_investment });
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
-                acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
                 archivedStage = globalStages.find(stage => { return stage.appears_in_market_summary });
                 return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0, null, 1);
             }).then(() => {
