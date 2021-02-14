@@ -107,6 +107,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'stage', object_id: createdMarketId}));
             }).then(() => {
+                console.log(`locking market ${createdMarketId}`);
+                return adminClient.markets.lock();
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
+            }).then(() => {
                 return adminClient.markets.updateMarket({name: 'See if can change name', description: 'See if can change description'});
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
