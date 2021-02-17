@@ -129,7 +129,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 userId = user.id;
                 userExternalId = user.external_id;
                 assert(user.flags.market_admin, 'Should be admin in planning');
-                return userClient.investibles.create('salmon spawning', 'plan to catch', null, [userId]);
+                return userClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
+                    assignments: [userId]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
@@ -217,7 +218,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.investibles.create('check stage update', 'now', null, [adminId]);
+                return adminClient.investibles.create({name: 'check stage update', description: 'now',
+                    assignments: [adminId]});
             }).then((investible) => {
                 marketInvestibleTwoId = investible.investible.id;
                 stateOptions = {

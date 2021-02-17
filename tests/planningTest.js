@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
+import {loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
   const planningMarket = {
@@ -45,7 +45,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(marketPresence.following === false, "Should not be assignable");
         assert(marketPresence.market_banned === false, "Should not be banned");
         // unassignable users should be able to create users
-        return nonAssignableClient.investibles.create(storyTemplate.name, storyTemplate.description, [], [adminUserId]);
+        return nonAssignableClient.investibles.create({...storyTemplate, assignments: [adminUserId]});
       }).then((story) => {
         storyId = story.investible.id;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});

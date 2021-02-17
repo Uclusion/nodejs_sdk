@@ -53,7 +53,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 adminClient = client;
                 return client.users.get();
             }).then((user) => {
-                return adminClient.investibles.create('salmon', 'good on bagels', null, [user.id]);
+                return adminClient.investibles.create({name: 'salmon', description: 'good on bagels',
+                    assignments: [user.id]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
@@ -198,7 +199,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(children[0] === linkedMarketId, 'Linked children wrong');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
             }).then(() => {
-                return adminClient.investibles.create('salmon', 'good on bagels')
+                return adminClient.investibles.create({name: 'salmon', description: 'good on bagels'})
                     .catch(function(error) {
                         assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
                         return 'Market inactive';
