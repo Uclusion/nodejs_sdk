@@ -44,8 +44,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
         adminUserId = adminPresence.id;
         assert(marketPresence.following === false, "Should not be assignable");
         assert(marketPresence.market_banned === false, "Should not be banned");
-        // unassignable users should be able to create users
-        return nonAssignableClient.investibles.create({...storyTemplate, assignments: [adminUserId]});
+        // unassignable users should be able to create stories
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return nonAssignableClient.investibles.create({...storyTemplate, assignments: [adminUserId],
+          estimate: tomorrow});
       }).then((story) => {
         storyId = story.investible.id;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});
