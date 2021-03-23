@@ -170,8 +170,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return accountClient.markets.createMarket(dialogMarketOptions);
             }).then((response) => {
                 clonedMarketId = response.market.id;
-                return adminClient.investibles.copy(marketInvestibleId, clonedMarketId);
-            }).then(() => {
                 return loginUserToMarket(adminConfiguration, clonedMarketId);
             }).then((client) => {
                 adminClient = client;
