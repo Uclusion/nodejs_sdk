@@ -1,5 +1,6 @@
 import {getSummariesInfo, loginUserToMarket} from '../src/utils';
 import { sleep } from './commonTestFunctions';
+import _ from 'lodash';
 
 const DELETION_TIMEOUT = 60000; // wait 60 seconds to delete a market
 module.exports = function (adminConfiguration) {
@@ -16,30 +17,34 @@ module.exports = function (adminConfiguration) {
                     if (all_markets.length === 0) {
                         return {signatures: []};
                     }
-                    return summariesClient.versions(idToken, all_markets);
-                }).then((versions) => {
-                        const { signatures } = versions;
-                        const deletions = signatures.map((signature) => {
-                            const {market_id: marketId} = signature;
-                            let globalClient;
-                            return loginUserToMarket(adminConfiguration, marketId)
-                                .then((client) => {
-                                    globalClient = client;
-                                    return client.markets.get();
-                                }).then((market) => {
-                                    const { created_by: createdBy, current_user_id: currentUserId } = market;
-                                    if (createdBy === currentUserId) {
-                                        console.log(`For ${currentUserId} and ${createdBy} deleting ${JSON.stringify(market)}`);
-                                        return globalClient.markets.deleteMarket();
-                                    }
-                                });
+                    const chunks = _.chunk(all_markets, 24);
+                    const versionPromises = chunks.map((chunk) => {
+                        return summariesClient.versions(idToken, chunk).then((versions) => {
+                            const { signatures } = versions;
+                            const deletions = signatures.map((signature) => {
+                                const {market_id: marketId} = signature;
+                                let globalClient;
+                                return loginUserToMarket(adminConfiguration, marketId)
+                                    .then((client) => {
+                                        globalClient = client;
+                                        return client.markets.get();
+                                    }).then((market) => {
+                                        const { created_by: createdBy, current_user_id: currentUserId } = market;
+                                        if (createdBy === currentUserId) {
+                                            console.log(`For ${currentUserId} and ${createdBy} deleting ${JSON.stringify(market)}`);
+                                            return globalClient.markets.deleteMarket();
+                                        }
+                                    });
+                            });
+                            if (deletions) {
+                                deletions.push(sleep(DELETION_TIMEOUT));
+                            }
+                            timeout = DELETION_TIMEOUT + (DELETION_TIMEOUT * deletions.length);
+                            return Promise.all(deletions);
                         });
-                        if (deletions) {
-                            deletions.push(sleep(DELETION_TIMEOUT));
-                        }
-                        timeout = DELETION_TIMEOUT + (DELETION_TIMEOUT * deletions.length);
-                        return Promise.all(deletions).then(() => console.log('Done waiting for cleanup'));
                     });
+                    return Promise.all(versionPromises).then(() => console.log('Done waiting for cleanup'));
+                });
             }).catch(function (error) {
                 const { status } = error;
                 if (status !== 404) {
