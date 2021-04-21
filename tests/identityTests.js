@@ -33,6 +33,8 @@ module.exports = function (adminConfiguration) {
                                         if (createdBy === currentUserId) {
                                             console.log(`For ${currentUserId} and ${createdBy} deleting ${JSON.stringify(market)}`);
                                             return globalClient.markets.deleteMarket();
+                                        } else {
+                                            console.log(`Unable to delete ${JSON.stringify(market)}`);
                                         }
                                     });
                             });
