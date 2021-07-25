@@ -44,7 +44,26 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let investible;
             await promise.then((client) => {
                 accountClient = client;
-                return client.markets.createMarket(marketOptions);
+                return client.markets.createMarketFromTemplate();
+            }).then((results) => {
+                let foundComments = 0;
+                let foundUsers = 0;
+                let foundMarkets = 0;
+                let foundInvestibles = 0;
+                results.forEach((marketResult) => {
+                    const {market, stages, investibles, comments, users} = marketResult;
+                    assert(market, 'market does not exist');
+                    assert(stages, 'stages does not exist');
+                    foundMarkets++;
+                    foundComments += (comments || []).length;
+                    foundInvestibles += (investibles || []).length;
+                    foundUsers += (users || []).length;
+                });
+                assert(foundComments === 1, 'wrong number comments');
+                assert(foundInvestibles === 2, 'wrong number investibles');
+                assert(foundMarkets === 2, 'wrong number markets');
+                assert(foundUsers === 2, 'wrong number users');
+                return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
