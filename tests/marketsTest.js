@@ -279,8 +279,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
-                console.log('Hiding market');
-                return userClient.markets.hide();
+                console.log('Making guest');
+                return userClient.users.changeGuest(userId, true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
             }).then(() => {
@@ -289,7 +289,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const myUser = users.find(obj => {
                     return obj.id === userId;
                 });
-                assert(myUser.market_hidden, 'market should be hidden');
+                assert(myUser.market_guest, 'user should be guest');
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
