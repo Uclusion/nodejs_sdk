@@ -31,8 +31,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let createdMarketId;
             let clonedMarketId;
             let marketInvestibleId;
-            let otherUserId;
             let otherAccountId;
+            let otherUserExternalId;
             let globalSummariesClient;
             let linkedMarketId;
             let inlineMarketId;
@@ -165,8 +165,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Add user to this market and get user_id so can user below to test add user api
                 return client.users.get();
             }).then((user) => {
-                otherUserId = user.id;
                 otherAccountId = user.account_id;
+                otherUserExternalId = user.external_id;
                 return accountClient.markets.createMarket(dialogMarketOptions);
             }).then((response) => {
                 clonedMarketId = response.market.id;
@@ -174,7 +174,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((client) => {
                 adminClient = client;
                 // Add user to the market
-                return adminClient.users.addUsers([{user_id: otherUserId, account_id: otherAccountId}]);
+                return adminClient.users.addUsers([{user_id: otherUserExternalId, account_id: otherAccountId}]);
             }).then((presences) => {
                 const { id } = presences[0];
                 assert(id, 'Add not successful');
