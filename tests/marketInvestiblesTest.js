@@ -174,7 +174,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((client) => {
                 adminClient = client;
                 // Add user to the market
-                return adminClient.users.addUsers([{user_id: otherUserExternalId, account_id: otherAccountId}]);
+                return adminClient.users.addUsers([{external_id: otherUserExternalId, account_id: otherAccountId}]);
             }).then((presences) => {
                 const { id } = presences[0];
                 assert(id, 'Add not successful');
