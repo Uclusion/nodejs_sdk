@@ -44,7 +44,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let investible;
             await promise.then((client) => {
                 accountClient = client;
-                return client.markets.createMarketFromTemplate();
+                return client.markets.createMarketFromTemplate('fromIntegrationTests');
             }).then((results) => {
                 let foundComments = 0;
                 let foundUsers = 0;
@@ -59,10 +59,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     foundInvestibles += (investibles || []).length;
                     foundUsers += (users || []).length;
                 });
-                assert(foundComments === 1, 'wrong number comments');
-                assert(foundInvestibles === 2, 'wrong number investibles');
-                assert(foundMarkets === 2, 'wrong number markets');
-                assert(foundUsers === 2, 'wrong number users');
+                assert(foundComments === 0, 'wrong number comments');
+                assert(foundInvestibles === 1, 'wrong number investibles');
+                assert(foundMarkets === 1, 'wrong number markets');
+                assert(foundUsers === 1, 'wrong number users');
                 return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
