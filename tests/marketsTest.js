@@ -60,7 +60,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     foundUsers += (users || []).length;
                 });
                 assert(foundComments === 0, 'wrong number comments');
-                assert(foundInvestibles === 1, 'wrong number investibles');
+                assert(foundInvestibles === 0, 'wrong number investibles');
                 assert(foundMarkets === 1, 'wrong number markets');
                 assert(foundUsers === 1, 'wrong number users');
                 return accountClient.markets.createMarket(marketOptions);
