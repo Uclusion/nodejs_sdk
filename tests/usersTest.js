@@ -23,6 +23,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let ssoClient;
       let createdMarketId;
       let adminClient;
+      let createdMarketInvite;
       await getSSOInfo(adminConfiguration).then(ssoInfo => {
         ssoClient = ssoInfo.ssoClient;
         adminIdToken = ssoInfo.idToken;
@@ -61,6 +62,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return client.markets.createMarket(marketOptions);
       }).then((response) => {
         createdMarketId = response.market.id;
+        createdMarketInvite = response.market.invite_capability;
         return loginUserToMarket(adminConfiguration, createdMarketId);
       }).then((client) => {
         adminClient = client;
@@ -76,7 +78,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.email === userConfiguration.username && obj.name === userConfiguration.username && obj.placeholder_type === 'PLACE_HOLDER';
         });
         assert(placeholderUser, 'Did not find placeholder');
-        return loginUserToMarket(userConfiguration, createdMarketId);
+        return loginUserToMarket(userConfiguration, createdMarketInvite);
       }).then(() => {
         // This should be the replaced placeholder pushed out
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
