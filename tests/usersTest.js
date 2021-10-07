@@ -63,8 +63,31 @@ module.exports = function (adminConfiguration, userConfiguration) {
         createdMarketId = response.market.id;
         return loginUserToMarket(adminConfiguration, createdMarketId);
       }).then((client) => {
-          adminClient = client;
-          return adminClient.markets.updateMarket({ locked: true });
+        adminClient = client;
+        // Add placeholder user to the market
+        return adminClient.users.inviteUsers([{email: userConfiguration.username}]);
+      }).then(() => {
+        // This should be the placeholder pushed out
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
+      }).then(() => {
+        return adminClient.markets.listUsers();
+      }).then((users) => {
+        const placeholderUser = users.find(obj => {
+          return obj.email === userConfiguration.username && obj.name === userConfiguration.username && obj.placeholder_type === 'PLACE_HOLDER';
+        });
+        assert(placeholderUser, 'Did not find placeholder');
+        return loginUserToMarket(userConfiguration, createdMarketId);
+      }).then(() => {
+        // This should be the replaced placeholder pushed out
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
+      }).then(() => {
+        return adminClient.markets.listUsers();
+      }).then((users) => {
+        const placeholderUser = users.find(obj => {
+          return obj.email === userConfiguration.username && obj.name !== userConfiguration.username && obj.placeholder_type === 'FROM_PLACE_HOLDER';
+        });
+        assert(placeholderUser, 'Did not find replaced placeholder');
+        return adminClient.markets.updateMarket({ locked: true });
       }).then(() => {
         return getWebSocketRunner(userConfiguration);
       }).then((webSocketRunner) => {
