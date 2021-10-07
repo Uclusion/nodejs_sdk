@@ -1,7 +1,14 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
 import TestTokenManager, { TOKEN_TYPE_ACCOUNT } from '../src/TestTokenManager';
-import {getSSOInfo, loginUserToAccount, loginUserToMarket, getWebSocketRunner, getMessages} from '../src/utils';
+import {
+  getSSOInfo,
+  loginUserToAccount,
+  loginUserToMarket,
+  getWebSocketRunner,
+  getMessages,
+  loginUserToMarketInvite
+} from '../src/utils';
 
 /*
 Admin Configuration and User Configuration are used as in/out params here,
@@ -78,7 +85,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.email === userConfiguration.username && obj.name === userConfiguration.username && obj.placeholder_type === 'PLACE_HOLDER';
         });
         assert(placeholderUser, 'Did not find placeholder');
-        return loginUserToMarket(userConfiguration, createdMarketInvite);
+        return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
       }).then(() => {
         // This should be the replaced placeholder pushed out
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
