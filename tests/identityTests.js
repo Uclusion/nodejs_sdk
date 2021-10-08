@@ -1,4 +1,4 @@
-import {getSummariesInfo, loginUserToMarket} from '../src/utils';
+import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
 import { sleep } from './commonTestFunctions';
 import _ from 'lodash';
 
@@ -45,7 +45,10 @@ module.exports = function (adminConfiguration) {
                             return Promise.all(deletions);
                         });
                     });
-                    return Promise.all(versionPromises).then(() => console.log('Done waiting for cleanup'));
+                    return Promise.all(versionPromises)
+                        .then(() => loginUserToAccount(adminConfiguration))
+                        .then((client) => client.users.cleanAccount())
+                        .then(() => console.log('Done waiting for cleanup'));
                 });
             }).catch(function (error) {
                 const { status } = error;
