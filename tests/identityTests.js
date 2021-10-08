@@ -45,11 +45,10 @@ module.exports = function (adminConfiguration) {
                             return Promise.all(deletions);
                         });
                     });
-                    return Promise.all(versionPromises)
-                        .then(() => loginUserToAccount(adminConfiguration))
-                        .then((client) => client.users.cleanAccount())
-                        .then(() => console.log('Done waiting for cleanup'));
-                });
+                    return Promise.all(versionPromises);
+                }).then(() => loginUserToAccount(adminConfiguration))
+                    .then((client) => client.users.cleanAccount())
+                    .then(() => console.log('Done with cleanup'));
             }).catch(function (error) {
                 const { status } = error;
                 if (status !== 404) {
