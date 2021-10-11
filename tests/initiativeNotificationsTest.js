@@ -3,15 +3,10 @@ import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInv
 
 module.exports = function (adminConfiguration, userConfiguration) {
     const fishOptions = {
-        name: 'NA',
-        description: 'NA',
-        market_type: 'INITIATIVE',
-        expiration_minutes: 30
-    };
-
-    const fishInvestibleOptions = {
         name: 'notifications test',
         description: 'this is an initiative market',
+        market_type: 'INITIATIVE',
+        expiration_minutes: 30
     };
 
     describe('#doInitiativeNotifications', () => {
@@ -32,13 +27,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
+                marketInvestibleId = response.investible.investible.id;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
-                return adminClient.investibles.create(fishInvestibleOptions);
-            }).then((investible) => {
-                marketInvestibleId = investible.investible.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
