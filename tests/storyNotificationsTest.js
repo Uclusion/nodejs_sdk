@@ -60,12 +60,26 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
+                const mention = {
+                    user_id: adminId,
+                    external_id: adminExternalId,
+                };
                 return userClient.investibles.createComment(marketInvestibleId, 'body of my comment',
-                    null, 'QUESTION');
+                    null, 'QUESTION', undefined, [mention]);
             }).then((comment) => {
                 questionCommentId = comment.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
+                // Also wait the push of the capability from the mention
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([
+                    {event_type: 'notification', object_id: adminExternalId},
+                    {event_type: 'market_capability', object_id: createdMarketId}]);
+            }).then(() => {
+                return userClient.markets.listUsers();
+            }).then((users) => {
+                const myAdminUser = users.find(obj => {
+                    return obj.id === adminId;
+                });
+                assert(myAdminUser.mentioned_notifications, 'admin should show as mentioned');
+                return getMessages(adminConfiguration);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
@@ -81,8 +95,18 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(!vote, 'Not fully voted removed if leave comment');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                // Also wait the push of the capability from removing the mention
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([
+                    {event_type: 'comment', object_id: createdMarketId},
+                    {event_type: 'market_capability', object_id: createdMarketId}]);
+            }).then(() => {
+                return userClient.markets.listUsers();
+            }).then((users) => {
+                const myAdminUser = users.find(obj => {
+                    return obj.id === adminId;
+                });
+                assert(!myAdminUser.mentioned_notifications, 'admin should now not show as mentioned');
+                return getMessages(adminConfiguration);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {

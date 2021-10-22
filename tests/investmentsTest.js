@@ -89,50 +89,34 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED');
                 });
                 assert(investibleIssue, 'No investible issue notification');
-                const mention = {
-                    user_id: userId,
-                    external_id: userExternalId,
-                };
-                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', parentCommentId,
-                    undefined, undefined, [mention]);
+                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', parentCommentId);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
-                assert(comment.mentions.length === 1, 'mentions should contain just one person');
-                assert(comment.mentions[0].user_id === userId, 'mention should just be for the user id');
-                // Also wait the push of the capability from the mention
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([
-                    {event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'market_capability', object_id: createdMarketId}]);
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
-                return userClient.markets.listUsers();
-            }).then((users) => {
-                const myUser = users.find(obj => {
-                    return obj.id === userId;
-                });
-                assert(myUser.mentioned_notifications, 'user should show as mentioned');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + parentCommentId;
                 });
                 assert(!investibleIssue, 'Issue notification cleared by reply');
-                return userClient.investibles.updateComment(parentCommentId, 'new body', true);
+                const mention = {
+                    user_id: userId,
+                    external_id: userExternalId,
+                };
+                return userClient.investibles.updateComment(parentCommentId, 'new body', true, undefined, [mention]);
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'notification'}, {event_type: 'market_capability', object_id: createdMarketId}])
+                    {event_type: 'notification'}])
                     .then(() => comment);
             }).then((comment) => {
                 assert(comment.body === 'new body', 'updated comment body incorrect');
+                assert(comment.mentions.length === 1, 'mentions should contain just one person');
+                assert(comment.mentions[0].user_id === userId, 'mention should just be for the user id');
                 assert(comment.resolved, 'updated resolved incorrect');
                 assert(comment.children, 'now parent should have children');
                 assert(comment.version === 4, `update, reply and resolve should each bump version but ${comment.version}`);
-                return userClient.markets.listUsers();
-            }).then((users) => {
-                const myUser = users.find(obj => {
-                    return obj.id === userId;
-                });
-                assert(!myUser.mentioned_notifications, 'user should now not show as mentioned');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
