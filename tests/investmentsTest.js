@@ -93,7 +93,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     user_id: userId,
                     external_id: userExternalId,
                 };
-                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', parentCommentId, undefined, [mention]);
+                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', parentCommentId,
+                    undefined, undefined, [mention]);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
                 assert(comment.mentions.length === 1, 'mentions should contain just one person');
