@@ -105,7 +105,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const myAdminUser = users.find(obj => {
                     return obj.id === adminId;
                 });
-                assert(_.isEmpty(myAdminUser.mentioned_notifications), 'admin should now not show as mentioned');
+                assert(!myAdminUser.mentioned_notifications || myAdminUser.mentioned_notifications.length === 0,
+                    'admin should now not show as mentioned');
                 return getMessages(adminConfiguration);
             }).then(() => {
                 return getMessages(adminConfiguration);
