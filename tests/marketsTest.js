@@ -12,6 +12,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
         name : 'fish planning',
         description: 'this is a fish planning market',
         market_type: 'PLANNING',
+        market_sub_type: 'TEST',
         investment_expiration: 1
     };
     const initiativeOptions = {
