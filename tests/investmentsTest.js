@@ -99,7 +99,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const investibleIssue = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + parentCommentId;
                 });
-                assert(!investibleIssue, 'Issue notification cleared by reply');
+                assert(!investibleIssue.is_highlighted, 'Issue notification de-highlighted by reply');
                 const mention = {
                     user_id: userId,
                     external_id: userExternalId,
