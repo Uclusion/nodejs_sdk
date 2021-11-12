@@ -271,11 +271,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.summaries.getMarketSummary();
-            }).then((summaries) => {
-                const summary = summaries[0];
-                const { archived_budget_total: totalBudget } = summary;
-                assert(totalBudget === 1, 'Summary should have budget from above');
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
                 return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'ISSUE');
             }).then(() => {
