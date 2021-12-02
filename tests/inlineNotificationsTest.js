@@ -118,7 +118,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const unread = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_OPTION' + inlineInvestibleId;
+                    return obj.type_object_id === 'UNREAD_OPTION_' + inlineInvestibleId;
                 });
                 assert(unread, 'Should get new option notification');
                 const mention = {
@@ -134,7 +134,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const unread = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_OPTION' + inlineInvestibleId;
+                    return obj.type_object_id === 'UNREAD_OPTION_' + inlineInvestibleId;
                 });
                 assert(unread, 'Should still have new option notification');
                 const vote = messages.find(obj => {
