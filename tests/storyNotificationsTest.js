@@ -183,8 +183,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
+                //Comment should be closed by move
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages(
+                    [{event_type: 'comment', object_id: createdMarketId},
+                    {event_type: 'market_investible', object_id: createdMarketId}]);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
