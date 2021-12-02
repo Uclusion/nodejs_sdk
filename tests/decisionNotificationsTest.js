@@ -126,7 +126,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const newOption = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_OPTION_' + marketInvestibleId;
                 });
                 assert(!newOption, 'View notification not required since will have not fully voted');
                 const vote = messages.find(obj => {

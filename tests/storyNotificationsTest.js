@@ -208,7 +208,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
                 assert(review, 'Moving to in review with no required reviewers is view level');
                 return adminClient.investibles.createComment(marketInvestibleId, 'body of my todo',
@@ -221,7 +221,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
                 assert(!review, 'Opening a TODO has removed the review notification');
                 return adminClient.investibles.updateComment(todoCommentId, undefined, true);
@@ -232,7 +232,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
                 assert(!review, 'Resolving the last todo with open question does not send please review');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
@@ -243,7 +243,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
                 assert(review, 'Resolving the last TODO and open question re-sends the review notification');
             }).catch(function (error) {
