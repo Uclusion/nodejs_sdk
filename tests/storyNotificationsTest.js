@@ -24,6 +24,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let todoCommentId;
             let globalStages;
             let acceptedStage;
+            let resolvedStage;
+            let inReviewStage;
             await promise.then((client) => {
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -177,28 +179,27 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 globalStages = stageList;
                 acceptedStage = globalStages.find(stage => { return stage.assignee_enter_only; });
                 const inDialogStage = globalStages.find(stage => { return stage.allows_investment; });
+                resolvedStage = globalStages.find(stage => {return stage.appears_in_market_summary});
                 const stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                //Comment should be closed by move
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages(
-                    [{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'market_investible', object_id: createdMarketId}]);
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
-                assert(!openComment, 'Changing stage removes issue notification');
-                const inReview = globalStages.find(stage => { return !stage.appears_in_market_summary
+                assert(openComment, 'Changing to non final stage preserves issue notification');
+                inReviewStage = globalStages.find(stage => { return !stage.appears_in_market_summary
                     && stage.appears_in_context && !stage.assignee_enter_only && !stage.allows_investment; });
                 const stateOptions = {
                     current_stage_id: acceptedStage.id,
-                    stage_id: inReview.id
+                    stage_id: inReviewStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
@@ -246,6 +247,25 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
                 assert(review, 'Resolving the last TODO and open question re-sends the review notification');
+                const openComment = messages.find(obj => {
+                    return obj.type_object_id === 'ISSUE_' + questionCommentId;
+                });
+                assert(!openComment, 'Resolving question removes issue notification');
+                const stateOptions = {
+                    current_stage_id: inReviewStage.id,
+                    stage_id: resolvedStage.id
+                };
+                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const review = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
+                });
+                assert(!review, 'Resolving the investible removes review');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
