@@ -117,10 +117,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
-                const unread = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_OPTION_' + inlineInvestibleId;
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineInvestibleId;
                 });
-                assert(unread, 'Should get new option notification');
+                assert(vote, 'Should get not fully voted notification');
                 const mention = {
                     user_id: userId,
                     external_id: userExternalId,
