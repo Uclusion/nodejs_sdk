@@ -118,9 +118,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineInvestibleId;
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
-                assert(vote, 'Should get not fully voted notification');
+                assert(vote && vote.level === 'YELLOW', 'Should get delayable not fully voted notification');
                 const mention = {
                     user_id: userId,
                     external_id: userExternalId,
@@ -133,14 +133,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
-                const unread = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_OPTION_' + inlineInvestibleId;
-                });
-                assert(unread, 'Should still have new option notification');
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
-                assert(vote, 'Should receive not fully voted now that mentioned');
+                assert(vote && vote.level === 'RED', 'Should receive critical not fully voted now that mentioned');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
