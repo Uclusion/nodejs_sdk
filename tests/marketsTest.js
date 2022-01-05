@@ -276,17 +276,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
-                console.log('Making guest');
-                return userClient.users.changeGuest(userId, true);
-            }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
-            }).then(() => {
-                return userClient.markets.listUsers();
-            }).then((users) => {
-                const myUser = users.find(obj => {
-                    return obj.id === userId;
-                });
-                assert(myUser.market_guest, 'user should be guest');
                 return accountClient.markets.createMarket(initiativeOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
