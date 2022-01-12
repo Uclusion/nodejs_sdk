@@ -18,6 +18,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let notFollowingClient;
       let adminUserId;
       let notFollowingUserId;
+      let notFollowingExternalId;
       let marketId;
       let storyId;
       let marketCapability;
@@ -34,6 +35,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return notFollowingClient.users.get();
       }).then((me) => {
         notFollowingUserId = me.id;
+        notFollowingExternalId = me.external_id;
         return notFollowingClient.markets.followMarket(true);
       }).then(() => {
         return notFollowingClient.markets.listUsers();
@@ -68,7 +70,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
         return adminClient.investibles.updateAssignments(storyId, [notFollowingUserId]);
       }).then(() => {
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+          object_id: notFollowingExternalId});
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
