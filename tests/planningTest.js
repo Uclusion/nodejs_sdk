@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
+import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
   const planningMarket = {
@@ -15,9 +15,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
   describe('#test plan specific actions', () => {
     it('should let a non assignable person vote', async () => {
       let adminClient;
-      let nonAssignableClient;
+      let notFollowingClient;
       let adminUserId;
-      let nonAssignableUserId;
+      let notFollowingUserId;
       let marketId;
       let storyId;
       let marketCapability;
@@ -30,31 +30,30 @@ module.exports = function (adminConfiguration, userConfiguration) {
         marketCapability = result.market.invite_capability;
         return loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
       }).then((client) => {
-        nonAssignableClient = client;
-        return nonAssignableClient.users.get();
-        // become no assignable
+        notFollowingClient = client;
+        return notFollowingClient.users.get();
       }).then((me) => {
-        nonAssignableUserId = me.id;
-        return nonAssignableClient.markets.followMarket(true);
+        notFollowingUserId = me.id;
+        return notFollowingClient.markets.followMarket(true);
       }).then(() => {
-        return nonAssignableClient.markets.listUsers();
+        return notFollowingClient.markets.listUsers();
       }).then((users) => {
-        const marketPresence = users.find((user) => user.id === nonAssignableUserId);
-        const adminPresence = users.find((user) => user.id !== nonAssignableUserId);
+        const marketPresence = users.find((user) => user.id === notFollowingUserId);
+        const adminPresence = users.find((user) => user.id !== notFollowingUserId);
         adminUserId = adminPresence.id;
-        assert(marketPresence.following === false, "Should not be assignable");
+        assert(marketPresence.following === false, "Should not be following");
         assert(marketPresence.market_banned === false, "Should not be banned");
-        // unassignable users should be able to create stories
+        // not following users should be able to create stories
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        return nonAssignableClient.investibles.create({...storyTemplate, assignments: [adminUserId],
+        return notFollowingClient.investibles.create({...storyTemplate, assignments: [adminUserId],
           estimate: tomorrow});
       }).then((story) => {
         storyId = story.investible.id;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});
       }).then(() => {
-        // unassignable should be able to vote
-        return nonAssignableClient.markets.updateInvestment(storyId, 100, 0, null, 1);
+        // not following should be able to vote
+        return notFollowingClient.markets.updateInvestment(storyId, 100, 0, null, 1);
       }).then(() => {
         return loginUserToMarketInvite(adminConfiguration, marketCapability);
       }).then((client) => {
@@ -67,6 +66,16 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((comments) => {
         const comment = comments[0];
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
+        return adminClient.investibles.updateAssignments(storyId, [notFollowingUserId]);
+      }).then(() => {
+        return notFollowingClient.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+      }).then(() => {
+        return getMessages(userConfiguration);
+      }).then((messages) => {
+        const newVoting = messages.find(obj => {
+          return obj.type_object_id === 'UNREAD_ASSIGNMENT_' + storyId;
+        });
+        assert(newVoting, 'Mute channel still sends critical notifications');
       }).catch(function (error) {
         console.log(error);
         throw error;
