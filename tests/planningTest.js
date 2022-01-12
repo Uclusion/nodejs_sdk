@@ -68,7 +68,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
         return adminClient.investibles.updateAssignments(storyId, [notFollowingUserId]);
       }).then(() => {
-        return notFollowingClient.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
