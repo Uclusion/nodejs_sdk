@@ -247,20 +247,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
-                return adminClient.investibles.stateChange(marketInvestibleTwoId, stateOptions).catch(function(error) {
-                    assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
-                    return 'State rejected';
-                });
-            }).then((response) => {
-                assert(response === 'State rejected', 'Wrong response = ' + JSON.stringify(response));
-                return adminClient.markets.updateStage(acceptedStage.id, 0);
-            }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'stage', object_id: createdMarketId});
-            }).then(() => {
-                stateOptions = {
-                    current_stage_id: inDialogStage.id,
-                    stage_id: acceptedStage.id
-                };
                 return adminClient.investibles.stateChange(marketInvestibleTwoId, stateOptions);
             }).then(() => {
                 stateOptions = {
