@@ -75,6 +75,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: notFollowingExternalId});
       }).then(() => {
+        // This is the delete of notifications had when assigned
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: adminExternalId});
       }).then(() => {
@@ -84,6 +85,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'UNREAD_ASSIGNMENT_' + storyId;
         });
         assert(newVoting, 'Mute channel still sends critical notifications');
+        // This one is delayed for 1m
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+          object_id: adminExternalId});
+      }).then(() => {
         return getMessages(adminConfiguration);
       }).then((messages) => {
         const vote = messages.find(obj => {
