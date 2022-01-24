@@ -19,6 +19,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let adminUserId;
       let notFollowingUserId;
       let notFollowingExternalId;
+      let adminExternalId;
       let marketId;
       let storyId;
       let marketCapability;
@@ -43,6 +44,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const marketPresence = users.find((user) => user.id === notFollowingUserId);
         const adminPresence = users.find((user) => user.id !== notFollowingUserId);
         adminUserId = adminPresence.id;
+        adminExternalId = adminPresence.external_id
         assert(marketPresence.following === false, "Should not be following");
         assert(marketPresence.market_banned === false, "Should not be banned");
         // not following users should be able to create stories
@@ -72,6 +74,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: notFollowingExternalId});
+      }).then(() => {
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+          object_id: adminExternalId});
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
