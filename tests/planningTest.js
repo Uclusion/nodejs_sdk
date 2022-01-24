@@ -79,6 +79,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'UNREAD_ASSIGNMENT_' + storyId;
         });
         assert(newVoting, 'Mute channel still sends critical notifications');
+        return getMessages(adminConfiguration);
+      }).then((messages) => {
+        const vote = messages.find(obj => {
+          return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
+        });
+        assert(vote, 'Reassignment sends not fully voted');
       }).catch(function (error) {
         console.log(error);
         throw error;
