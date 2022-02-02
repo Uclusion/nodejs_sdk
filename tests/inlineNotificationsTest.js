@@ -137,7 +137,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
                 assert(vote && vote.level === 'RED', 'Should receive critical not fully voted now that mentioned');
-                return userClient.markets.updateInvestment(inlineInvestibleId, 100, 0);
+                return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100, 0);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: adminExternalId});
