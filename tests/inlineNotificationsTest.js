@@ -145,7 +145,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const voted = messages.find(obj => {
-                    return obj.type_object_id === 'FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'FULLY_VOTED_' + inlineMarketId;
                 });
                 assert(voted, 'Fully voted when all voted');
             }).catch(function (error) {
