@@ -131,6 +131,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
             }).then(() => {
+                return inlineUserClient.markets.updateAbstain(true);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_capability', object_id: inlineMarketId});
+            }).then(() => {
+                return userClient.users.get();
+            }).then((user) => {
+                assert(user.abstain, 'Abstain marks the user so');
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
@@ -139,8 +147,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(vote && vote.level === 'RED', 'Should receive critical not fully voted now that mentioned');
                 return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100, 0);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
+                    object_id: adminExternalId}, {event_type: 'market_capability', object_id: inlineMarketId}]);
+            }).then(() => {
+                return userClient.users.get();
+            }).then((user) => {
+                assert(!user.abstain, 'Investing marks the user not abstained');
+                return getMessages(userConfiguration);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
