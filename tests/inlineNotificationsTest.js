@@ -136,7 +136,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_capability', object_id: inlineMarketId});
             }).then(() => {
-                return userClient.markets.listUsers();
+                return inlineUserClient.markets.listUsers();
             }).then((users) => {
                 const myInlineUser = users.find(obj => {
                     return obj.id === inlineUserId;
@@ -153,7 +153,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
                     object_id: adminExternalId}, {event_type: 'market_capability', object_id: inlineMarketId}]);
             }).then(() => {
-                return userClient.markets.listUsers();
+                return inlineUserClient.markets.listUsers();
             }).then((users) => {
                 const myInlineUser = users.find(obj => {
                     return obj.id === inlineUserId;
