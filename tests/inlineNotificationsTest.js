@@ -130,6 +130,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
+            }).then(() => {
+                return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
