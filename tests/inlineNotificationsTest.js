@@ -130,6 +130,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
+            }).then((messages) => {
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
+                });
+                assert(vote && vote.level === 'RED', 'Should receive critical not fully voted now that mentioned');
+                return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100, 0);
             }).then(() => {
                 return inlineUserClient.markets.updateAbstain(true);
             }).then(() => {
@@ -147,7 +153,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
-                assert(vote && vote.level === 'RED', 'Should receive critical not fully voted now that mentioned');
+                assert(!vote, 'No call to vote after abstain');
                 return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100, 0);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
