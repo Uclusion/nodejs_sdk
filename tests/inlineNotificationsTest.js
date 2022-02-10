@@ -137,12 +137,17 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
                 assert(vote && vote.level === 'RED', 'Should receive critical not fully voted now that mentioned');
-                return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100, 0);
-            }).then(() => {
                 return inlineUserClient.markets.updateAbstain(true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_capability', object_id: inlineMarketId});
+            }).then(() => {
+                return getMessages(adminConfiguration);
+            }).then((messages) => {
+                const voted = messages.find(obj => {
+                    return obj.type_object_id === 'FULLY_VOTED_' + inlineMarketId;
+                });
+                assert(voted, 'Fully voted when all voted or abstained');
             }).then(() => {
                 return inlineUserClient.markets.listUsers();
             }).then((users) => {
@@ -167,12 +172,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.id === inlineUserId;
                 });
                 assert(!myInlineUser.abstain, 'Investing marks the user not abstained');
-                return getMessages(adminConfiguration);
-            }).then((messages) => {
-                const voted = messages.find(obj => {
-                    return obj.type_object_id === 'FULLY_VOTED_' + inlineMarketId;
-                });
-                assert(voted, 'Fully voted when all voted');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
