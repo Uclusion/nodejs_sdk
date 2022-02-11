@@ -228,7 +228,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_ASSIGNMENT_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + marketInvestibleId;
                 });
                 assert(newVoting, 'Assigned should be notified of story');
                 stateOptions = {

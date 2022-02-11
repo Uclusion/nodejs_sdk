@@ -43,6 +43,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     assignments: [adminId]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
+                const marketInfo = investible.market_infos.find(info => {
+                    return info.market_id === createdMarketId;
+                });
+                assert(marketInfo.accepted, 'Self-assigned automatically accepts');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {

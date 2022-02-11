@@ -82,7 +82,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const newVoting = messages.find(obj => {
-          return obj.type_object_id === 'UNREAD_ASSIGNMENT_' + storyId;
+          return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
         });
         assert(newVoting, 'Mute channel still sends critical notifications');
         // This one is delayed for 1m
@@ -95,6 +95,18 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
         assert(vote, 'Reassignment sends not fully voted');
+        return notFollowingClient.investibles.accept(storyId);
+      }).then(() => {
+        // This is the delete of notifications had when assigned
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+          object_id: adminExternalId});
+      }).then(() => {
+        return getMessages(userConfiguration);
+      }).then((messages) => {
+        const newVoting = messages.find(obj => {
+          return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
+        });
+        assert(!newVoting, 'Accepting clears unaccepted notification');
       }).catch(function (error) {
         console.log(error);
         throw error;
