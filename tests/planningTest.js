@@ -99,7 +99,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         // This is the delete of notifications had when assigned
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-          object_id: adminExternalId});
+          object_id: notFollowingExternalId});
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
