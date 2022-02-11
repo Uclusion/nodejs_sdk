@@ -81,10 +81,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
-        const newVoting = messages.find(obj => {
+        const newAssignment = messages.find(obj => {
           return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
         });
-        assert(newVoting, 'Mute channel still sends critical notifications');
+        assert(newAssignment, 'Mute channel still sends critical notifications');
         // This one is delayed for 1m
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: adminExternalId});
@@ -103,10 +103,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
-        const newVoting = messages.find(obj => {
+        const newAssignment = messages.find(obj => {
           return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
         });
-        assert(!newVoting, 'Accepting clears unaccepted notification');
+        assert(!newAssignment, 'Accepting clears unaccepted notification');
       }).catch(function (error) {
         console.log(error);
         throw error;
