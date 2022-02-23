@@ -60,7 +60,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((client) => {
                 userClient = client;
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
-                    {event_type: 'market_capability', object_id: createdMarketInvite}]);
+                    {event_type: 'market_capability', object_id: createdMarketId}]);
             }).then(() => {
                 return userClient.users.get();
             }).then((user) => {
