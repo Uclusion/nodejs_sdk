@@ -173,6 +173,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Now a second one that investment was deleted since investment expiration is 1 minute
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
+                // Turn off investment expiration 1m so it can't affect the rest of this test
+                return adminClient.markets.updateMarket({investment_expiration: 30});
+            }).then(() => {
                 notDoingStage = globalStages.find(stage => { return !stage.allows_assignment && stage.close_comments_on_entrance });
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
