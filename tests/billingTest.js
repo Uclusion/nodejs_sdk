@@ -40,7 +40,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 // make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription('Standard');
+                return adminAccountClient.users.startSubscription();
             }).then((account) => {
                 console.log(account);
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
@@ -95,7 +95,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 //make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription('Standard', undefined, promoCode);
+                return adminAccountClient.users.startSubscription( undefined, promoCode);
             }).then((account) => {
                 //console.log(account)
                 const {billing_promotions, billing_subscription_status} = account;
@@ -141,7 +141,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 //make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription('Standard', undefined, promoCode);
+                return adminAccountClient.users.startSubscription( undefined, promoCode);
             }).then((account) => {
                 //console.log(account)
                 const {billing_promotions, billing_subscription_status} = account;
@@ -216,7 +216,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return uclusion.constructClient(config);
             }).then((client) => {
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription('Standard');
+                return adminAccountClient.users.startSubscription();
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
                 // first sleep to let the account promo reset work try an invalid code
