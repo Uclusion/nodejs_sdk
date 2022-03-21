@@ -44,13 +44,11 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((account) => {
                 console.log(account);
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
-                assert(account.tier === 'Standard', 'Should be standard tier');
                 assert(new Date(account.billing_subscription_trial_end) > (Date.now() / 1000), 'Trial is in the past');
                 //cancel our sub
                 return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
-                assert(account.tier === 'Free', 'Should have been free tier');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
                 return getMessages(adminConfiguration);
@@ -59,14 +57,13 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                     return obj.market_id_user_id.startsWith('upgrade_reminder');
                 });
                 assert(upgradeReminder, 'Upgrade reminder not received');
-                // now restart subscribe without a promo code (the only tier we currently have is Standard)
+                // now restart subscribe without a promo code
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
                         return adminAccountClient.users.restartSubscription(paymentInfo.id);
                     });
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
-                assert(account.tier === 'Standard')
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
                 return getMessages(adminConfiguration);
@@ -110,7 +107,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
-                // now restart subscribe without a promo code (the only tier we currently have is Standard)
+                // now restart subscribe without a promo code
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
                         return adminAccountClient.users.restartSubscription(paymentInfo.id, promoCode);
@@ -149,7 +146,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 //console.log(account)
                 const {billing_promotions, billing_subscription_status} = account;
                 assert(billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
-                assert(account.tier === 'Standard', 'Should have been standard tier');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
@@ -157,8 +153,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
                 assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
-                assert(account.tier === 'Free', 'Should have been free tier');
-                // now restart subscribe without a promo code (the only tier we currently have is Standard)
+                // now restart subscribe without a promo code
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
                         return adminAccountClient.users.restartSubscription(paymentInfo.id);
