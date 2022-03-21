@@ -149,7 +149,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                assert(user.flags.market_admin, 'Should be admin in planning');
                 return userClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
                     assignments: [userId]});
             }).then((investible) => {
