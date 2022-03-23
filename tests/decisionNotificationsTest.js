@@ -63,7 +63,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                assert(!vote, 'Un-promoted investible clears not fully voted');
+                assert(vote, 'Un-promoted investible does not clear not fully voted');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const submitted = messages.find(obj => {
@@ -129,10 +129,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_OPTION_' + marketInvestibleId;
                 });
                 assert(!newOption, 'View notification not required since will have not fully voted');
-                const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
-                });
-                assert(vote, 'Should receive not fully voted again now that investible promoted');
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
@@ -144,6 +140,21 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
                 assert(!vote, 'Not fully voted removed on approving an option');
+                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null,
+                    'ISSUE');
+            }).then((comment) => {
+                createdCommentId = comment.id;
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                });
+                assert(vote, 'Not fully voted restored on option demoted by issue');
+                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null,
+                    'ISSUE');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
