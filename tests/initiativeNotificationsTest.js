@@ -132,7 +132,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                assert(!vote, 'Unresolving comment removes not fully voted');
+                assert(vote, 'Unresolving comment does not remove not fully voted');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
