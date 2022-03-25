@@ -129,8 +129,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
                     undefined, [mention]);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
