@@ -21,7 +21,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
 
     describe('#doInlineNotifications', () => {
         it('should do persistent inline notifications without error', async () => {
-            let promise = loginUserToAccountAndGetToken(adminConfiguration);
+            let promise = loginUserToAccount(adminConfiguration);
             let accountClient;
             let adminClient;
             let userClient;
@@ -39,10 +39,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let inlineUserClient;
             let inlineUserId;
             let globalStages;
-            let globalAccountToken;
-            await promise.then((response) => {
-                const { accountToken, client } = response;
-                globalAccountToken = accountToken;
+            let globalUserAccountToken;
+            await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -79,9 +77,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     undefined, undefined, false);
             }).then((comment) => {
                 createdCommentId = comment.id;
+                return loginUserToAccountAndGetToken(userConfiguration);
+            }).then((response) => {
+                const { accountToken } = response;
+                globalUserAccountToken = accountToken;
                 return getSummariesInfo(userConfiguration).then((summariesInfo) => {
                     const {summariesClient} = summariesInfo;
-                    return summariesClient.versions(globalAccountToken, [createdMarketId]);
+                    return summariesClient.versions(globalUserAccountToken, [createdMarketId]);
                 });
             }).then((versions) => {
                 const { signatures } = versions;
@@ -108,7 +110,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return getSummariesInfo(userConfiguration).then((summariesInfo) => {
                     const {summariesClient} = summariesInfo;
-                    return summariesClient.versions(globalAccountToken, [createdMarketId]);
+                    return summariesClient.versions(globalUserAccountToken, [createdMarketId]);
                 });
             }).then((versions) => {
                 const { signatures } = versions;
