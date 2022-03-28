@@ -3,7 +3,7 @@ import {
     loginUserToMarket,
     getMessages,
     loginUserToMarketInvite,
-    loginUserToAccountAndGetToken, getSummariesInfo
+    loginUserToAccountAndGetToken, getSummariesInfo, loginUserToAccount
 } from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
