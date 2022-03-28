@@ -1,5 +1,10 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
+import {
+    loginUserToMarket,
+    getMessages,
+    loginUserToMarketInvite,
+    loginUserToAccountAndGetToken
+} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -16,7 +21,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
 
     describe('#doInlineNotifications', () => {
         it('should do persistent inline notifications without error', async () => {
-            let promise = loginUserToAccount(adminConfiguration);
+            let promise = loginUserToAccountAndGetToken(adminConfiguration);
             let accountClient;
             let adminClient;
             let userClient;
@@ -34,7 +39,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let inlineUserClient;
             let inlineUserId;
             let globalStages;
-            await promise.then((client) => {
+            let globalAccountToken;
+            await promise.then((response) => {
+                const { accountToken, client } = response;
+                globalAccountToken = accountToken;
                 accountClient = client;
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -67,12 +75,52 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 userId = user.id;
                 userExternalId = user.external_id;
                 return adminClient.investibles.createComment(marketInvestibleId, 'body of my comment',
-                    null, 'QUESTION');
+                    null, 'QUESTION', undefined, undefined, undefined,
+                    undefined, undefined, false);
             }).then((comment) => {
                 createdCommentId = comment.id;
+                return userClient.versions(globalAccountToken, [createdMarketId]);
+            }).then((versions) => {
+                const { signatures } = versions;
+                let foundInvestible = false;
+                let foundComment = false;
+                signatures.forEach((signature) => {
+                    const {signatures: marketSignatures} = signature;
+                    marketSignatures.forEach((marketSignature) => {
+                        const {type: aType} = marketSignature;
+                        if (aType === 'investible') {
+                            foundInvestible = true;
+                        }
+                        else if (aType === 'comment') {
+                            foundComment = true;
+                        }
+                    });
+                });
+                assert(foundInvestible && !foundComment, 'Comment should still be in draft');
+                return adminClient.investibles.updateComment(createdCommentId, undefined, undefined,
+                    undefined, undefined, undefined, undefined, true);
+            }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: userExternalId});
             }).then(() => {
+                return userClient.versions(globalAccountToken, [createdMarketId]);
+            }).then((versions) => {
+                const { signatures } = versions;
+                let foundInvestible = false;
+                let foundComment = false;
+                signatures.forEach((signature) => {
+                    const {signatures: marketSignatures} = signature;
+                    marketSignatures.forEach((marketSignature) => {
+                        const {type: aType} = marketSignature;
+                        if (aType === 'investible') {
+                            foundInvestible = true;
+                        }
+                        else if (aType === 'comment') {
+                            foundComment = true;
+                        }
+                    });
+                });
+                assert(foundInvestible && foundComment, 'Comment should be out of draft');
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
