@@ -3,7 +3,7 @@ import {
     loginUserToMarket,
     getMessages,
     loginUserToMarketInvite,
-    loginUserToAccountAndGetToken
+    loginUserToAccountAndGetToken, getSummariesInfo
 } from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
@@ -79,7 +79,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     undefined, undefined, false);
             }).then((comment) => {
                 createdCommentId = comment.id;
-                return userClient.versions(globalAccountToken, [createdMarketId]);
+                return getSummariesInfo(userConfiguration).then((summariesInfo) => {
+                    const {summariesClient} = summariesInfo;
+                    return summariesClient.versions(globalAccountToken, [createdMarketId]);
+                });
             }).then((versions) => {
                 const { signatures } = versions;
                 let foundInvestible = false;
@@ -103,7 +106,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: userExternalId});
             }).then(() => {
-                return userClient.versions(globalAccountToken, [createdMarketId]);
+                return getSummariesInfo(userConfiguration).then((summariesInfo) => {
+                    const {summariesClient} = summariesInfo;
+                    return summariesClient.versions(globalAccountToken, [createdMarketId]);
+                });
             }).then((versions) => {
                 const { signatures } = versions;
                 let foundInvestible = false;
