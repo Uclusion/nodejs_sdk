@@ -5,6 +5,7 @@ import {
     loginUserToMarketInvite,
     loginUserToAccountAndGetToken, getSummariesInfo, loginUserToAccount
 } from "../src/utils";
+import _ from "lodash";
 
 module.exports = function (adminConfiguration, userConfiguration) {
     const marketOptions = {
@@ -92,12 +93,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 signatures.forEach((signature) => {
                     const {signatures: marketSignatures} = signature;
                     marketSignatures.forEach((marketSignature) => {
-                        const {type: aType} = marketSignature;
-                        if (aType === 'investible') {
-                            foundInvestible = true;
-                        }
-                        else if (aType === 'comment') {
-                            foundComment = true;
+                        const {type: aType, object_versions: objectVersions} = marketSignature;
+                        if (!_.isEmpty(objectVersions)) {
+                            if (aType === 'investible') {
+                                foundInvestible = true;
+                            } else if (aType === 'comment') {
+                                foundComment = true;
+                            }
                         }
                     });
                 });
