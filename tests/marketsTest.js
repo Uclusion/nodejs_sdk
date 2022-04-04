@@ -43,6 +43,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let notDoingStage;
             let stateOptions;
             let investible;
+            let marketInfo;
             await promise.then((client) => {
                 accountClient = client;
                 return client.markets.createMarketFromTemplate('fromIntegrationTests');
@@ -206,8 +207,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
-                const market_info = market_infos[0];
-                const { assigned, stage } = market_info;
+                marketInfo = market_infos[0];
+                const { assigned, stage } = marketInfo;
                 assert(assigned[0] === adminId, 'Should be assigned');
                 assert(stage === inDialogStage.id, 'Should be in voting stage');
                 return getMessages(userConfiguration);
@@ -216,6 +217,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(unread && unread.level === 'RED', `changing assignment should mark unvoted for ${marketInvestibleId}`);
+                assert(unread.market_investible_id === marketInfo.id, 'notification is for market info');
+                assert(unread.market_investible_version === marketInfo.version, 'notification version should match market info version');
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
