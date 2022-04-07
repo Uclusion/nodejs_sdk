@@ -29,7 +29,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let adminClient;
             let accountClient;
             let createdMarketId;
-            let clonedMarketId;
+            let dialogMarketId;
             let marketInvestibleId;
             let otherAccountId;
             let otherUserExternalId;
@@ -170,8 +170,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 otherUserExternalId = user.external_id;
                 return accountClient.markets.createMarket(dialogMarketOptions);
             }).then((response) => {
-                clonedMarketId = response.market.id;
-                return loginUserToMarket(adminConfiguration, clonedMarketId);
+                dialogMarketId = response.market.id;
+                return loginUserToMarket(adminConfiguration, dialogMarketId);
             }).then((client) => {
                 adminClient = client;
                 // Add user to the market
@@ -182,21 +182,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.share(marketInvestibleId);
             }).then(() => {
                 // Verify user successfully getting push as a result of addUsers api
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: clonedMarketId});
-            }).then(() => {
-                dialogMarketOptions.parent_market_id = clonedMarketId;
-                return accountClient.markets.createMarket(dialogMarketOptions);
-            }).then((response) => {
-                linkedMarketId = response.market.id;
-                assert(response.market.parent_market_id === clonedMarketId, 'Link not successful');
-                // Wait for children of cloned market to be updated
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: dialogMarketId});
             }).then(() => {
                 return adminClient.markets.updateMarket({name: 'See if can change name without lock', market_stage: 'Inactive'});
             }).then((market) => {
-                const { children } = market;
-                assert(children[0] === linkedMarketId, 'Linked children wrong');
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: clonedMarketId});
+                const { market_stage: marketStage } = market;
+                assert(marketStage === 'Inactive', 'Market should be inactive');
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: dialogMarketId});
             }).then(() => {
                 return adminClient.investibles.create({name: 'salmon', description: 'good on bagels'})
                     .catch(function(error) {
