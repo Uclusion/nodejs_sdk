@@ -8,6 +8,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
         market_type: 'DECISION',
         expiration_minutes: 4
     };
+    const unnamedOptions = {
+        name : 'my investible in unnamed',
+        description: 'this is an investible in an unnamed market',
+        market_type: 'PLANNING',
+        market_sub_type: 'UNNAMED'
+    };
     const planningOptions = {
         name : 'fish planning',
         description: 'this is a fish planning market',
@@ -46,7 +52,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let marketInfo;
             await promise.then((client) => {
                 accountClient = client;
-                return client.markets.createMarketFromTemplate('fromIntegrationTests');
+                return client.markets.createMarket(unnamedOptions);
             }).then((results) => {
                 let foundComments = 0;
                 let foundUsers = 0;
@@ -62,7 +68,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     foundUsers += (users || []).length;
                 });
                 assert(foundComments === 0, 'wrong number comments');
-                assert(foundInvestibles === 0, 'wrong number investibles');
+                assert(foundInvestibles === 1, 'wrong number investibles');
                 assert(foundMarkets === 1, 'wrong number markets');
                 assert(foundUsers === 1, 'wrong number users');
                 return accountClient.markets.createMarket(marketOptions);
