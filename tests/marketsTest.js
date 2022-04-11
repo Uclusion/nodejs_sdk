@@ -54,18 +54,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 accountClient = client;
                 return client.markets.createMarket(unnamedOptions);
             }).then((marketResult) => {
-                let foundComments = 0;
-                let foundUsers = 0;
-                let foundInvestibles = 0;
-                const {market, stages, investibles, comments, users} = marketResult;
+                const {market, stages, investible, presence} = marketResult;
                 assert(market, 'market does not exist');
                 assert(stages, 'stages does not exist');
-                foundComments += (comments || []).length;
-                foundInvestibles += (investibles || []).length;
-                foundUsers += (users || []).length;
-                assert(foundComments === 0, 'wrong number comments');
-                assert(foundInvestibles === 1, 'wrong number investibles');
-                assert(foundUsers === 1, 'wrong number users');
+                assert(investible, 'no investible');
+                assert(presence, 'no user');
                 return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
