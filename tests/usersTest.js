@@ -76,12 +76,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
         // Add placeholder user to the market
         return adminClient.users.inviteUsers([{email: userConfiguration.username}]);
       }).then(() => {
+        // This should be the user pushed out
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
+      }).then(() => {
         return adminClient.markets.listUsers();
       }).then((users) => {
         const addedUser = users.find(obj => {
-          return obj.email === userConfiguration.username && obj.name !== userConfiguration.username && obj.placeholder_type === 'FROM_PLACE_HOLDER';
+          return obj.email === userConfiguration.username;
         });
-        assert(addedUser, 'Did not find user from placeholder');
+        assert(addedUser, 'Did not find user');
         return adminClient.markets.updateMarket({ locked: true });
       }).then(() => {
         return getWebSocketRunner(userConfiguration);
