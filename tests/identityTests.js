@@ -11,13 +11,12 @@ module.exports = function (adminConfiguration) {
             const promise = getSummariesInfo(adminConfiguration);
             await promise.then((summariesInfo) => {
                 const {summariesClient, idToken} = summariesInfo;
-                return summariesClient.idList(idToken).then((result) => {
-                    const { foreground, background } = result;
-                    const all_markets = (foreground || []).concat(background || []);
-                    if (all_markets.length === 0) {
+                return summariesClient.idList(idToken).then((audits) => {
+                    if (_.isEmpty(audits)) {
                         return {signatures: []};
                     }
-                    const chunks = _.chunk(all_markets, 24);
+                    const allMarkets = audits.map((audit) => audit.id);
+                    const chunks = _.chunk(allMarkets, 24);
                     const versionPromises = chunks.map((chunk) => {
                         return summariesClient.versions(idToken, chunk).then((versions) => {
                             const { signatures } = versions;

@@ -16,9 +16,9 @@ module.exports = function(adminConfiguration) {
             let createdMarketId;
             await authPromise.then((summariesInfo) => {
                 const {summariesClient, idToken} = summariesInfo;
-                return summariesClient.idList(idToken).then((result) => {
-                    const { foreground, background } = result;
-                    return summariesClient.versions(idToken, (foreground || []).concat(background || []));
+                return summariesClient.idList(idToken).then((audits) => {
+                    const allMarkets = audits.map((audit) => audit.id);
+                    return summariesClient.versions(idToken, allMarkets);
                 }).then((versions) => {
                         const { signatures } = versions;
                         console.log(signatures);
@@ -32,9 +32,9 @@ module.exports = function(adminConfiguration) {
                         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
                     })
                     .then(() => {
-                        return summariesClient.idList(idToken).then((result) => {
-                            const { foreground, background } = result;
-                            return summariesClient.versions(idToken, (foreground || []).concat(background || []));
+                        return summariesClient.idList(idToken).then((audits) => {
+                            const allMarkets = audits.map((audit) => audit.id);
+                            return summariesClient.versions(idToken, allMarkets);
                         });
                     }).then((versions) => {
                         const { signatures } = versions;

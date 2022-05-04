@@ -37,7 +37,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let linkedMarketId;
             let inlineMarketId;
             let createdMarketInvite;
-            let globalGlobalVersion;
             let globalAccountToken;
             let createdCommentId;
             await promise.then((response) => {
@@ -68,10 +67,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
                 const {summariesClient} = summariesInfo;
                 globalSummariesClient = summariesClient;
-                return summariesClient.idList(globalAccountToken).then((result) => {
-                    const { foreground, background, global_version: globalVersion } = result;
-                    globalGlobalVersion = globalVersion;
-                    return summariesClient.versions(globalAccountToken, (foreground || []).concat(background || []))
+                return summariesClient.idList(globalAccountToken).then((audits) => {
+                    const allMarkets = audits.map((audit) => audit.id);
+                    return summariesClient.versions(globalAccountToken, allMarkets)
                 });
             }).then((versions) => {
                 let marketVersion = 0;
@@ -130,26 +128,16 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
                 assert(commentId === createdCommentId, 'object id is created comment');
-                return globalSummariesClient.idList(globalAccountToken, globalGlobalVersion);
-            }).then((versions) => {
-                const { global_version: globalVersion, foreground, background } = versions;
-                assert(!globalVersion, 'None when nothing changed');
-                assert(foreground.length === 0, 'Empty when nothing changed');
-                assert(background.length === 0, 'Also empty when nothing changed');
                 return globalSummariesClient.notifications(globalAccountToken);
             }).then((notifications) => {
                 let foundNotificationType = false;
-                let foundAppVersionType = false;
                 notifications.forEach((notification) => {
                     const {type_object_id: typeObjectId} = notification;
                     if (typeObjectId.startsWith('notification')) {
                         foundNotificationType = true;
                     }
-                    if (typeObjectId === 'app_version') {
-                        foundAppVersionType = true;
-                    }
                 });
-                assert(foundNotificationType && foundAppVersionType, 'notifications incomplete');
+                assert(foundNotificationType, 'notifications incomplete');
                 inlineMarketOptions.parent_comment_id = createdCommentId;
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
