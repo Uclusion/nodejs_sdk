@@ -128,16 +128,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
                 assert(commentId === createdCommentId, 'object id is created comment');
-                return globalSummariesClient.notifications(globalAccountToken);
-            }).then((notifications) => {
-                let foundNotificationType = false;
-                notifications.forEach((notification) => {
-                    const {type_object_id: typeObjectId} = notification;
-                    if (typeObjectId.startsWith('notification')) {
-                        foundNotificationType = true;
-                    }
-                });
-                assert(foundNotificationType, 'notifications incomplete');
                 inlineMarketOptions.parent_comment_id = createdCommentId;
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
