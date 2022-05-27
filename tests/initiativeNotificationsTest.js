@@ -2,13 +2,6 @@ import assert from 'assert';
 import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
-    const fishOptions = {
-        name: 'notifications test',
-        description: 'this is an initiative market',
-        market_type: 'INITIATIVE',
-        expiration_minutes: 30
-    };
-
     describe('#doInitiativeNotifications', () => {
         it('should do persistent Initiative notifications without error', async () => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -22,12 +15,30 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let createdMarketInvite;
             let createdCommentId;
+            let adminAccountClient;
             await promise.then((client) => {
-                return client.markets.createMarket(fishOptions);
+                adminAccountClient = client;
+                const planningOptions = {
+                    market_type: 'PLANNING',
+                    market_sub_type: 'TEST',
+                    investment_expiration: 1
+                };
+                return client.markets.createMarket(planningOptions);
+            }).then((response) => {
+                createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
+                console.log(`Logging admin into market ${createdMarketId}`);
+                return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
+            }).then((client) => {
+                return client.investibles.createComment(undefined, 'Do the fish thing.', null,
+                    'SUGGEST', null, null, null, 'INITIATIVE',
+                    false, true);
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
                 marketInvestibleId = response.investible.investible.id;
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
+            }).then((response) => {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {

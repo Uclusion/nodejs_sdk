@@ -4,10 +4,7 @@ import _ from 'lodash';
 
 module.exports = function(adminConfiguration) {
     const marketOptions = {
-        name : 'Default',
-        description: 'This is default.',
-        market_type: 'DECISION',
-        expiration_minutes: 20
+        market_type: 'PLANNING'
     };
 
     describe('#do identity sso tests, ', () => {

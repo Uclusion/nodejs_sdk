@@ -2,16 +2,6 @@ import assert from 'assert';
 import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
-  const planningMarket = {
-    name: 'agile planning',
-    description: 'this is an agile planning market',
-    market_type: 'PLANNING',
-    investment_expiration: 1,
-  };
-  const storyTemplate = {
-    name: 'Test planning',
-    description: 'Lorem Ipsum',
-  };
   describe('#test plan specific actions', () => {
     it('should let a non assignable person vote', async () => {
       let adminClient;
@@ -26,6 +16,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
       const promise = loginUserToAccount(adminConfiguration);
       await promise.then((client) => {
         adminClient = client;
+        const planningMarket = {
+          market_name: 'Company B',
+          market_type: 'PLANNING',
+          investment_expiration: 1,
+        };
         return adminClient.markets.createMarket(planningMarket);
       }).then((result) => {
         marketId = result.market.id;
@@ -50,8 +45,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
         // not following users should be able to create stories
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        return notFollowingClient.investibles.create({...storyTemplate, assignments: [adminUserId],
-          estimate: tomorrow});
+        const storyOptions = {
+          name: 'Test planning',
+          description: 'Lorem Ipsum',
+          assignments: [adminUserId],
+          estimate: tomorrow
+        };
+        return notFollowingClient.investibles.create(storyOptions);
       }).then((story) => {
         storyId = story.investible.id;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});

@@ -4,9 +4,7 @@ import TestTokenManager, { TOKEN_TYPE_ACCOUNT } from '../src/TestTokenManager';
 import {
   getSSOInfo,
   loginUserToAccount,
-  loginUserToMarket,
   getWebSocketRunner,
-  getMessages,
   loginUserToMarketInvite
 } from '../src/utils';
 
@@ -15,17 +13,11 @@ Admin Configuration and User Configuration are used as in/out params here,
 so that we don't have to keep making accounts for every seperate test
  */
 module.exports = function (adminConfiguration, userConfiguration) {
-  const marketOptions = {
-    name: 'Default',
-    market_type: 'DECISION',
-    expiration_minutes: 20
-  };
   describe('#doCreate account and update user', () => {
     it('should login and pull without error', async () => {
       let adminAccountClient;
       const date = new Date();
       const timestamp = date.getTime();
-      const accountName = 'TestAccount' + timestamp;
       let adminIdToken;
       let ssoClient;
       let createdMarketId;
@@ -66,11 +58,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(response.user.name === 'Default', 'Update not successful');
         return loginUserToAccount(adminConfiguration);
       }).then((client) => {
+        const marketOptions = {
+          market_type: 'PLANNING'
+        };
         return client.markets.createMarket(marketOptions);
       }).then((response) => {
         createdMarketId = response.market.id;
         createdMarketInvite = response.market.invite_capability;
-        return loginUserToMarket(adminConfiguration, createdMarketId);
+        return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
       }).then((client) => {
         adminClient = client;
         // Add placeholder user to the market
@@ -85,19 +80,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.email === userConfiguration.username;
         });
         assert(addedUser, 'Did not find user');
-        return adminClient.markets.updateMarket({ locked: true });
-      }).then(() => {
-        return getWebSocketRunner(userConfiguration);
-      }).then((webSocketRunner) => {
-        userConfiguration.webSocketRunner = webSocketRunner;
-        console.log('Inactivating market');
-        return adminClient.markets.updateMarket({ market_stage: 'Inactive' });
-      }).then(() => {
-        return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market', object_id: createdMarketId}]);
-      }).then(() => {
-        return adminClient.markets.get();
-      }).then((market) => {
-        assert(market.market_stage === 'Inactive', "Market should be inactive");
       }).catch(function (error) {
         console.log(error);
         throw error;

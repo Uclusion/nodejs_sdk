@@ -7,34 +7,17 @@ import {
 } from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
-    const marketOptions = {
-        name: 'Default plan',
-        description: 'This is default plan.',
-        market_type: 'PLANNING',
-    };
-    const dialogMarketOptions = {
-        name: 'Default',
-        description: 'This is default.',
-        market_type: 'DECISION',
-        expiration_minutes: 20,
-    };
-    const inlineMarketOptions = {
-        name: 'NA',
-        description: 'NA',
-        market_type: 'DECISION',
-    };
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
             let promise = loginUserToAccountAndGetToken(adminConfiguration);
             let adminClient;
             let accountClient;
             let createdMarketId;
-            let dialogMarketId;
+            let secondMarketId;
             let marketInvestibleId;
             let otherAccountId;
             let otherUserExternalId;
             let globalSummariesClient;
-            let linkedMarketId;
             let inlineMarketId;
             let createdMarketInvite;
             let globalAccountToken;
@@ -43,6 +26,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const { accountToken, client } = response;
                 accountClient = client;
                 globalAccountToken = accountToken;
+                const marketOptions = {
+                    market_type: 'PLANNING',
+                };
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
@@ -128,7 +114,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
                 assert(commentId === createdCommentId, 'object id is created comment');
-                inlineMarketOptions.parent_comment_id = createdCommentId;
+                const inlineMarketOptions = {
+                    market_type: 'DECISION',
+                    parent_comment_id: createdCommentId
+                };
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
                 inlineMarketId = response.market.id;
@@ -146,10 +135,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((user) => {
                 otherAccountId = user.account_id;
                 otherUserExternalId = user.external_id;
-                return accountClient.markets.createMarket(dialogMarketOptions);
+                const marketOptions = {
+                    market_type: 'PLANNING',
+                };
+                return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
-                dialogMarketId = response.market.id;
-                return loginUserToMarket(adminConfiguration, dialogMarketId);
+                secondMarketId = response.market.id;
+                return loginUserToMarketInvite(adminConfiguration, response.market.invite_capability);
             }).then((client) => {
                 adminClient = client;
                 // Add user to the market
@@ -160,21 +152,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.share(marketInvestibleId);
             }).then(() => {
                 // Verify user successfully getting push as a result of addUsers api
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: dialogMarketId});
-            }).then(() => {
-                return adminClient.markets.updateMarket({name: 'See if can change name without lock', market_stage: 'Inactive'});
-            }).then((market) => {
-                const { market_stage: marketStage } = market;
-                assert(marketStage === 'Inactive', 'Market should be inactive');
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: dialogMarketId});
-            }).then(() => {
-                return adminClient.investibles.create({name: 'salmon', description: 'good on bagels'})
-                    .catch(function(error) {
-                        assert(error.status === 403, 'Wrong error = ' + JSON.stringify(error));
-                        return 'Market inactive';
-                    });
-            }).then((response) => {
-                assert(response === 'Market inactive', 'Wrong response = ' + response);
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
+                    object_id: secondMarketId});
             }).catch(function(error) {
                 console.log(error);
                 throw error;

@@ -1,32 +1,8 @@
 import assert from 'assert'
-import {getMessages, loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
+import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
 import {arrayEquals, checkStages} from "./commonTestFunctions";
 
 module.exports = function(adminConfiguration, userConfiguration) {
-    const marketOptions = {
-        name : 'Default',
-        market_type: 'DECISION',
-        expiration_minutes: 4
-    };
-    const unnamedOptions = {
-        name : 'my investible in unnamed',
-        description: 'this is an investible in an unnamed market',
-        market_type: 'PLANNING',
-        market_sub_type: 'UNNAMED'
-    };
-    const planningOptions = {
-        name : 'fish planning',
-        description: 'this is a fish planning market',
-        market_type: 'PLANNING',
-        market_sub_type: 'TEST',
-        investment_expiration: 1
-    };
-    const initiativeOptions = {
-        name : 'fish initiative',
-        description: 'this is a fish initiative',
-        expiration_minutes: 20,
-        market_type: 'INITIATIVE'
-    };
     const plannedStageNames = ['In Dialog', 'Accepted', 'In Review', 'Blocked', 'Verified', 'Not Doing',
         'Further Work', 'Requires Input'];
     const initiativeStageNames = ['In Dialog'];
@@ -50,60 +26,21 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let stateOptions;
             let investible;
             let marketInfo;
+            let globalCommentId;
+            let globalAccountId;
             await promise.then((client) => {
                 accountClient = client;
-                return client.markets.createMarket(unnamedOptions);
-            }).then((marketResult) => {
-                const {market, stages, investible, presence} = marketResult;
-                assert(market, 'market does not exist');
-                assert(stages, 'stages does not exist');
-                assert(investible, 'no investible');
-                assert(presence, 'no user');
-                return accountClient.markets.createMarket(marketOptions);
-            }).then((response) => {
-                createdMarketId = response.market.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages(
-                    [{event_type: 'market', object_id: createdMarketId}, {event_type: 'notification'}]);
-            }).then(() => {
-                return loginUserToMarket(adminConfiguration, createdMarketId);
-            }).then((client) => {
-                adminClient = client;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
-            }).then(() => {
-                return getMessages(adminConfiguration);
-            }).then((messages) => {
-                const warnExpiring = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_COLLABORATION_' + createdMarketId;
-                });
-                if (!warnExpiring) {
-                    //No idea what is going on but maybe receiving some very old push somehow so try again
-                    return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'})
-                        .then(() => getMessages(adminConfiguration)).then((messages) => {
-                                const warnExpiring2 = messages.find(obj => {
-                                    return obj.type_object_id === 'UNREAD_COLLABORATION_' + createdMarketId;
-                                });
-                                assert(warnExpiring2, `Now get closed or closing instead of ${JSON.stringify(messages)}`);
-                                return adminConfiguration.webSocketRunner.waitForReceivedMessage({
-                                    event_type: 'market',
-                                    object_id: createdMarketId
-                                });
-                            });
-                }
-                assert(warnExpiring, `Should get closed or closing (timing as to which) instead of ${JSON.stringify(messages)}`);
-                // Have 4 minutes to get here so that can receive the market update for the market expiring
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.markets.get();
-            }).then((market) => {
-                assert(market.name === 'Default', 'Name is incorrect');
-                assert(market.expiration_minutes === marketOptions.expiration_minutes, 'expiration_minutes is incorrect');
-                assert(market.account_name, 'Market should have an account name');
-                assert(market.market_stage === 'Cancelled', 'Market Cancelled after expires');
+                const planningOptions = {
+                    market_type: 'PLANNING',
+                    market_sub_type: 'TEST',
+                    investment_expiration: 1
+                };
                 return accountClient.markets.createMarket(planningOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                globalAccountId = response.market.account_id;
                 console.log(`logging into planning market ${createdMarketId}`);
-                return loginUserToMarket(adminConfiguration, createdMarketId);
+                return loginUserToMarketInvite(adminConfiguration, response.market.invite_capability);
             }).then((client) => {
                 adminClient = client;
                 return adminClient.users.get();
@@ -111,9 +48,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 adminId = user.id;
                 return adminClient.markets.get();
             }).then((market) => {
-                assert(market.name === planningOptions.name, 'Name is incorrect');
-                assert(market.description === planningOptions.description, 'Description is incorrect');
-                assert(market.account_name, 'Market should have an account name');
+                assert(market.id === createdMarketId, 'ID is incorrect');
+                assert(market.account_id === globalAccountId, 'Account is incorrect');
                 return adminClient.markets.listStages();
             }).then((stageList) => {
                 globalStages = stageList;
@@ -122,21 +58,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.updateStage(acceptedStage.id, 1)
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'stage', object_id: createdMarketId}));
-            }).then(() => {
-                console.log(`locking market ${createdMarketId}`);
-                return adminClient.markets.lock();
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
-            }).then(() => {
-                return adminClient.markets.updateMarket({name: 'See if can change name', description: 'See if can change description'});
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'market', object_id: createdMarketId}));
-            }).then(() => {
-                return adminClient.markets.get();
             }).then((market) => {
-                assert(market.updated_by_you, 'Market should have been updated by marked admin');
-                assert(market.name === 'See if can change name', 'Name is incorrect');
-                assert(market.description === 'See if can change description', 'Description is incorrect');
                 return loginUserToMarketInvite(userConfiguration, market.invite_capability);
             }).then((client) => {
                 userClient = client;
@@ -257,21 +179,26 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
-                return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'ISSUE');
-            }).then(() => {
+                return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'SUGGEST');
+            }).then((comment) => {
+                globalCommentId = comment.id;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
-                return accountClient.markets.createMarket(initiativeOptions);
+                const initiativeOptions = {
+                    market_type: 'INITIATIVE',
+                    parent_comment_id: globalCommentId
+                };
+                return loginUserToAccount(userConfiguration)
+                    .then((userAccountClient) => userAccountClient.markets.createMarket(initiativeOptions));
             }).then((response) => {
-                createdMarketId = response.market.id;
-                return loginUserToMarket(adminConfiguration, createdMarketId);
+                return loginUserToMarketInvite(adminConfiguration, response.market.invite_capability);
             }).then((client) => {
                 adminClient = client;
                 return adminClient.markets.get();
             }).then((market) => {
-                assert(market.name === initiativeOptions.name, 'Name is incorrect');
-                assert(market.description === initiativeOptions.description, 'Description is incorrect');
-                assert(market.account_name, 'Market should have an account name');
+                assert(market.market_type === 'INITIATIVE', 'Type is incorrect');
+                assert(market.parent_comment_id === globalCommentId, 'Parent comment id is incorrect');
+                assert(market.account_id === globalAccountId, 'Market should be in same account');
                 return adminClient.markets.listStages();
             }).then((stageList) => {
                 checkStages(initiativeStageNames, stageList);

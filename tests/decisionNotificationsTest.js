@@ -1,13 +1,7 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
+import {loginUserToAccount, getMessages, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
-    const fishOptions = {
-        name: 'notifications test',
-        description: 'this is a decision market',
-        market_type: 'DECISION',
-        expiration_minutes: 30
-    };
 
     describe('#doDecisionNotifications', () => {
         it('should do persistent Dialog notifications without error', async () => {
@@ -23,13 +17,38 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let createdMarketInvite;
             let createdCommentId;
             let globalStages;
+            let globalCommentId;
+            let adminAccountClient;
             await promise.then((client) => {
-                return client.markets.createMarket(fishOptions);
+                adminAccountClient = client;
+                const planningOptions = {
+                    market_type: 'PLANNING',
+                    market_sub_type: 'TEST',
+                    investment_expiration: 1
+                };
+                return client.markets.createMarket(planningOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
-                return loginUserToMarket(adminConfiguration, createdMarketId);
+                return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
+            }).then((client) => {
+                //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
+                return client.investibles.createComment(marketInvestibleId, 'Is it done?', null, 'QUESTION');
+            }).then((comment) => {
+                globalCommentId = comment.id;
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
+            }).then(() => {
+                const fishOptions = {
+                    market_type: 'DECISION',
+                    parent_comment_id: globalCommentId
+                };
+                return adminAccountClient.markets.createMarket(fishOptions);
+            }).then((response) => {
+                createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
+                console.log(`Logging admin into market ${createdMarketId}`);
+                return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
                 adminClient = client;
                 return adminClient.users.get();

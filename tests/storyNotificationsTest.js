@@ -2,11 +2,6 @@ import assert from 'assert';
 import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
-    const marketOptions = {
-        name: 'Test story notifications',
-        description: 'This is a test of notifications in a planning market.',
-        market_type: 'PLANNING',
-    };
 
     describe('#doPlanningNotifications', () => {
         it('should do persistent Planning notifications without error', async () => {
@@ -27,6 +22,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let resolvedStage;
             let inReviewStage;
             await promise.then((client) => {
+                const marketOptions = {
+                    market_type: 'PLANNING',
+                };
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;

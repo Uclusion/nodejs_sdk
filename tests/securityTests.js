@@ -7,8 +7,6 @@ import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "..
  **/
 module.exports = function (adminConfiguration, userConfiguration) {
   const planningMarket = {
-    name: 'agile planning',
-    description: 'this is an agile planning market',
     market_type: 'PLANNING',
     investment_expiration: 1,
   };
@@ -32,13 +30,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
           object_id: createdMarketId
         });
       }).then(() => {
-        return loginUserToMarket(adminConfiguration, createdMarketId);
+        return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
       }).then((admin) => {
         adminClient = admin;
         return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
       }).then((client) => {
         bannedClient = client;
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability',
+          object_id: createdMarketId});
       }).then(() => {
         return bannedClient.users.get();
       }).then((user) => {

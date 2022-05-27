@@ -8,17 +8,6 @@ import {
 import _ from "lodash";
 
 module.exports = function (adminConfiguration, userConfiguration) {
-    const marketOptions = {
-        name: 'Test story notifications',
-        description: 'This is a test of notifications in a planning market.',
-        market_type: 'PLANNING',
-    };
-
-    const inlineMarketOptions = {
-        name: 'NA',
-        description: 'NA',
-        market_type: 'DECISION',
-    };
 
     describe('#doInlineNotifications', () => {
         it('should do persistent inline notifications without error', async () => {
@@ -43,12 +32,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let globalUserAccountToken;
             await promise.then((client) => {
                 accountClient = client;
+                const marketOptions = {
+                    market_type: 'PLANNING',
+                };
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
-                return loginUserToMarket(adminConfiguration, createdMarketId);
+                return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
                 adminClient = client;
                 return adminClient.users.get();
@@ -138,7 +130,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'ISSUE_' + createdCommentId;
                 });
                 assert(openComment, 'Notification to help with assignees question');
-                inlineMarketOptions.parent_comment_id = createdCommentId;
+                const inlineMarketOptions = {
+                    market_type: 'DECISION',
+                    parent_comment_id: createdCommentId
+                };
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
                 inlineMarketId = response.market.id;

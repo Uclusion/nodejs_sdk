@@ -3,12 +3,6 @@ import { arrayEquals } from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function (adminConfiguration, userConfiguration) {
-    const fishOptions = {
-        name: 'fish',
-        description: 'this is a fish market',
-        market_type: 'DECISION',
-        expiration_minutes: 30
-    };
     const updateFish = {
         name: 'pufferfish',
         description: 'possibly poisonous',
@@ -28,7 +22,21 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let parentCommentId;
             let createdMarketInvite;
             await promise.then((client) => {
-                return client.markets.createMarket(fishOptions);
+                const planningOptions = {
+                    market_type: 'PLANNING',
+                    market_sub_type: 'TEST',
+                    investment_expiration: 1
+                };
+                return client.markets.createMarket(planningOptions);
+            }).then((response) => {
+                createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
+                console.log(`Logging admin into market ${createdMarketId}`);
+                return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
+            }).then((client) => {
+                return client.investibles.createComment(marketInvestibleId, 'Which fish?', null,
+                    'QUESTION', null, null, null, 'DECISION',
+                    false, true);
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;

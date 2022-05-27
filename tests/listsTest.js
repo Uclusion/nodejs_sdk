@@ -3,12 +3,6 @@ import {checkStages} from './commonTestFunctions';
 import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
 
 module.exports = function(adminConfiguration, userConfiguration) {
-    const butterOptions = {
-        name : 'butter',
-        description: 'this is a butter market',
-        market_type: 'DECISION',
-        expiration_minutes: 1440,
-    };
     const adminExpectedStageNames = [ 'Created', 'In Dialog'];
     describe('#doList', () => {
         it('should list without error', async () => {
@@ -24,7 +18,21 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let createdMarketId;
             let createdMarketInvite;
             await promise.then((client) => {
-                return client.markets.createMarket(butterOptions);
+                const planningOptions = {
+                    market_type: 'PLANNING',
+                    market_sub_type: 'TEST',
+                    investment_expiration: 1
+                };
+                return client.markets.createMarket(planningOptions);
+            }).then((response) => {
+                createdMarketId = response.market.id;
+                createdMarketInvite = response.market.invite_capability;
+                console.log(`Logging admin into market ${createdMarketId}`);
+                return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
+            }).then((client) => {
+                return client.investibles.createComment(marketInvestibleId, 'Which kind of butter?', null,
+                    'QUESTION', null, null, null, 'DECISION',
+                    false, true);
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
