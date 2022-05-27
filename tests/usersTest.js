@@ -29,6 +29,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getWebSocketRunner(adminConfiguration);
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
+        return getWebSocketRunner(userConfiguration);
+      }).then((webSocketRunner) => {
+        userConfiguration.webSocketRunner = webSocketRunner;
         const info = {
           name: 'Test UserAdmin',
           email: adminConfiguration.username,
