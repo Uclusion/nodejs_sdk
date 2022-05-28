@@ -28,6 +28,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let marketInfo;
             let globalCommentId;
             let globalAccountId;
+            let marketInviteCapability;
             await promise.then((client) => {
                 accountClient = client;
                 const planningOptions = {
@@ -40,7 +41,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 createdMarketId = response.market.id;
                 globalAccountId = response.market.account_id;
                 console.log(`logging into planning market ${createdMarketId}`);
-                return loginUserToMarketInvite(adminConfiguration, response.market.invite_capability);
+                marketInviteCapability = response.market.invite_capability;
+                return loginUserToMarketInvite(adminConfiguration, marketInviteCapability);
             }).then((client) => {
                 adminClient = client;
                 return adminClient.users.get();
@@ -58,8 +60,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.updateStage(acceptedStage.id, 1)
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'stage', object_id: createdMarketId}));
-            }).then((market) => {
-                return loginUserToMarketInvite(userConfiguration, market.invite_capability);
+            }).then(() => {
+                return loginUserToMarketInvite(userConfiguration, marketInviteCapability);
             }).then((client) => {
                 userClient = client;
                 return userClient.users.get();
