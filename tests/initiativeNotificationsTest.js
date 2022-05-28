@@ -88,7 +88,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return inlineAdminClient.investibles.updateComment(createdCommentId, undefined, true);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                    object_id: inlineCreatedMarketId});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
@@ -139,7 +139,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return inlineUserClient.investibles.updateComment(createdCommentId, undefined, false);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                    object_id: inlineCreatedMarketId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
