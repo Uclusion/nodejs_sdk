@@ -37,7 +37,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return client.investibles.createComment(marketInvestibleId, 'Is it done?', null, 'QUESTION');
             }).then((comment) => {
                 globalCommentId = comment.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId});
             }).then(() => {
                 const fishOptions = {
                     market_type: 'DECISION',

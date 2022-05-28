@@ -5,15 +5,17 @@ module.exports = function (adminConfiguration, userConfiguration) {
     describe('#doInitiativeNotifications', () => {
         it('should do persistent Initiative notifications without error', async () => {
             let promise = loginUserToAccount(adminConfiguration);
-            let adminClient;
-            let userClient;
+            let inlineUserClient;
+            let inlineAdminClient;
             let userId;
             let userExternalId;
             let adminId;
             let adminExternalId;
-            let createdMarketId;
             let marketInvestibleId;
+            let createdMarketId;
             let createdMarketInvite;
+            let inlineCreatedMarketId;
+            let inlineCreatedMarketInvite;
             let createdCommentId;
             let adminAccountClient;
             await promise.then((client) => {
@@ -34,36 +36,37 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     'SUGGEST', null, null, null, 'INITIATIVE',
                     false, true);
             }).then((response) => {
-                createdMarketId = response.market.id;
-                createdMarketInvite = response.market.invite_capability;
+                inlineCreatedMarketId = response.market.id;
+                inlineCreatedMarketInvite = response.market.invite_capability;
                 marketInvestibleId = response.investible.investible.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
-            }).then((response) => {
-                console.log(`Logging admin into market ${createdMarketId}`);
-                return loginUserToMarket(adminConfiguration, createdMarketId);
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId});
+            }).then(() => {
+                console.log(`Logging admin into market ${inlineCreatedMarketId}`);
+                return loginUserToMarket(adminConfiguration, inlineCreatedMarketInvite);
             }).then((client) => {
-                adminClient = client;
-                return adminClient.users.get();
+                inlineAdminClient = client;
+                return inlineAdminClient.users.get();
             }).then((user) => {
                 adminId = user.id;
                 adminExternalId = user.external_id;
-                console.log(`Logging user into market ${createdMarketId}`);
-                return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
+                console.log(`Logging user into market ${inlineCreatedMarketId}`);
+                return loginUserToMarketInvite(userConfiguration, inlineCreatedMarketInvite);
             }).then((client) => {
-                userClient = client;
+                inlineUserClient = client;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
                 assert(vote, 'Should receive not fully voted on login to Initiative');
-                return userClient.users.get();
+                return inlineUserClient.users.get();
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment',
+                return inlineUserClient.investibles.createComment(marketInvestibleId, 'body of my comment',
                     null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
@@ -79,10 +82,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
                 assert(vote, 'Not fully voted remains if leave comment');
-                return adminClient.investibles.updateComment(createdCommentId, undefined, true);
+                return inlineAdminClient.investibles.updateComment(createdCommentId, undefined, true);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
@@ -96,10 +99,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
                 assert(vote, 'Should receive not fully voted when comment resolved');
-                return userClient.markets.updateInvestment(marketInvestibleId, -50, 0);
+                return inlineUserClient.markets.updateInvestment(marketInvestibleId, -50, 0);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: adminExternalId});
@@ -113,10 +116,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
                 assert(!vote, 'Not fully voted removed on voting');
-                return userClient.markets.removeInvestment(marketInvestibleId);
+                return inlineUserClient.markets.removeInvestment(marketInvestibleId);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: adminExternalId});
@@ -130,10 +133,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
                 assert(vote, 'Removing investment restores not fully voted');
-                return userClient.investibles.updateComment(createdCommentId, undefined, false);
+                return inlineUserClient.investibles.updateComment(createdCommentId, undefined, false);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
@@ -141,7 +144,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
                 assert(vote, 'Unresolving comment does not remove not fully voted');
                 return getMessages(adminConfiguration);
