@@ -43,7 +43,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     object_id: createdMarketId});
             }).then(() => {
                 console.log(`Logging admin into market ${inlineCreatedMarketId}`);
-                return loginUserToMarket(adminConfiguration, inlineCreatedMarketInvite);
+                return loginUserToMarket(adminConfiguration, inlineCreatedMarketId);
             }).then((client) => {
                 inlineAdminClient = client;
                 return inlineAdminClient.users.get();
