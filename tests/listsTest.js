@@ -87,11 +87,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.investible.id === globalCSMMarketInvestibleId;
                 });
                 assert(investible, 'Should be able to see other\'s investible in Created');
-                return userClient.markets.followMarket(true);
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
-                    .then(() => response);
-            }).then(() => {
                 return adminClient.markets.listUsers();
             }).then((users) => {
                 const activeUsers = users.filter(user => user.following);
