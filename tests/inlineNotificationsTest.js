@@ -99,8 +99,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.updateComment(createdCommentId, undefined, undefined,
                     undefined, undefined, undefined, undefined, true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessages(
+                    [{event_type: 'comment', object_id: createdMarketId},
+                        {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return getSummariesInfo(userConfiguration).then((summariesInfo) => {
                     const {summariesClient} = summariesInfo;
