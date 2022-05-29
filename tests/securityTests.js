@@ -7,8 +7,7 @@ import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "..
  **/
 module.exports = function (adminConfiguration, userConfiguration) {
   const planningMarket = {
-    market_type: 'PLANNING',
-    investment_expiration: 1,
+    market_type: 'PLANNING'
   };
 
   describe('#create, add, ban the user', () => {

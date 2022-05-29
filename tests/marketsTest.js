@@ -6,7 +6,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
     const plannedStageNames = ['In Dialog', 'Accepted', 'In Review', 'Blocked', 'Verified', 'Not Doing',
         'Further Work', 'Requires Input'];
     const initiativeStageNames = ['In Dialog'];
-    describe('#doCreate and asynchronously expire market', () => {
+    describe('#doCreate market and asynchronously expire investments', () => {
         it('should create market without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
             let adminClient;
