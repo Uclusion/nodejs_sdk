@@ -101,6 +101,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                 else if (aType === 'group') {
                                     //TODO finish
                                 }
+                                else if (aType === 'investment') {
+                                    //TODO finish address type looks like an investment currently
+                                }
                                 else {
                                     console.log(`Found unexpected type ${aType}`);
                                     foundAnythingElse = true;
