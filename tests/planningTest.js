@@ -5,10 +5,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
   describe('#test plan specific actions', () => {
     it('should let a non assignable person vote', async () => {
       let adminClient;
-      let notFollowingClient;
+      let userClient;
       let adminUserId;
-      let notFollowingUserId;
-      let notFollowingExternalId;
+      let userId;
+      let externalId;
       let adminExternalId;
       let marketId;
       let storyId;
@@ -27,20 +27,17 @@ module.exports = function (adminConfiguration, userConfiguration) {
         marketCapability = result.market.invite_capability;
         return loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
       }).then((client) => {
-        notFollowingClient = client;
-        return notFollowingClient.users.get();
+        userClient = client;
+        return client.users.get();
       }).then((me) => {
-        notFollowingUserId = me.id;
-        notFollowingExternalId = me.external_id;
-        return notFollowingClient.markets.followMarket(true);
-      }).then(() => {
-        return notFollowingClient.markets.listUsers();
+        userId = me.id;
+        externalId = me.external_id;
+        return userClient.markets.listUsers();
       }).then((users) => {
-        const marketPresence = users.find((user) => user.id === notFollowingUserId);
-        const adminPresence = users.find((user) => user.id !== notFollowingUserId);
+        const marketPresence = users.find((user) => user.id === userId);
+        const adminPresence = users.find((user) => user.id !== userId);
         adminUserId = adminPresence.id;
         adminExternalId = adminPresence.external_id
-        assert(marketPresence.following === false, "Should not be following");
         assert(marketPresence.market_banned === false, "Should not be banned");
         // not following users should be able to create stories
         const tomorrow = new Date();
@@ -51,13 +48,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
           assignments: [adminUserId],
           estimate: tomorrow
         };
-        return notFollowingClient.investibles.create(storyOptions);
+        return userClient.investibles.create(storyOptions);
       }).then((story) => {
         storyId = story.investible.id;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});
       }).then(() => {
         // not following should be able to vote
-        return notFollowingClient.markets.updateInvestment(storyId, 100, 0, null, 1);
+        return userClient.markets.updateInvestment(storyId, 100, 0, null, 1);
       }).then(() => {
         return loginUserToMarketInvite(adminConfiguration, marketCapability);
       }).then((client) => {
@@ -70,10 +67,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((comments) => {
         const comment = comments[0];
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
-        return adminClient.investibles.updateAssignments(storyId, [notFollowingUserId]);
+        return adminClient.investibles.updateAssignments(storyId, [userId]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-          object_id: notFollowingExternalId});
+          object_id: externalId});
       }).then(() => {
         // This is the delete of notifications had when assigned
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
@@ -95,11 +92,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
         assert(vote, 'Reassignment sends not fully voted');
-        return notFollowingClient.investibles.accept(storyId);
+        return userClient.investibles.accept(storyId);
       }).then(() => {
         // This is the delete of notifications had when assigned
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-          object_id: notFollowingExternalId});
+          object_id: externalId});
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
