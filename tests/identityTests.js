@@ -29,12 +29,8 @@ module.exports = function (adminConfiguration) {
                                         return client.markets.get();
                                     }).then((market) => {
                                         const { created_by: createdBy, current_user_id: currentUserId } = market;
-                                        if (createdBy === currentUserId) {
-                                            console.log(`For ${currentUserId} and ${createdBy} deleting ${JSON.stringify(market)}`);
-                                            return globalClient.markets.deleteMarket();
-                                        } else {
-                                            console.log(`Unable to delete ${JSON.stringify(market)}`);
-                                        }
+                                        console.log(`For ${currentUserId} and ${createdBy} deleting ${JSON.stringify(market)}`);
+                                        return globalClient.markets.deleteMarket();
                                     });
                             });
                             if (deletions) {
