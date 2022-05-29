@@ -18,8 +18,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         adminClient = client;
         const planningMarket = {
           market_name: 'Company B',
-          market_type: 'PLANNING',
-          investment_expiration: 1,
+          market_type: 'PLANNING'
         };
         return adminClient.markets.createMarket(planningMarket);
       }).then((result) => {
@@ -72,17 +71,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: externalId});
       }).then(() => {
-        // This is the delete of notifications had when assigned
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-          object_id: adminExternalId});
-      }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
           return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
         });
-        assert(newAssignment, 'Mute channel still sends critical notifications');
-        // This one is delayed for 1m
+        assert(newAssignment, 'Re-assigned gets unaccepted notification');
+        // NOT_FULLY_VOTED is delayed for 1m to handle case of API chaining
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: adminExternalId});
       }).then(() => {
@@ -92,9 +87,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
         assert(vote, 'Reassignment sends not fully voted');
+        const newAssignment = messages.find(obj => {
+          return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
+        });
+        assert(!newAssignment, 'Notifications from when assigned not deleted');
         return userClient.investibles.accept(storyId);
       }).then(() => {
-        // This is the delete of notifications had when assigned
+        // This is the delete of unaccepted notification now that accepting has assigned
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: externalId});
       }).then(() => {
