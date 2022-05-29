@@ -182,16 +182,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const current_stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 assert(marketInfo.stage === current_stage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 assert(marketInfo.open_for_investment === true, 'open_for_investment true');
-                return userClient.markets.removeInvestment(marketInvestibleId);
-            }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'investment', object_id: createdMarketId},
-                    {event_type: 'notification', object_id: userExternalId}]);
-            }).then(() => getMessages(userConfiguration)
-            ).then((messages) => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
                 const invalidVoting = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                assert(invalidVoting, 'Should be not voted after removing investment');
+                assert(invalidVoting, 'Should be not voted after investment removed by opening issue');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
