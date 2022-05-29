@@ -23,9 +23,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let createdMarketInvite;
             await promise.then((client) => {
                 const planningOptions = {
-                    market_type: 'PLANNING',
-                    market_sub_type: 'TEST',
-                    investment_expiration: 1
+                    market_type: 'PLANNING'
                 };
                 return client.markets.createMarket(planningOptions);
             }).then((response) => {
@@ -34,7 +32,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                return client.investibles.createComment(marketInvestibleId, 'Which fish?', null,
+                return client.investibles.createComment(undefined, 'Which fish?', null,
                     'QUESTION', null, null, null, 'DECISION',
                     false, true);
             }).then((response) => {

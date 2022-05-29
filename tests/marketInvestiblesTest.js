@@ -98,7 +98,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                 else if (aType === 'stage') {
                                     stageVersion = version;
                                 }
+                                else if (aType === 'group') {
+                                    //TODO finish
+                                }
                                 else {
+                                    console.log(`Found unexpected type ${aType}`);
                                     foundAnythingElse = true;
                                 }
                             })
