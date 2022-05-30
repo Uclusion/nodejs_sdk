@@ -157,7 +157,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((presences) => {
                 const { id } = presences[0];
                 assert(id, 'Add not successful');
-                // Verify user successfully getting push as a result of addUsers api
+                return adminClient.investibles.create({name: 'A job', description: 'To verify push.'});
+            }).then(() => {
+                // Verify user getting push from admin client creating investible after user added from addUsers api
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
                     object_id: secondMarketId});
             }).catch(function(error) {
