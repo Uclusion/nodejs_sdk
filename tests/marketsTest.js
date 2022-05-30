@@ -181,7 +181,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
-                return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'SUGGEST');
+                return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'ISSUE');
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
+            }).then(() => {
+                //Need a comment to attach initiative to
+                return userClient.investibles.createComment(marketInvestibleTwoId,
+                    'See if stage update messes up comments', null, 'SUGGEST');
             }).then((comment) => {
                 globalCommentId = comment.id;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
