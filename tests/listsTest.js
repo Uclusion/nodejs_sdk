@@ -88,9 +88,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(investible, 'Should be able to see other\'s investible in Created');
                 return adminClient.markets.listUsers();
             }).then((users) => {
-                const activeUsers = users.filter(user => user.following);
                 assert(users.length === 2, '2 users in this dialog');
-                assert(activeUsers.length === 1, '1 user following in this dialog');
                 adminConfiguration.webSocketRunner.terminate();
                 return userConfiguration.webSocketRunner.terminate();
             }).catch(function(error) {
