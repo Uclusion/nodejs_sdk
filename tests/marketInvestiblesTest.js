@@ -22,6 +22,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let createdMarketInvite;
             let globalAccountToken;
             let createdCommentId;
+            let adminUserId;
             await promise.then((response) => {
                 const { accountToken, client } = response;
                 accountClient = client;
@@ -33,6 +34,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
+                adminUserId = response.presence.id;
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
@@ -63,11 +65,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let marketInvestibleVersion = 0;
                 let marketCapabilityVersion = 0;
                 let stageVersion = 0;
+                let addressedVersion = 0;
                 let marketInvestibleSecondaryId = null;
                 let investibleIdOne = null;
                 let foundAnythingElse = false;
                 let commentId = null;
                 let commentVersion = 0;
+                let groupVersion = 0;
                 const { signatures } = versions;
                 signatures.forEach((signature) => {
                     const {market_id: marketId, signatures: marketSignatures} = signature;
@@ -99,10 +103,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                     stageVersion = version;
                                 }
                                 else if (aType === 'group') {
-                                    //TODO finish
+                                    // A everyone public group created with the market
+                                    groupVersion = version;
                                 }
-                                else if (aType === 'investment') {
-                                    //TODO finish address type looks like an investment currently
+                                else if (aType === 'addressed') {
+                                    //As a result of adding a comment
+                                    addressedVersion = version;
+                                    assert(objectIdSecondary === adminUserId, 'Admin added a comment');
                                 }
                                 else {
                                     console.log(`Found unexpected type ${aType}`);
@@ -115,8 +122,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // marketInvestibleVersion is 2 because creating the Question moved it to Requires Input
                 // marketCapabilityVersion is 3 because subscribed to investible and question comment
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 2
-                    && marketCapabilityVersion === 3 && stageVersion === 1 && commentVersion === 1,
-                    `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion}`);
+                    && marketCapabilityVersion === 3 && stageVersion === 1 && commentVersion === 1 &&
+                    addressedVersion === 1 && groupVersion === 1,
+                    `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion} ${addressedVersion} ${groupVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
