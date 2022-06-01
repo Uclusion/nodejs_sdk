@@ -82,8 +82,16 @@ module.exports = function (adminConfiguration, userConfiguration) {
         externalId = me.external_id;
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: true}]);
       }).then(() => {
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'addressed',
-          object_id: marketId});
+        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
+          {event_type: 'addressed', object_id: marketId}]);
+      }).then(() => {
+        return getMessages(userConfiguration);
+      }).then((messages) => {
+        const unassigned = messages.find(obj => {
+          return obj.type_object_id === 'UNASSIGNED_' + marketId;
+        });
+        assert(unassigned, 'Is unnassigned now that addressed on further work');
+        return userClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then(() => {
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then((investibles) => {
@@ -95,9 +103,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(addressed.includes(userId), 'Addressed now includes added user');
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: false}]);
       }).then(() => {
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'addressed',
-          object_id: marketId});
+        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
+          {event_type: 'addressed', object_id: marketId}]);
       }).then(() => {
+        return getMessages(userConfiguration);
+      }).then((messages) => {
+        const unassigned = messages.find(obj => {
+          return obj.type_object_id === 'UNASSIGNED_' + marketId;
+        });
+        assert(!unassigned, 'No is unnassigned now that not addressed on further work');
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then((investibles) => {
         const fullInvestible = investibles[0];
@@ -105,11 +119,17 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const marketInfo = market_infos[0];
         const { addressed } = marketInfo;
         assert(addressed.size === 0, 'Addressed no longer includes added user');
-        return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: false}]);
+        return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: true}]);
       }).then(() => {
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'group',
-          object_id: marketId});
+        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
+          {event_type: 'addressed', object_id: marketId}]);
       }).then(() => {
+        return getMessages(userConfiguration);
+      }).then((messages) => {
+        const unassigned = messages.find(obj => {
+          return obj.type_object_id === 'UNASSIGNED_' + marketId;
+        });
+        assert(unassigned, 'Is unnassigned now that addressed on further work');
         return adminClient.markets.listGroups();
       }).then((groups) => {
         groups.forEach((group) => {
