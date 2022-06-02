@@ -139,6 +139,19 @@ module.exports = function (adminConfiguration, userConfiguration) {
             assert(group.users.includes(userId), 'Team A now includes added');
           }
         });
+        return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: false}]);
+      }).then(() => {
+        return userConfiguration.webSocketRunner.waitForReceivedMessage(
+            {event_type: 'addressed', object_id: marketId});
+      }).then(() => {
+        return adminClient.markets.listGroups();
+      }).then((groups) => {
+        groups.forEach((group) => {
+          if (group.id !== marketId) {
+            assert(group.users.size === 1, 'Team A wrong size');
+            assert(group.users.includes(adminUserId), 'Team A wrong members');
+          }
+        });
       }).catch(function (error) {
         console.log(error);
         throw error;
