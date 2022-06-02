@@ -61,7 +61,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
           }
         });
         return adminClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
-          groupId: globalGroupId});
+          groupId: globalGroupId, openForInvestment: true});
       }).then((investible) => {
         marketInvestibleId = investible.investible.id;
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
@@ -125,7 +125,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: true}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
-          {event_type: 'addressed', object_id: marketId}]);
+          {event_type: 'group_capability', object_id: marketId}]);
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
