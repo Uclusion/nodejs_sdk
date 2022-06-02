@@ -60,14 +60,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
             assert(group.users.includes(adminUserId), 'Team A wrong members');
           }
         });
-        return userClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
+        return adminClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
           groupId: globalGroupId});
       }).then((investible) => {
         marketInvestibleId = investible.investible.id;
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
           object_id: marketId});
       }).then(() => {
-        return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+        return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then((investibles) => {
         const fullInvestible = investibles[0];
         const { market_infos } = fullInvestible;
