@@ -112,14 +112,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const unassigned = messages.find(obj => {
           return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
         });
-        assert(!unassigned, 'No is unnassigned now that not addressed on further work');
+        assert(!unassigned, 'No unnassigned now that not addressed on further work');
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then((investibles) => {
         const fullInvestible = investibles[0];
         const { market_infos } = fullInvestible;
         const marketInfo = market_infos[0];
         const { addressed } = marketInfo;
-        assert(addressed.length === 0, 'Addressed no longer includes added user');
+        const notAbstaining = addressed.filter((address) => !address.abstain);
+        assert(notAbstaining.length === 0, 'Addressed no longer includes added user');
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: true}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
