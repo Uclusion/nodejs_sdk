@@ -3,7 +3,7 @@ import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/u
 
 module.exports = function (adminConfiguration, userConfiguration) {
   describe('#group specific actions', () => {
-    it('should let a non assignable person vote', async () => {
+    it('addressing an investible should work', async () => {
       let adminClient;
       let userClient;
       let adminUserId;
