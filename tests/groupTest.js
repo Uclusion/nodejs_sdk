@@ -100,8 +100,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const { market_infos } = fullInvestible;
         const marketInfo = market_infos[0];
         const { addressed } = marketInfo;
-        assert(addressed.length === 1, 'Addressed now only includes added user');
-        assert(addressed.includes(userId), 'Addressed now includes added user');
+        const notAbstaining = addressed.filter((address) => !address.abstain);
+        assert(notAbstaining.length === 1, 'Addressed now only includes added user');
+        assert(notAbstaining.find((address) => address.user_id === userId), 'Addressed now includes added user');
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: false}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
