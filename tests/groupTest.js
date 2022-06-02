@@ -40,7 +40,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(group.locked_by === adminUserId, 'Lock failed');
         return adminClient.markets.updateGroup(publicGroupId, {name: 'Company A', description: 'See if can change description'});
       }).then((group) => {
-        assert(group.name === 'Company A.', 'Group name returned incorrectly');
+        assert(group.name === 'Company A', 'Group name returned incorrectly');
         assert(group.description === 'See if can change description', 'Description returned incorrectly');
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'group', object_id: marketId});
       }).then(() => {
@@ -48,7 +48,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((group) => {
         globalGroupId = group.id;
         assert(group.description === 'Group for team A.', 'Description returned incorrectly');
-        assert(group.name === 'Team A.', 'Group name returned incorrectly');
+        assert(group.name === 'Team A', 'Group name returned incorrectly');
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'group', object_id: marketId});
       }).then(() => {
         return adminClient.markets.listGroups();
