@@ -49,13 +49,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
         globalGroupId = group.id;
         assert(group.description === 'Group for team A.', 'Description returned incorrectly');
         assert(group.name === 'Team A', 'Group name returned incorrectly');
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'group', object_id: marketId});
+        return adminConfiguration.webSocketRunner.waitForReceivedMessages([
+            {event_type: 'group', object_id: marketId}, {event_type: 'group_capability', object_id: marketId}]);
       }).then(() => {
         return adminClient.markets.listGroups();
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id !== marketId) {
-            assert(group.users.size === 1, 'Team A wrong size');
+            assert(group.users.length === 1, 'Team A wrong size');
             assert(group.users.includes(adminUserId), 'Team A wrong members');
           }
         });
@@ -72,7 +73,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const { market_infos } = fullInvestible;
         const marketInfo = market_infos[0];
         const { addressed } = marketInfo;
-        assert(addressed.size === 0, 'Addressed only includes those not included elsewhere');
+        assert(addressed.length === 0, 'Addressed only includes those not included elsewhere');
         return loginUserToMarketInvite(userConfiguration, marketCapability);
       }).then((client) => {
         userClient = client;
@@ -99,7 +100,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const { market_infos } = fullInvestible;
         const marketInfo = market_infos[0];
         const { addressed } = marketInfo;
-        assert(addressed.size === 1, 'Addressed now only includes added user');
+        assert(addressed.length === 1, 'Addressed now only includes added user');
         assert(addressed.includes(userId), 'Addressed now includes added user');
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: false}]);
       }).then(() => {
@@ -118,7 +119,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         const { market_infos } = fullInvestible;
         const marketInfo = market_infos[0];
         const { addressed } = marketInfo;
-        assert(addressed.size === 0, 'Addressed no longer includes added user');
+        assert(addressed.length === 0, 'Addressed no longer includes added user');
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: true}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
@@ -134,7 +135,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id !== marketId) {
-            assert(group.users.size === 2, 'Team A wrong size');
+            assert(group.users.length === 2, 'Team A wrong size');
             assert(group.users.includes(adminUserId), 'Team A wrong members');
             assert(group.users.includes(userId), 'Team A now includes added');
           }
@@ -148,7 +149,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id !== marketId) {
-            assert(group.users.size === 1, 'Team A wrong size');
+            assert(group.users.length === 1, 'Team A wrong size');
             assert(group.users.includes(adminUserId), 'Team A wrong members');
           }
         });
