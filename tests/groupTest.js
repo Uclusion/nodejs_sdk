@@ -89,7 +89,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const unassigned = messages.find(obj => {
-          return obj.type_object_id === 'UNASSIGNED_' + marketId;
+          return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
         });
         assert(unassigned, 'Is unnassigned now that addressed on further work');
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
@@ -110,7 +110,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const unassigned = messages.find(obj => {
-          return obj.type_object_id === 'UNASSIGNED_' + marketId;
+          return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
         });
         assert(!unassigned, 'No is unnassigned now that not addressed on further work');
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
@@ -128,7 +128,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const unassigned = messages.find(obj => {
-          return obj.type_object_id === 'UNASSIGNED_' + marketId;
+          return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
         });
         assert(unassigned, 'Is unnassigned now that addressed on further work');
         return adminClient.markets.listGroups();
