@@ -145,7 +145,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: false}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
-            {event_type: 'addressed', object_id: marketId});
+            {event_type: 'group_capability', object_id: marketId});
       }).then(() => {
         return adminClient.markets.listGroups();
       }).then((groups) => {
