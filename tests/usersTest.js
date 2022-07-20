@@ -72,7 +72,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((client) => {
         adminClient = client;
         // Add placeholder user to the market
-        return adminClient.users.inviteUsers([{email: userConfiguration.username}]);
+        return adminClient.users.inviteUsers([userConfiguration.username]);
       }).then(() => {
         // This should be the user pushed out
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
