@@ -41,6 +41,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((response) => {
                 createdMarketId = response.market.id;
                 globalAccountId = response.market.account_id;
+                assert(response.market.name === 'Company A', 'market name is incorrect');
                 console.log(`logging into planning market ${createdMarketId}`);
                 marketInviteCapability = response.market.invite_capability;
                 return loginUserToMarketInvite(adminConfiguration, marketInviteCapability);
