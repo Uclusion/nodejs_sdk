@@ -55,11 +55,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id === globalGroupId) {
+            assert(group.name === 'Team A', 'Team A wrong name');
+            console.dir(group);
+            assert(group.description === 'Group for team A.', 'Team A wrong description');
+          } else {
             assert(group.name === 'Company A', 'Company A wrong name');
             assert(group.description === 'See if can change description', 'Company A wrong description');
-          } else {
-            assert(group.name === 'Team A', 'Team A wrong name');
-            assert(group.description === 'Group for team A', 'Team A wrong description');
           }
         });
         return adminClient.markets.listGroupMembers(globalGroupId);
@@ -143,6 +144,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id !== marketId) {
+            console.dir(group);
             assert(group.users.length === 2, 'Team A wrong size');
             assert(group.users.includes(adminUserId), 'Team A wrong members');
             assert(group.users.includes(userId), 'Team A now includes added');
