@@ -11,9 +11,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let externalId;
       let adminExternalId;
       let marketId;
-      let storyId;
       let marketCapability;
-      let publicGroupId;
       let globalGroupId;
       let marketInvestibleId;
       const promise = loginUserToAccount(adminConfiguration);
@@ -26,8 +24,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((result) => {
         marketId = result.market.id;
         marketCapability = result.market.invite_capability;
-        publicGroupId = result.group.id;
-        assert(result.group.name === 'Company B', 'Group created with wrong name');
+        assert(result.market.name === 'Company B', 'Market created with wrong name');
         return loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       }).then((client) => {
         adminClient = client;
@@ -35,14 +32,16 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((me) => {
         adminUserId = me.id;
         adminExternalId = me.external_id;
-        return adminClient.markets.lock(publicGroupId);
+        return adminClient.markets.lock(marketId);
       }).then((group) => {
         assert(group.locked_by === adminUserId, 'Lock failed');
-        return adminClient.markets.updateGroup(publicGroupId, {name: 'Company A', description: 'See if can change description'});
+        return adminClient.markets.updateGroup(marketId,
+            {name: 'Company A', description: 'See if can change description'});
       }).then((group) => {
         assert(group.name === 'Company A', 'Group name returned incorrectly');
         assert(group.description === 'See if can change description', 'Description returned incorrectly');
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'group', object_id: marketId});
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'group',
+          object_id: marketId});
       }).then(() => {
         return adminClient.markets.createGroup({name: 'Team A', description: 'Group for team A.'})
       }).then((group) => {
@@ -55,11 +54,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminClient.markets.listGroups();
       }).then((groups) => {
         groups.forEach((group) => {
-          if (group.id !== marketId) {
+          if (group.id === globalGroupId) {
             assert(group.users.length === 1, 'Team A wrong size');
             assert(group.users.includes(adminUserId), 'Team A wrong members');
           }
         });
+        return adminClient.markets.listGroupMembers(globalGroupId);
+      }).then((members) => {
+        assert(members.length === 1, 'Team A wrong size');
+        assert(members.find((member) => member.id === adminUserId), 'Team A wrong members');
         return adminClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
           groupId: globalGroupId, openForInvestment: true});
       }).then((investible) => {
