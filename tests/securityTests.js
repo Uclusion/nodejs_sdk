@@ -7,6 +7,7 @@ import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "..
  **/
 module.exports = function (adminConfiguration, userConfiguration) {
   const planningMarket = {
+    name: 'Company A',
     market_type: 'PLANNING'
   };
 

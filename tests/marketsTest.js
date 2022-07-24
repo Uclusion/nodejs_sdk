@@ -33,6 +33,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 accountClient = client;
                 const planningOptions = {
                     market_type: 'PLANNING',
+                    name: 'Company A',
                     market_sub_type: 'TEST',
                     investment_expiration: 1
                 };

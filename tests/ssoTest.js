@@ -4,6 +4,7 @@ import _ from 'lodash';
 
 module.exports = function(adminConfiguration) {
     const marketOptions = {
+        name: 'Company A',
         market_type: 'PLANNING'
     };
 

@@ -23,6 +23,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 adminAccountClient = client;
                 const planningOptions = {
                     market_type: 'PLANNING',
+                    name: 'Company A',
                     market_sub_type: 'TEST'
                 };
                 return client.markets.createMarket(planningOptions);

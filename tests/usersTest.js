@@ -62,6 +62,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return loginUserToAccount(adminConfiguration);
       }).then((client) => {
         const marketOptions = {
+          name: 'Company A',
           market_type: 'PLANNING'
         };
         return client.markets.createMarket(marketOptions);

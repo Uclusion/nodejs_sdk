@@ -23,7 +23,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let createdMarketInvite;
             await promise.then((client) => {
                 const planningOptions = {
-                    market_type: 'PLANNING'
+                    market_type: 'PLANNING',
+                    name: 'Company A'
                 };
                 return client.markets.createMarket(planningOptions);
             }).then((response) => {

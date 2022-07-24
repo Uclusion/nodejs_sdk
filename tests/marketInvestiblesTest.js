@@ -29,6 +29,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 globalAccountToken = accountToken;
                 const marketOptions = {
                     market_type: 'PLANNING',
+                    name: 'Company A'
                 };
                 return client.markets.createMarket(marketOptions);
             }).then((response) => {
@@ -152,6 +153,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 otherUserExternalId = user.external_id;
                 const marketOptions = {
                     market_type: 'PLANNING',
+                    name: 'Company A'
                 };
                 return accountClient.markets.createMarket(marketOptions);
             }).then((response) => {
