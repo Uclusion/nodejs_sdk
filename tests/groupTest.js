@@ -55,12 +55,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id === globalGroupId) {
-            assert(group.name === 'Team A', 'Team A wrong name');
-            console.dir(group);
-            assert(group.description === 'Group for team A.', 'Team A wrong description');
-          } else {
             assert(group.name === 'Company A', 'Company A wrong name');
             assert(group.description === 'See if can change description', 'Company A wrong description');
+          } else {
+            assert(group.name === 'Team A', 'Team A wrong name');
+            assert(group.description === 'Group for team A', 'Team A wrong description');
           }
         });
         return adminClient.markets.listGroupMembers(globalGroupId);
@@ -140,29 +139,18 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
         });
         assert(unassigned, 'Is unnassigned now that addressed on further work');
-        return adminClient.markets.listGroups();
-      }).then((groups) => {
-        groups.forEach((group) => {
-          if (group.id !== marketId) {
-            console.dir(group);
-            assert(group.users.length === 2, 'Team A wrong size');
-            assert(group.users.includes(adminUserId), 'Team A wrong members');
-            assert(group.users.includes(userId), 'Team A now includes added');
-          }
-        });
+        return adminClient.markets.listGroupMembers(globalGroupId);
+      }).then((members) => {
+        assert(members.length === 2, 'Team A wrong size');
+        assert(members.find((member) => member.id === userId), 'Team A wrong members');
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: false}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
             {event_type: 'group_capability', object_id: marketId});
       }).then(() => {
-        return adminClient.markets.listGroups();
-      }).then((groups) => {
-        groups.forEach((group) => {
-          if (group.id !== marketId) {
-            assert(group.users.length === 1, 'Team A wrong size');
-            assert(group.users.includes(adminUserId), 'Team A wrong members');
-          }
-        });
+        return adminClient.markets.listGroupMembers(globalGroupId);
+      }).then((members) => {
+        assert(members.find((member) => member.id === userId && member.deleted), 'Team A wrong members');
       }).catch(function (error) {
         console.log(error);
         throw error;
