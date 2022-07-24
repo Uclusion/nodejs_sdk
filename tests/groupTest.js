@@ -55,8 +55,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id === globalGroupId) {
-            assert(group.users.length === 1, 'Team A wrong size');
-            assert(group.users.includes(adminUserId), 'Team A wrong members');
+            assert(group.name === 'Company A', 'Company A wrong name');
+            assert(group.description === 'See if can change description', 'Company A wrong description');
+          } else {
+            assert(group.name === 'Team A', 'Team A wrong name');
+            assert(group.description === 'Group for team A', 'Team A wrong description');
           }
         });
         return adminClient.markets.listGroupMembers(globalGroupId);
