@@ -148,7 +148,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
             {event_type: 'group_capability', object_id: marketId});
       }).then(() => {
-        return adminClient.markets.listGroupMembers(globalGroupId);
+        return adminClient.markets.listGroupMembers([globalGroupId]);
       }).then((members) => {
         assert(members.find((member) => member.id === userId && member.deleted), 'Team A wrong members');
       }).catch(function (error) {
