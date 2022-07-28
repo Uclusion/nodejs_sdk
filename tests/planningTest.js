@@ -45,7 +45,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
           name: 'Test planning',
           description: 'Lorem Ipsum',
           assignments: [adminUserId],
-          estimate: tomorrow
+          estimate: tomorrow,
+          groupId: marketId,
         };
         return userClient.investibles.create(storyOptions);
       }).then((story) => {

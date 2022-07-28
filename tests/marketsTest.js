@@ -70,7 +70,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return userClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
+                return userClient.investibles.create({groupId: createdMarketId, name: 'salmon spawning', description: 'plan to catch',
                     assignments: [userId]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
@@ -164,7 +164,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.investibles.create({name: 'check stage update', description: 'now',
+                return adminClient.investibles.create({groupId: createdMarketId, name: 'check stage update', description: 'now',
                     assignments: [adminId]});
             }).then((investible) => {
                 marketInvestibleTwoId = investible.investible.id;

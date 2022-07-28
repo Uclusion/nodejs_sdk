@@ -38,7 +38,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 adminId = user.id;
                 adminExternalId = user.external_id;
-                return adminClient.investibles.create({name: 'A test story', description: 'See if notifications work.',
+                return adminClient.investibles.create({
+                    groupId: createdMarketId,
+                    name: 'A test story', description: 'See if notifications work.',
                     assignments: [adminId]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;

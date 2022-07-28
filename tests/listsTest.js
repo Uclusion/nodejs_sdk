@@ -53,7 +53,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((stageList) => {
                 globalStages = stageList;
                 checkStages(adminExpectedStageNames, stageList);
-                return userClient.investibles.create({name: 'butter', description: 'good on bagels'});
+                return userClient.investibles.create({groupId: createdMarketId, name: 'butter', description: 'good on bagels'});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
@@ -64,7 +64,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return adminClient.investibles.create({name: 'peanut butter', description: 'good with jelly'});
+                return adminClient.investibles.create({groupId: createdMarketId, name: 'peanut butter', description: 'good with jelly'});
             }).then((investible) => {
                 globalCSMMarketInvestibleId = investible.investible.id;
                 return userClient.markets.updateInvestment(marketInvestibleId, 5, 0);

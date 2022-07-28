@@ -72,7 +72,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return userClient.investibles.create({name: 'salmon', description: 'good on bagels'});
+                return userClient.investibles.create({group: createdMarketId, name: 'salmon', description: 'good on bagels'});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 console.log('Investible ID is ' + marketInvestibleId);
