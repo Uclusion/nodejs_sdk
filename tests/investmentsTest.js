@@ -82,7 +82,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
                 });
                 assert(newVoting, 'Moderator should be notified of investment');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'ISSUE');
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'ISSUE');
             }).then((comment) => {
                 parentCommentId = comment.id;
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
@@ -96,7 +96,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED');
                 });
                 assert(investibleIssue, 'No investible issue notification');
-                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', parentCommentId);
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,'a reply comment', parentCommentId);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});

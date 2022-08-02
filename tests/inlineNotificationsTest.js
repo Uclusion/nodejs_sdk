@@ -66,7 +66,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return adminClient.investibles.createComment(marketInvestibleId, 'body of my comment',
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment',
                     null, 'QUESTION', undefined, undefined, undefined,
                     undefined, undefined, false);
             }).then((comment) => {

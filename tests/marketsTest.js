@@ -183,7 +183,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
-                return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'ISSUE');
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'actually its not done', null, 'ISSUE');
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {

@@ -34,7 +34,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
-                return client.investibles.createComment(marketInvestibleId, 'Is it done?', null, 'QUESTION');
+                return client.investibles.createComment(marketInvestibleId, createdMarketId, 'Is it done?', null, 'QUESTION');
             }).then((comment) => {
                 globalCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
@@ -90,7 +90,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
                 });
                 assert(submitted, 'Should receive investible submitted for new investible');
-                return adminClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'QUESTION');
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification', object_id: userExternalId});
@@ -160,7 +160,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
                 assert(!vote, 'Not fully voted removed on approving an option');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null,
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null,
                     'ISSUE');
             }).then((comment) => {
                 createdCommentId = comment.id;
@@ -173,7 +173,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
                 assert(vote, 'Not fully voted restored on option demoted by issue');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null,
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null,
                     'ISSUE');
             }).catch(function (error) {
                 console.log(error);
