@@ -59,7 +59,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return loginUserToMarketInvite(adminConfiguration, marketCapability);
       }).then((client) => {
         adminClient = client;
-        return adminClient.investibles.createComment(null, 'a todo to move', null, 'TODO');
+        return adminClient.investibles.createComment(null, marketId, 'a todo to move', null, 'TODO');
       }).then((comment) => {
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: marketId}).then(() => comment);
       }).then((comment) => {

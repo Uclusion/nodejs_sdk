@@ -33,7 +33,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                return client.investibles.createComment(undefined, 'Which fish?', null,
+                return client.investibles.createComment(undefined, createdMarketId, 'Which fish?', null,
                     'QUESTION', null, null, null, 'DECISION',
                     false, true);
             }).then((response) => {
@@ -138,7 +138,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     user_id: userId,
                     external_id: userExternalId,
                 }
-                return adminClient.investibles.createComment(null, 'comment to fetch', null,
+                return adminClient.investibles.createComment(null, createdMarketId, 'comment to fetch', null,
                     'QUESTION', null, [mention]);
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call

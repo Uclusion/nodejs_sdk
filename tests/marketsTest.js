@@ -188,7 +188,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
                 //Need a comment to attach initiative to
-                return userClient.investibles.createComment(marketInvestibleTwoId,
+                return userClient.investibles.createComment(marketInvestibleTwoId, createdMarketId,
                     'See if stage update messes up comments', null, 'SUGGEST');
             }).then((comment) => {
                 globalCommentId = comment.id;

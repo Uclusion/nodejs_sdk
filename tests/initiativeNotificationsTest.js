@@ -32,7 +32,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                return client.investibles.createComment(undefined, 'Do the fish thing.', null,
+                return client.investibles.createComment(undefined, createdMarketId, 'Do the fish thing.', null,
                     'SUGGEST', null, null, null, 'INITIATIVE',
                     false, true);
             }).then((response) => {
