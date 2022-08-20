@@ -33,7 +33,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                return client.investibles.createComment(undefined, 'Which fish?', null,
+                return client.investibles.createComment(undefined, createdMarketId, 'Which fish?', null,
                     'QUESTION', null, null, null, 'DECISION',
                     false, true);
             }).then((response) => {
@@ -51,7 +51,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return userClient.investibles.create({name: 'salmon', description: 'good on bagels'});
+                return userClient.investibles.create({groupId: createdMarketId, name: 'salmon', description: 'good on bagels'});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 console.log('Investible ID is ' + marketInvestibleId);
@@ -82,7 +82,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
                 });
                 assert(newVoting, 'Moderator should be notified of investment');
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'ISSUE');
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'ISSUE');
             }).then((comment) => {
                 parentCommentId = comment.id;
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
@@ -96,7 +96,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED');
                 });
                 assert(investibleIssue, 'No investible issue notification');
-                return adminClient.investibles.createComment(marketInvestibleId,'a reply comment', parentCommentId);
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,'a reply comment', parentCommentId);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
@@ -138,7 +138,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     user_id: userId,
                     external_id: userExternalId,
                 }
-                return adminClient.investibles.createComment(null, 'comment to fetch', null,
+                return adminClient.investibles.createComment(null, createdMarketId, 'comment to fetch', null,
                     'QUESTION', null, [mention]);
             }).then((comment) => {
                 // Can't do consistent read on GSI so need to wait before do the getMarketComments call

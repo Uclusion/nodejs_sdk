@@ -48,7 +48,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 adminId = user.id;
                 adminExternalId = user.external_id;
-                return adminClient.investibles.create({name: 'A test story', description: 'See if notifications work.',
+                return adminClient.investibles.create({groupId: createdMarketId, name: 'A test story', description: 'See if notifications work.',
                     assignments: [adminId]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
@@ -66,7 +66,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return adminClient.investibles.createComment(marketInvestibleId, 'body of my comment',
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment',
                     null, 'QUESTION', undefined, undefined, undefined,
                     undefined, undefined, false);
             }).then((comment) => {
@@ -151,7 +151,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, inlineMarketId);
             }).then((client) => {
                 inlineAdminClient = client;
-                return inlineAdminClient.investibles.create({name: 'A test option',
+                return inlineAdminClient.investibles.create({
+                    groupId: createdMarketId,
+                    name: 'A test option',
                     description: 'See if inline notifications work.'});
             }).then((investible) => {
                 inlineInvestibleId = investible.investible.id;

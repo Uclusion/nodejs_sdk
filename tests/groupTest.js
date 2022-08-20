@@ -66,7 +66,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((members) => {
         assert(members.length === 1, 'Team A wrong size');
         assert(members.find((member) => member.id === adminUserId), 'Team A wrong members');
-        return adminClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
+        return adminClient.investibles.create({groupId: marketId, name: 'salmon spawning', description: 'plan to catch',
           groupId: globalGroupId, openForInvestment: true});
       }).then((investible) => {
         marketInvestibleId = investible.investible.id;

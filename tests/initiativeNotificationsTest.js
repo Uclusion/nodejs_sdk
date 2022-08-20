@@ -32,7 +32,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                return client.investibles.createComment(undefined, 'Do the fish thing.', null,
+                return client.investibles.createComment(undefined, createdMarketId, 'Do the fish thing.', null,
                     'SUGGEST', null, null, null, 'INITIATIVE',
                     false, true);
             }).then((response) => {
@@ -66,7 +66,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return inlineUserClient.investibles.createComment(marketInvestibleId, 'body of my comment',
+                return inlineUserClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment',
                     null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;

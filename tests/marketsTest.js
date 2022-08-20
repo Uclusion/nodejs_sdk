@@ -70,7 +70,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return userClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
+                return userClient.investibles.create({groupId: createdMarketId, name: 'salmon spawning', description: 'plan to catch',
                     assignments: [userId]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
@@ -164,7 +164,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.investibles.create({name: 'check stage update', description: 'now',
+                return adminClient.investibles.create({groupId: createdMarketId, name: 'check stage update', description: 'now',
                     assignments: [adminId]});
             }).then((investible) => {
                 marketInvestibleTwoId = investible.investible.id;
@@ -183,12 +183,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
-                return userClient.investibles.createComment(marketInvestibleId, 'actually its not done', null, 'ISSUE');
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'actually its not done', null, 'ISSUE');
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
                 //Need a comment to attach initiative to
-                return userClient.investibles.createComment(marketInvestibleTwoId,
+                return userClient.investibles.createComment(marketInvestibleTwoId, createdMarketId,
                     'See if stage update messes up comments', null, 'SUGGEST');
             }).then((comment) => {
                 globalCommentId = comment.id;

@@ -41,13 +41,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 adminClient = client;
                 return client.users.get();
             }).then((user) => {
-                return adminClient.investibles.create({name: 'salmon', description: 'good on bagels',
+                return adminClient.investibles.create({groupId: createdMarketId, name: 'salmon', description: 'good on bagels',
                     assignments: [user.id]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.investibles.createComment(marketInvestibleId, 'body of my comment', null, 'QUESTION');
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
                 // Since admin client created the comment we are not expecting a notification here
@@ -167,7 +167,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((presences) => {
                 const { id } = presences[0];
                 assert(id, 'Add not successful');
-                return adminClient.investibles.create({name: 'A job', description: 'To verify push.'});
+                return adminClient.investibles.create({groupId: createdMarketId, name: 'A job', description: 'To verify push.'});
             }).then(() => {
                 // Verify user getting push from admin client creating investible after user added from addUsers api
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',

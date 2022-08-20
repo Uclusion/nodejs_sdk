@@ -38,7 +38,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 adminId = user.id;
                 adminExternalId = user.external_id;
-                return adminClient.investibles.create({name: 'A test story', description: 'See if notifications work.',
+                return adminClient.investibles.create({
+                    groupId: createdMarketId,
+                    name: 'A test story', description: 'See if notifications work.',
                     assignments: [adminId]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
@@ -69,7 +71,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     user_id: adminId,
                     external_id: adminExternalId,
                 };
-                return userClient.investibles.createComment(marketInvestibleId, 'body of my comment',
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment',
                     null, 'QUESTION', undefined, [mention]);
             }).then((comment) => {
                 questionCommentId = comment.id;
@@ -215,7 +217,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
                 assert(review, 'Moving to in review with no required reviewers is view level');
-                return adminClient.investibles.createComment(marketInvestibleId, 'body of my todo',
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my todo',
                     null, 'TODO');
             }).then((comment) => {
                 todoCommentId = comment.id;
