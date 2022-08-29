@@ -33,12 +33,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
-                return client.investibles.createComment(marketInvestibleId, createdMarketId, 'Is it done?', null, 'QUESTION');
+                return client.investibles.createComment(undefined, createdMarketId, 'Is it done?', null, 'QUESTION');
             }).then((comment) => {
                 globalCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
+            }).then((response) => {
+                // Have to log the user in also, or he won't receive notifications
+                return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then(() => {
                 const fishOptions = {
                     market_type: 'DECISION',
