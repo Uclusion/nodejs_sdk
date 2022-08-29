@@ -51,6 +51,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
+                // Immediately wait for the not fully voted notification to avoid race condition
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+            }).then(() => {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
