@@ -57,8 +57,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return loginUserToMarketInvite(userConfiguration, inlineCreatedMarketInvite);
             }).then((client) => {
                 inlineUserClient = client;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
-            }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
