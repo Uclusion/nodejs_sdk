@@ -38,7 +38,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 globalCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
-            }).then((response) => {
+            }).then(() => {
                 // Have to log the user in also, or he won't receive notifications
                 return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then(() => {
