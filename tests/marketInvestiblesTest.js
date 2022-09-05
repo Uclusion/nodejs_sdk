@@ -108,7 +108,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                     groupVersion = version;
                                 }
                                 else if (aType === 'addressed') {
-                                    //As a result of adding a comment
+                                    //Added a comment but was already in group so should not get here
                                     addressedVersion = version;
                                     assert(objectIdSecondary === adminUserId, 'Admin added a comment');
                                 }
@@ -122,9 +122,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 });
                 // marketInvestibleVersion is 2 because creating the Question moved it to Requires Input
                 // marketCapabilityVersion is 3 because subscribed to investible and question comment
+                // groupVersion is 2 because group ticket sub code updated when create investible
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 2
                     && marketCapabilityVersion === 3 && stageVersion === 1 && commentVersion === 1 &&
-                    addressedVersion === 1 && groupVersion === 1,
+                    addressedVersion === 0 && groupVersion === 2,
                     `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion} ${addressedVersion} ${groupVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
