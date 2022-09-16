@@ -21,7 +21,7 @@ Amplify.configure({ Auth: cognitoConfiguration });
 const adminConfiguration = {
   baseURL: 'https://dev.api.uclusion.com/v1',
   websocketURL: 'wss://dev.ws.uclusion.com/v1',
-  username: 'testeruclusion@gmail.com',
+  username: 'david.israel@uclude.com',
   password: 'Uclusi0n_test',
 };
 
