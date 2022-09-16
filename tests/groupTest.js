@@ -44,7 +44,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
           object_id: marketId});
       }).then(() => {
         return adminClient.markets.createGroup({name: 'Team A', description: 'Group for team A.'})
-      }).then((group) => {
+      }).then((response) => {
+        const { group } = response;
         globalGroupId = group.id;
         assert(group.description === 'Group for team A.', 'Description returned incorrectly');
         assert(group.name === 'Team A', 'Group name returned incorrectly');
@@ -66,7 +67,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((members) => {
         assert(members.length === 1, 'Team A wrong size');
         assert(members.find((member) => member.id === adminUserId), 'Team A wrong members');
-        return adminClient.investibles.create({groupId: marketId, name: 'salmon spawning', description: 'plan to catch',
+        return adminClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
           groupId: globalGroupId, openForInvestment: true});
       }).then((investible) => {
         marketInvestibleId = investible.investible.id;
