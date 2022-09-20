@@ -87,10 +87,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 archivedStage = globalStages.find(stage => { return stage.appears_in_market_summary });
                 return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0, null, 1);
             }).then(() => {
-                // This first one that the investment was created
+                console.log(`waiting for created investment on ${marketInvestibleId}`);
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
-                // Now a second one that investment was deleted since investment expiration is 1 minute
+                console.log('waiting for that investment expired');
+                // Now a second one since investment expiration is 1 minute
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
                 // Turn off investment expiration 1m so it can't affect the rest of this test
