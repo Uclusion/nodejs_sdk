@@ -93,12 +93,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
           {event_type: 'addressed', object_id: marketId}]);
       }).then(() => {
-        return getMessages(userConfiguration);
+        return getMessages(adminConfiguration);
       }).then((messages) => {
-        const unassigned = messages.find(obj => {
-          return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
+        const unread = messages.find(obj => {
+          return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
         });
-        assert(unassigned, 'Is unnassigned now that addressed on further work');
+        assert(!unread, 'Unread does not apply to creator or generate on addressing');
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then(() => {
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
