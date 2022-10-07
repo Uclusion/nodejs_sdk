@@ -90,8 +90,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         externalId = me.external_id;
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: true}]);
       }).then(() => {
-        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
-          {event_type: 'addressed', object_id: marketId}]);
+        return userConfiguration.webSocketRunner.waitForReceivedMessage(
+          {event_type: 'addressed', object_id: marketId});
       }).then(() => {
         return getMessages(adminConfiguration);
       }).then((messages) => {
