@@ -112,8 +112,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(notAbstaining.find((address) => address.user_id === userId), 'Addressed now includes added user');
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: false}]);
       }).then(() => {
-        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
-          {event_type: 'addressed', object_id: marketId}]);
+        return userConfiguration.webSocketRunner.waitForReceivedMessage(
+            {event_type: 'addressed', object_id: marketId});
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
