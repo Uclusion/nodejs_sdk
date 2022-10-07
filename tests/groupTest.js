@@ -115,12 +115,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
             {event_type: 'addressed', object_id: marketId});
       }).then(() => {
-        return getMessages(userConfiguration);
-      }).then((messages) => {
-        const unassigned = messages.find(obj => {
-          return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
-        });
-        assert(!unassigned, 'No unnassigned now that not addressed on further work');
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then((investibles) => {
         const fullInvestible = investibles[0];
@@ -131,15 +125,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(notAbstaining.length === 0, 'Addressed no longer includes added user');
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: true}]);
       }).then(() => {
-        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification'},
-          {event_type: 'group_capability', object_id: marketId}]);
+        return userConfiguration.webSocketRunner.waitForReceivedMessage(
+          {event_type: 'group_capability', object_id: marketId});
       }).then(() => {
-        return getMessages(userConfiguration);
-      }).then((messages) => {
-        const unassigned = messages.find(obj => {
-          return obj.type_object_id === 'UNASSIGNED_' + marketInvestibleId;
-        });
-        assert(unassigned, 'Is unnassigned now that addressed on further work');
         return adminClient.markets.listGroupMembers(globalGroupId);
       }).then((members) => {
         assert(members.length === 2, 'Team A wrong size');
