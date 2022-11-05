@@ -92,9 +92,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
         });
         assert(!newAssignment, 'Notifications from when assigned not deleted');
-        return userClient.investibles.accept(storyId);
+        return userClient.markets.updateInvestment(storyId, 100, 0);
       }).then(() => {
-        // This is the delete of unaccepted notification now that accepting has assigned
+        // Delete of unaccepted notification now that approving has accepted
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: externalId});
       }).then(() => {
