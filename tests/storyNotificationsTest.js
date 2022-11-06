@@ -217,30 +217,30 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
                 assert(review, 'Moving to in review with no required reviewers is view level');
-                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my todo',
+                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my todo',
                     null, 'TODO');
             }).then((comment) => {
                 todoCommentId = comment.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
             }).then(() => {
-                return getMessages(userConfiguration);
+                return getMessages(adminConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
-                assert(!review, 'Opening a TODO has removed the review notification');
+                assert(review, 'Opening a TODO alerts assigned');
                 return adminClient.investibles.updateComment(todoCommentId, undefined, true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId});
             }).then(() => {
-                return getMessages(userConfiguration);
+                return getMessages(adminConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
-                assert(!review, 'Resolving the last todo with open question does not send please review');
+                assert(!review, 'Resolving the todo removes the notification');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
@@ -248,10 +248,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
-                const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
-                });
-                assert(review, 'Resolving the last TODO and open question re-sends the review notification');
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
@@ -262,10 +258,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return getMessages(adminConfiguration);
+                return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
