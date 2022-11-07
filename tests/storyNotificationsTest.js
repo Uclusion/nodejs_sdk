@@ -233,7 +233,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.updateComment(todoCommentId, undefined, true);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
+                    object_id: adminExternalId});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
