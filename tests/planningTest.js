@@ -75,9 +75,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
-          return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
+          return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
-        assert(newAssignment, 'Re-assigned gets unaccepted notification');
+        assert(newAssignment, 'Re-assigned gets approve notification');
         // NOT_FULLY_VOTED is delayed for 1m to handle case of API chaining
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: adminExternalId});
@@ -88,10 +88,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
         assert(vote, 'Reassignment sends not fully voted');
-        const newAssignment = messages.find(obj => {
-          return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
-        });
-        assert(!newAssignment, 'Notifications from when assigned not deleted');
         return userClient.markets.updateInvestment(storyId, 100, 0);
       }).then(() => {
         // Delete of unaccepted notification now that approving has accepted
@@ -101,9 +97,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
-          return obj.type_object_id === 'UNACCEPTED_ASSIGNMENT_' + storyId;
+          return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
-        assert(!newAssignment, 'Accepting clears unaccepted notification');
+        assert(!newAssignment, 'Accepting clears approve notification');
       }).catch(function (error) {
         console.log(error);
         throw error;
