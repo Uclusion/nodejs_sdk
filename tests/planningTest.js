@@ -13,6 +13,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let marketId;
       let storyId;
       let marketCapability;
+      let storyInvestmentId;
       const promise = loginUserToAccount(adminConfiguration);
       await promise.then((client) => {
         adminClient = client;
@@ -51,6 +52,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userClient.investibles.create(storyOptions);
       }).then((story) => {
         storyId = story.investible.id;
+        const marketInfo = story.market_infos.find(info => {
+          return info.market_id === marketId;
+        });
+        storyInvestmentId = marketInfo.id;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});
       }).then(() => {
         // not following should be able to vote
@@ -70,15 +75,16 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminClient.investibles.updateAssignments(storyId, [userId]);
       }).then(() => {
         // NOT_FULLY_VOTED is delayed for to handle vote via API chaining
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-          object_id: externalId});
+        // Plus wait for the investment deletion event also
+        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
+          object_id: externalId}, {event_type: 'investment', object_id: storyInvestmentId}]);
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
           return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
-        assert(newAssignment, 'Re-assigned gets approve notification');
+        assert(newAssignment, 'New assigned gets approve notification');
         return getMessages(adminConfiguration);
       }).then((messages) => {
         const vote = messages.find(obj => {
