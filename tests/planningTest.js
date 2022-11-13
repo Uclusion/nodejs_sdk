@@ -71,7 +71,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         // NOT_FULLY_VOTED is delayed for to handle vote via API chaining
         // Plus wait for the investment deletion event also
-        return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
+        // We are deleting vote notification for assigned and then adding it back so wait for admin that won't do that
+        return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
           object_id: externalId}, {event_type: 'investment', object_id: marketId}]);
       }).then(() => {
         return getMessages(userConfiguration);
