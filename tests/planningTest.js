@@ -73,7 +73,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         // Plus wait for the investment deletion event also
         // We are deleting vote notification for assigned and then adding it back so wait for admin that won't do that
         return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
-          object_id: externalId}, {event_type: 'investment', object_id: marketId}]);
+          object_id: adminExternalId}, {event_type: 'investment', object_id: marketId}]);
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
