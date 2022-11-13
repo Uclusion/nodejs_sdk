@@ -13,7 +13,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let marketId;
       let storyId;
       let marketCapability;
-      let storyInvestmentId;
       const promise = loginUserToAccount(adminConfiguration);
       await promise.then((client) => {
         adminClient = client;
@@ -52,10 +51,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userClient.investibles.create(storyOptions);
       }).then((story) => {
         storyId = story.investible.id;
-        const marketInfo = story.market_infos.find(info => {
-          return info.market_id === marketId;
-        });
-        storyInvestmentId = marketInfo.id;
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});
       }).then(() => {
         // not following should be able to vote
@@ -77,7 +72,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         // NOT_FULLY_VOTED is delayed for to handle vote via API chaining
         // Plus wait for the market_capability deletion event also
         return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
-          object_id: externalId}, {event_type: 'market_capability', object_id: storyInvestmentId}]);
+          object_id: externalId}, {event_type: 'market_capability', object_id: userId}]);
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
