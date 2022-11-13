@@ -70,9 +70,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminClient.investibles.updateAssignments(storyId, [userId]);
       }).then(() => {
         // NOT_FULLY_VOTED is delayed for to handle vote via API chaining
-        // Plus wait for the market_capability deletion event also
+        // Plus wait for the investment deletion event also
         return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
-          object_id: externalId}, {event_type: 'market_capability', object_id: userId}]);
+          object_id: externalId}, {event_type: 'investment', object_id: marketId}]);
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
