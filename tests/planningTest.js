@@ -69,6 +69,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
         return adminClient.investibles.updateAssignments(storyId, [userId]);
       }).then(() => {
+        // NOT_FULLY_VOTED is delayed for to handle vote via API chaining
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
           object_id: externalId});
       }).then(() => {
@@ -78,10 +79,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
         });
         assert(newAssignment, 'Re-assigned gets approve notification');
-        // NOT_FULLY_VOTED is delayed for 1m to handle case of API chaining
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-          object_id: adminExternalId});
-      }).then(() => {
         return getMessages(adminConfiguration);
       }).then((messages) => {
         const vote = messages.find(obj => {
