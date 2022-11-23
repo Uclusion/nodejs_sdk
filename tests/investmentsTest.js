@@ -36,7 +36,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((client) => {
                 parentAdminClient = client;
                 // Add placeholder user to the market so not fully voted when someone votes
-                return client.users.inviteUsers([{email: 'tuser@uclusion.com'}]);
+                return client.users.inviteUsers(['tuser@uclusion.com']);
             }).then(() => {
                 return parentAdminClient.investibles.createComment(undefined, createdMarketId,
                     'Which fish?', null, 'QUESTION', null, null,
