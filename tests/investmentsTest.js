@@ -13,6 +13,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         it('should create investment without error', async () => {
             let promise = loginUserToAccount(adminConfiguration);
             let adminClient;
+            let parentAdminClient;
             let userClient;
             let userId;
             let userExternalId;
@@ -33,9 +34,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                return client.investibles.createComment(undefined, createdMarketId, 'Which fish?', null,
-                    'QUESTION', null, null, null, 'DECISION',
-                    false, true);
+                parentAdminClient = client;
+                // Add placeholder user to the market so not fully voted when someone votes
+                return client.users.inviteUsers([{email: 'tuser@uclusion.com'}]);
+            }).then(() => {
+                return parentAdminClient.investibles.createComment(undefined, createdMarketId,
+                    'Which fish?', null, 'QUESTION', null, null,
+                    null, 'DECISION', false, true);
             }).then((response) => {
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;

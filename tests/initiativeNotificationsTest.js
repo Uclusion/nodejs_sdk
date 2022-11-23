@@ -111,7 +111,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
+                    return obj.type_object_id === `FULLY_VOTED_${inlineCreatedMarketId}`;
                 });
                 assert(newVoting, 'Moderator should be notified of investment');
                 return getMessages(userConfiguration);
@@ -128,9 +128,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
+                    return obj.type_object_id === `FULLY_VOTED_${inlineCreatedMarketId}`;
                 });
-                assert(!newVoting, 'Unread vote should clear when remove investment');
+                assert(!newVoting, 'Fully voted should clear when remove investment');
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
