@@ -21,6 +21,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let acceptedStage;
             let resolvedStage;
             let inReviewStage;
+            let requiresInputStage;
             await promise.then((client) => {
                 const marketOptions = {
                     market_type: 'PLANNING',
@@ -182,9 +183,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminClient.markets.listStages();
             }).then((stageList) => {
                 globalStages = stageList;
-                acceptedStage = globalStages.find(stage => { return stage.assignee_enter_only; });
-                const inDialogStage = globalStages.find(stage => { return stage.allows_investment; });
-                resolvedStage = globalStages.find(stage => {return stage.appears_in_market_summary});
+                acceptedStage = globalStages.find(stage => stage.assignee_enter_only);
+                const inDialogStage = globalStages.find(stage => stage.allows_investment);
+                resolvedStage = globalStages.find(stage => stage.appears_in_market_summary);
+                requiresInputStage = globalStages.find(stage => !stage.allows_issues && stage.move_on_comment);
                 const stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
@@ -252,6 +254,30 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
                 assert(!openComment, 'Resolving question removes issue notification');
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
+                    'body of my assisted comment', null, 'QUESTION');
+            }).then((comment) => {
+                questionCommentId = comment.id;
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const marketInfo = market_infos[0];
+                const { stage } = marketInfo;
+                assert(requiresInputStage.id === stage, 'Investible should move to assistance');
+                return userClient.investibles.updateComment(questionCommentId, undefined, true);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const marketInfo = market_infos[0];
+                const { stage } = marketInfo;
+                assert(inReviewStage.id === stage, 'Investible should move back to former');
                 const stateOptions = {
                     current_stage_id: inReviewStage.id,
                     stage_id: resolvedStage.id
