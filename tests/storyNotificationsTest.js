@@ -272,6 +272,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
