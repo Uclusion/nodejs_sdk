@@ -280,6 +280,33 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const marketInfo = market_infos[0];
                 const { stage } = marketInfo;
                 assert(inReviewStage.id === stage, 'Investible should move back to former');
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
+                    'body of my assisted comment', null, 'SUGGEST');
+            }).then((comment) => {
+                questionCommentId = comment.id;
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const marketInfo = market_infos[0];
+                const { stage } = marketInfo;
+                assert(requiresInputStage.id === stage, 'Investible moves to assistance for suggest');
+                return userClient.investibles.updateComment(questionCommentId, undefined, undefined,
+                    undefined, undefined, 'TODO');
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const marketInfo = market_infos[0];
+                const { stage } = marketInfo;
+                assert(inReviewStage.id === stage, 'Investible moves back to former for type change');
                 const stateOptions = {
                     current_stage_id: inReviewStage.id,
                     stage_id: resolvedStage.id
