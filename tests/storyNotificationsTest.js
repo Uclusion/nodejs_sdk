@@ -280,6 +280,23 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const marketInfo = market_infos[0];
                 const { stage } = marketInfo;
                 assert(inReviewStage.id === stage, 'Investible should move back to former');
+                return userClient.investibles.updateComment(questionCommentId, undefined, false);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
+                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const marketInfo = market_infos[0];
+                const { stage } = marketInfo;
+                assert(requiresInputStage.id === stage, 'Investible should move again to assistance');
+                return userClient.investibles.updateComment(questionCommentId, undefined, true);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
+            }).then(() => {
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
                     'body of my assisted comment', null, 'SUGGEST');
             }).then((comment) => {
