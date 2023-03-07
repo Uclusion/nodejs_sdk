@@ -121,10 +121,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }
                 });
                 // marketInvestibleVersion is 2 because creating the Question moved it to Requires Input
-                // groupVersion is 2 because group ticket sub code updated when create investible
+                // groupVersion is 3 because group ticket sub code updated when create investible and comment
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 2
                     && marketCapabilityVersion === 1 && stageVersion === 1 && commentVersion === 1 &&
-                    addressedVersion === 0 && groupVersion === 2,
+                    addressedVersion === 0 && groupVersion === 3,
                     `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion} ${addressedVersion} ${groupVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
