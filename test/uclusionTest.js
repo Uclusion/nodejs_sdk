@@ -36,6 +36,8 @@ const userConfiguration = {
 describe('uclusion', () => {
   require('../tests/identityTests.js')(adminConfiguration);
   require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
+  require('../tests/demoTest.js')(adminConfiguration);
+  require('../tests/billingTest.js')(adminConfiguration, userConfiguration, stripeConfig);
 //  require('../tests/demoTest.js')(adminConfiguration);
   require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
   require('../tests/groupTest.js')(adminConfiguration, userConfiguration);
@@ -43,7 +45,6 @@ describe('uclusion', () => {
   require('../tests/storyNotificationsTest.js')(adminConfiguration, userConfiguration);
   require('../tests/initiativeNotificationsTest.js')(adminConfiguration, userConfiguration);
   require('../tests/decisionNotificationsTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/billingTest.js')(adminConfiguration, userConfiguration, stripeConfig);
   require('../tests/securityTests.js')(adminConfiguration, userConfiguration);
   require('../tests/marketsTest.js')(adminConfiguration, userConfiguration);
   require('../tests/planningTest.js')(adminConfiguration, userConfiguration);

@@ -99,6 +99,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((account) => {
                 //console.log(account)
                 const {billing_promotions, billing_subscription_status} = account;
+                console.dir(account);
                 assert(billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
