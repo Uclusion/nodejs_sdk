@@ -1690,10 +1690,9 @@ typedarray-to-buffer@^3.1.5:
   dependencies:
     is-typedarray "^1.0.0"
 
-"uclusion_sdk@git@github.com:Uclusion/uclusion_sdk.git":
+"uclusion_sdk@https://github.com/Uclusion/uclusion_sdk.git#7fb40915f742a6fc6df6cf77715096aa13756a7b":
   version "0.0.2"
-  resolved "https://registry.yarnpkg.com/uclusion_sdk/-/uclusion_sdk-0.0.2.tgz#e9adf99d3b07136d43c90a908e349050a00f978d"
-  integrity sha512-QTRsGjUPavnG1bS/JRfBXHiSnt2eBMjyPaKGkY6lHwRCq0YdczkYKwbA19syOgj9P5NhDlXgSqIz0jtMWsU+hA==
+  resolved "https://github.com/Uclusion/uclusion_sdk.git#7fb40915f742a6fc6df6cf77715096aa13756a7b"
 
 url@0.10.3:
   version "0.10.3"

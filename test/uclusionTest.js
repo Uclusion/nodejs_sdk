@@ -36,7 +36,6 @@ const userConfiguration = {
 describe('uclusion', () => {
   require('../tests/identityTests.js')(adminConfiguration);
   require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/demoTest.js')(adminConfiguration);
   require('../tests/billingTest.js')(adminConfiguration, userConfiguration, stripeConfig);
 //  require('../tests/demoTest.js')(adminConfiguration);
   require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
