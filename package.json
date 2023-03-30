@@ -15,7 +15,7 @@
     "lodash": "^4.17.15",
     "node-fetch": "^2.3.0",
     "stripe": "^8.181.0",
-    "uclusion_sdk": "https://github.com/Uclusion/uclusion_sdk.git#7fb40915f742a6fc6df6cf77715096aa13756a7b",
+    "uclusion_sdk": "https://github.com/Uclusion/uclusion_sdk.git",
     "websocket": "^1.0.29"
   },
   "devDependencies": {
