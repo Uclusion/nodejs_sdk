@@ -62,3 +62,7 @@ typings/
 
 # No intellij crap
 .idea
+
+#package crap
+yarn.lock
+package-lock.json
