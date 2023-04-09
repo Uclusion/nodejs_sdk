@@ -102,7 +102,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
-                assert(vote, 'Should receive not fully voted when comment resolved');
+                assert(vote, 'Still not fully voted when comment resolved');
                 return inlineUserClient.markets.updateInvestment(marketInvestibleId, -50, 0);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',

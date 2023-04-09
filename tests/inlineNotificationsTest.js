@@ -195,7 +195,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
-                assert(vote && vote.level === 'RED', 'Should receive critical not fully voted now that mentioned');
+                assert(vote && vote.level === 'YELLOW', 'Mention no affect on fully voted level');
                 return inlineUserClient.markets.updateAbstain(true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
