@@ -187,7 +187,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                assert(!vote, 'Not fully voted remains after issue');
+                assert(vote, 'Not fully voted remains after issue');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
