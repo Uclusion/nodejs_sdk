@@ -71,7 +71,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                assert(vote, 'Should receive not fully voted on login to market');
+                assert(!vote, 'Not fully voted not present till can vote on something');
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
@@ -89,7 +89,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                assert(vote, 'Un-promoted investible does not clear not fully voted');
+                assert(!vote, 'Un-promoted investible does not send not fully voted');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const submitted = messages.find(obj => {
@@ -158,6 +158,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_OPTION_' + marketInvestibleId;
                 });
                 assert(!newOption, 'View notification not required since will have not fully voted');
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                });
+                assert(vote, 'Promoted investible does send not fully voted');
                 return userClient.markets.updateInvestment(marketInvestibleId, 100,
                     0);
             }).then(() => {
@@ -183,10 +187,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
-                assert(vote, 'Not fully voted restored on option demoted by issue');
-                return userClient.investibles.createComment(marketInvestibleId, createdMarketId,
-                    'body of my comment', null,
-                    'ISSUE');
+                assert(!vote, 'Not fully voted remains after issue');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
