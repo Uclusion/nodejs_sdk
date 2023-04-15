@@ -229,7 +229,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + todoCommentId;
+                    return obj.type_object_id === 'UNREAD_COMMENT_' + todoCommentId;
                 });
                 assert(review, 'Opening a TODO alerts assigned');
                 return adminClient.investibles.updateComment(todoCommentId, undefined, true);
@@ -240,7 +240,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + todoCommentId;
+                    return obj.type_object_id === 'UNREAD_COMMENT_' + todoCommentId;
                 });
                 assert(!review, 'Resolving the todo removes the notification');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
