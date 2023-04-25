@@ -37,7 +37,6 @@ describe('uclusion', () => {
   require('../tests/identityTests.js')(adminConfiguration);
   require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
   require('../tests/billingTest.js')(adminConfiguration, userConfiguration, stripeConfig);
-//  require('../tests/demoTest.js')(adminConfiguration);
   require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
   require('../tests/groupTest.js')(adminConfiguration, userConfiguration);
   require('../tests/inlineNotificationsTest.js')(adminConfiguration, userConfiguration);
