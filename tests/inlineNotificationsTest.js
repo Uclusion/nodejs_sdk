@@ -195,7 +195,29 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
-                assert(vote && vote.level === 'YELLOW', 'Mention no affect on fully voted level');
+                assert(vote?.level === 'YELLOW', 'Mention no affect on fully voted level');
+                return inlineAdminClient.users.dehighlightNotifications([vote?.type_object_id]);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
+                });
+                assert(vote?.is_highlighted === false, 'Snoozed is not highlighted');
+                return inlineAdminClient.users.highlightNotifications(createdCommentId, [inlineUserId]);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
+                });
+                assert(vote?.is_highlighted, 'Poke should restore unread');
                 return inlineUserClient.markets.updateAbstain(true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
