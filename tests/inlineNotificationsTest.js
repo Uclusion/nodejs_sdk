@@ -196,7 +196,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
                 assert(vote && vote.level === 'YELLOW', 'Mention no affect on fully voted level');
-                return inlineAdminClient.users.dehighlightNotifications([vote.type_object_id]);
+                return inlineUserClient.users.dehighlightNotifications([vote.type_object_id]);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: userExternalId});
