@@ -20,7 +20,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let globalStages;
             let acceptedStage;
             let resolvedStage;
-            let inReviewStage;
+            let inApprovalStage;
             let requiresInputStage;
             await promise.then((client) => {
                 const marketOptions = {
@@ -185,7 +185,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 globalStages = stageList;
                 acceptedStage = globalStages.find(stage => stage.assignee_enter_only);
                 const inDialogStage = globalStages.find(stage => stage.allows_investment);
-                resolvedStage = globalStages.find(stage => stage.appears_in_market_summary);
+                resolvedStage = globalStages.find(stage => !stage.allows_tasks);
                 requiresInputStage = globalStages.find(stage => !stage.allows_issues && stage.move_on_comment);
                 const stateOptions = {
                     current_stage_id: inDialogStage.id,
@@ -202,11 +202,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
                 assert(openComment, 'Changing to non final stage preserves issue notification');
-                inReviewStage = globalStages.find(stage => { return !stage.appears_in_market_summary
-                    && stage.appears_in_context && !stage.assignee_enter_only && !stage.allows_investment; });
                 const stateOptions = {
                     current_stage_id: acceptedStage.id,
-                    stage_id: inReviewStage.id
+                    stage_id: resolvedStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
@@ -218,31 +216,21 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
-                assert(review, 'Moving to in review with no required reviewers is view level');
+                assert(review, 'Moving to complete with no mentions is view level');
                 return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my todo',
                     null, 'TODO');
             }).then((comment) => {
                 todoCommentId = comment.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return getMessages(adminConfiguration);
-            }).then((messages) => {
-                const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_COMMENT_' + todoCommentId;
-                });
-                assert(review, 'Opening a TODO alerts assigned');
-                return adminClient.investibles.updateComment(todoCommentId, undefined, true);
-            }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
-            }).then(() => {
-                return getMessages(adminConfiguration);
-            }).then((messages) => {
-                const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_COMMENT_' + todoCommentId;
-                });
-                assert(!review, 'Resolving the todo removes the notification');
+                return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                const { market_infos } = fullInvestible;
+                const marketInfo = market_infos[0];
+                const { stage } = marketInfo;
+                assert(inApprovalStage.id === stage, 'Investible should move to approval');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
@@ -279,7 +267,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const { market_infos } = fullInvestible;
                 const marketInfo = market_infos[0];
                 const { stage } = marketInfo;
-                assert(inReviewStage.id === stage, 'Investible should move back to former');
+                assert(inApprovalStage.id === stage, 'Investible should move back to former');
                 return userClient.investibles.updateComment(questionCommentId, undefined, false);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
@@ -323,9 +311,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const { market_infos } = fullInvestible;
                 const marketInfo = market_infos[0];
                 const { stage } = marketInfo;
-                assert(inReviewStage.id === stage, 'Investible moves back to former for type change');
+                assert(inApprovalStage.id === stage, 'Investible moves back to former for type change');
                 const stateOptions = {
-                    current_stage_id: inReviewStage.id,
+                    current_stage_id: inApprovalStage.id,
                     stage_id: resolvedStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
@@ -338,7 +326,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
-                assert(!review, 'Resolving the investible removes review');
+                assert(review, 'Resolving the investible creates review');
             }).catch(function (error) {
                 console.log(error);
                 throw error;

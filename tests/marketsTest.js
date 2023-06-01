@@ -84,7 +84,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(arrayEquals(marketInfo.assigned, [userId]), 'assigned should be correct');
                 inDialogStage = globalStages.find(stage => { return stage.allows_investment });
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
-                archivedStage = globalStages.find(stage => { return stage.appears_in_market_summary });
+                archivedStage = globalStages.find(stage => { return !stage.allows_tasks });
                 return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0, null, 1);
             }).then(() => {
                 console.log(`waiting for created investment on ${marketInvestibleId}`);
