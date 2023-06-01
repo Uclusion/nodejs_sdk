@@ -3,8 +3,8 @@ import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/u
 import {arrayEquals, checkStages} from "./commonTestFunctions";
 
 module.exports = function(adminConfiguration, userConfiguration) {
-    const plannedStageNames = ['In Dialog', 'Accepted', 'In Review', 'Blocked', 'Verified', 'Not Doing',
-        'Further Work', 'Requires Input'];
+    const plannedStageNames = ['In Dialog', 'Accepted', 'Blocked', 'Complete', 'Not Doing', 'Further Work',
+        'Requires Input'];
     const initiativeStageNames = ['In Dialog'];
     describe('#doCreate market and asynchronously expire investments', () => {
         it('should create market without error', async() => {
