@@ -184,11 +184,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((stageList) => {
                 globalStages = stageList;
                 acceptedStage = globalStages.find(stage => stage.assignee_enter_only);
-                const inDialogStage = globalStages.find(stage => stage.allows_investment);
+                inApprovalStage = globalStages.find(stage => stage.allows_investment);
                 resolvedStage = globalStages.find(stage => !stage.allows_tasks);
                 requiresInputStage = globalStages.find(stage => !stage.allows_issues && stage.move_on_comment);
                 const stateOptions = {
-                    current_stage_id: inDialogStage.id,
+                    current_stage_id: inApprovalStage.id,
                     stage_id: acceptedStage.id
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
