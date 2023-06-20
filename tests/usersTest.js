@@ -70,10 +70,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((client) => {
         adminClient = client;
         return adminAccountClient.users.update({'name': 'Default',
-          'notification_config': {
-            'market_id': createdMarketId,
-            'is_slack_addressable': true
-          }});
+            'marketId': createdMarketId,
+            'slackEnabled': true
+        });
       }).then((user) => {
         assert(user.name === 'Default', 'Update name not successful');
         assert(user.notification_configs.length === 1, 'Config missing');
