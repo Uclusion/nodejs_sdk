@@ -50,15 +50,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((client) => {
         adminAccountClient = client;
         return adminAccountClient.users.update({'name': 'Daniel', 'uiPreferences': '{ "code": "red" }'});
-      }).then((response) => {
-        assert(response.user.name === 'Daniel', 'User update was not successful');
+      }).then((user) => {
+        assert(user.name === 'Daniel', 'User update was not successful');
         return adminAccountClient.users.get(adminConfiguration.userId);
       }).then((user) => {
         assert(user.name === 'Daniel', 'Name not updated properly');
         assert(user.ui_preferences === '{ "code": "red" }', 'UI preferences not updated properly');
-        return adminAccountClient.users.update({'name': 'Default'});
-      }).then((response) => {
-        assert(response.user.name === 'Default', 'Update not successful');
         return loginUserToAccount(adminConfiguration);
       }).then((client) => {
         const marketOptions = {
@@ -72,11 +69,22 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
       }).then((client) => {
         adminClient = client;
+        return adminAccountClient.users.update({'name': 'Default',
+          'notification_config': {
+            'market_id': createdMarketId,
+            'is_slack_addressable': true
+          }});
+      }).then((user) => {
+        assert(user.name === 'Default', 'Update name not successful');
+        assert(user.notification_configs.length === 1, 'Config missing');
+        assert(user.notification_configs[0].market_id === createdMarketId, 'Update config not successful');
+        assert(user.notification_configs[0].is_slack_addressable, 'Update slack addressable not successful');
         // Add placeholder user to the market
         return adminClient.users.inviteUsers([userConfiguration.username]);
       }).then(() => {
         // This should be the user pushed out
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability',
+          object_id: createdMarketId});
       }).then(() => {
         return adminClient.markets.listUsers();
       }).then((users) => {
