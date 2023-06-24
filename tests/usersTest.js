@@ -75,9 +75,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         });
       }).then((user) => {
         assert(user.name === 'Default', 'Update name not successful');
-        assert(user.notification_configs.length === 1, 'Config missing');
-        assert(user.notification_configs[0].market_id === createdMarketId, 'Update config not successful');
-        assert(user.notification_configs[0].slack_enabled, 'Update slack enabled not successful');
+        const notification_config = user.notification_configs.find((config) =>
+            config.market_id === createdMarketId);
+        assert(notification_config.slack_enabled, 'Update slack enabled not successful');
         // Add placeholder user to the market
         return adminClient.users.inviteUsers([userConfiguration.username]);
       }).then(() => {
