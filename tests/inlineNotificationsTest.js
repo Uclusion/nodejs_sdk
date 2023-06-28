@@ -207,7 +207,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
                 assert(vote && vote.is_highlighted === false, 'Snoozed is not highlighted');
-                return inlineAdminClient.users.highlightNotifications(createdCommentId, [inlineUserId]);
+                return adminClient.users.highlightNotifications(createdCommentId, [inlineUserId]);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: userExternalId});
