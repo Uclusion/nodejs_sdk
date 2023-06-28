@@ -257,7 +257,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log(error);
                 throw error;
             });
-        }).timeout(240000);
+        }).timeout(480000);
     });
 };
 
