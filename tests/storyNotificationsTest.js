@@ -208,15 +208,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
-                assert(review, 'Moving to complete with no mentions is view level');
+                assert(!review, 'Moving to complete with no progress report is ignored');
                 return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my todo',
                     null, 'TODO');
             }).then((comment) => {
