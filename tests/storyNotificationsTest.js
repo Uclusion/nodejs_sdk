@@ -321,12 +321,18 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
+                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
+                    'review my job', null, 'REPORT');
+            }).then(() => {
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId});
+            }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
                 });
-                assert(review, 'Resolving the investible creates review');
+                assert(review, 'Resolving the investible with a progress report creates review');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
