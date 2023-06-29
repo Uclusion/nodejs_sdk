@@ -17,6 +17,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let createdMarketInvite;
             let questionCommentId;
             let todoCommentId;
+            let reportCommentId;
             let globalStages;
             let acceptedStage;
             let resolvedStage;
@@ -323,14 +324,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
                     'review my job', null, 'REPORT');
-            }).then(() => {
+            }).then((comment) => {
+                reportCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
                     object_id: createdMarketId});
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + reportCommentId;
                 });
                 assert(review, 'Resolving the investible with a progress report creates review');
             }).catch(function (error) {
