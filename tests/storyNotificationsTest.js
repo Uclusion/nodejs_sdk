@@ -326,8 +326,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     'review my job', null, 'REPORT');
             }).then((comment) => {
                 reportCommentId = comment.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
+                    object_id: createdMarketId}, {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
