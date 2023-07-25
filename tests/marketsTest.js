@@ -34,7 +34,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const planningOptions = {
                     market_type: 'PLANNING',
                     name: 'Company A',
-                    market_sub_type: 'TEST',
+                    market_sub_type: 'INTEGRATION_TEST',
                     investment_expiration: 1
                 };
                 return accountClient.markets.createMarket(planningOptions);
