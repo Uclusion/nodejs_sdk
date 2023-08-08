@@ -62,7 +62,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
                 });
                 assert(vote, 'Should receive not fully voted for existing stories on login');
                 return userClient.users.get();
@@ -99,7 +99,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
                 });
                 assert(!vote, 'Not fully voted removed if leave comment');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
@@ -127,7 +127,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
                 });
                 assert(vote, 'Should receive not fully voted when comment resolved');
                 return userClient.markets.updateInvestment(marketInvestibleId, 50, 0);
@@ -144,7 +144,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + createdMarketId;
                 });
                 assert(!vote, 'Not fully voted removed on approval');
                 return userClient.markets.removeInvestment(marketInvestibleId);
@@ -161,7 +161,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
                 });
                 assert(vote, 'Removing investment restores not fully voted');
                 return userClient.investibles.updateComment(questionCommentId, undefined, false);
@@ -172,7 +172,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
                 });
                 assert(!vote, 'Unresolving comment removes not fully voted');
                 return getMessages(adminConfiguration);
