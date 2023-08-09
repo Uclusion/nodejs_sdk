@@ -10,12 +10,19 @@ class WebSocketRunner {
         this.reconnectInterval = config.reconnectInterval;
         this.subscribeQueue = [];
         this.messageHanders = [];
+        this.previouslyQueued = [];
     }
 
     getMessageHandler() {
         const handler = (event) => {
             //console.log(event);
             const payload = JSON.parse(event.data);
+            if (this.messageHanders.length === 0) {
+                console.log("Queuing for later:");
+                console.log(payload);
+                // No active message handler so try to avoid dropping a message
+                this.previouslyQueued.push(payload);
+            }
             //we're going to filter the messagehandlers at each run
             //and if they return true assume they want to go away
             this.messageHanders = this.messageHanders.filter(messageHandler => !messageHandler(payload));
@@ -89,6 +96,22 @@ class WebSocketRunner {
         return this.waitForReceivedMessages([signature]).then((responses) => responses[0]);
     }
 
+    checkPayload(payload, signature) {
+        console.log("Received payload for matching:");
+        console.log(payload);
+        let stillMatching = true;
+        console.log("Testing message against signature:");
+        console.log(signature);
+        for(const key of Object.keys(signature)){
+            stillMatching &= (payload[key] === signature[key] || isSubsetEquivalent(payload[key], signature[key]));
+        }
+        if (stillMatching) {
+            console.log("Found match");
+            return true;
+        }
+        return false;
+    }
+
     /** Waits for a received messages matching the signature passed in
      *
      * @param signatures an array of object of key/value pairs we'll wait for
@@ -96,24 +119,23 @@ class WebSocketRunner {
      * otherwise rejects
      */
     waitForReceivedMessages(signatures){
+        let previouslyQueued = this.previouslyQueued;
         console.log("Waiting on message signatures:");
         console.log(signatures);
-
         const promises = signatures.map(signature => {
             return new Promise((resolve, reject) => {
-                //     const timeoutHandler = setTimeout(() => { reject(signature) }, timeout);
                 this.messageHanders.push((payload) => {
-                    console.log("Received payload for matching:");
-                    console.log(payload);
-                    let stillMatching = true;
-                    console.log("Testing message against signature:");
-                    console.log(signature);
-                    for(const key of Object.keys(signature)){
-                        stillMatching &= (payload[key] === signature[key] || isSubsetEquivalent(payload[key], signature[key]));
-                    }
-                    if (stillMatching) {
-                        console.log("Found match");
-                        //            clearTimeout(timeoutHandler);
+                    // Drain the previous queue now that got something
+                    this.previouslyQueued = [];
+                    previouslyQueued.forEach((previousPayload) => {
+                        console.log("This payload queued before waiting:");
+                        console.log(previousPayload);
+                        if (this.checkPayload(previousPayload, signature)) {
+                            resolve(previousPayload);
+                            return true;
+                        }
+                    });
+                    if (this.checkPayload(payload, signature)) {
                         resolve(payload);
                         return true;
                     }
