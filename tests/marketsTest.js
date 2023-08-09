@@ -14,7 +14,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let accountClient;
             let createdMarketId;
             let userId;
-            let userExternalId;
+            let adminExternalId;
             let adminId;
             let marketInvestibleId;
             let marketInvestibleTwoId;
@@ -50,6 +50,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.users.get();
             }).then((user) => {
                 adminId = user.id;
+                adminExternalId = user.external_id;
                 return adminClient.markets.get();
             }).then((market) => {
                 assert(market.id === createdMarketId, 'ID is incorrect');
@@ -69,7 +70,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
-                userExternalId = user.external_id;
                 return userClient.investibles.create({groupId: createdMarketId, name: 'salmon spawning', description: 'plan to catch',
                     assignments: [userId]});
             }).then((investible) => {
@@ -121,7 +121,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.investibles.updateAssignments(marketInvestibleId, [adminId]);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification'}]);
+                    {event_type: 'notification', object_id: adminExternalId}]);
             }).then(() => {
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
