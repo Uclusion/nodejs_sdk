@@ -135,7 +135,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const unread = messages.find(obj => {
-                    return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
+                    return (obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
                 assert(unread && unread.level === 'YELLOW', `changing assignment should mark unvoted for ${marketInvestibleId}`);
                 assert(unread.market_investible_id === marketInfo.id, 'notification is for market info');
@@ -148,13 +148,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const helpAssign = messages.find(obj => {
-                    return (obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
+                    return (obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(!helpAssign, 'NOT_FULLY_VOTED gone after investment');
+                assert(!helpAssign, 'UNREAD_JOB_APPROVAL_REQUEST gone after investment');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + marketInvestibleId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
                 });
                 assert(newVoting, 'Assigned should be notified of story');
                 stateOptions = {

@@ -69,24 +69,22 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
         return adminClient.investibles.updateAssignments(storyId, [userId]);
       }).then(() => {
-        // NOT_FULLY_VOTED is delayed for to handle vote via API chaining
-        // Plus wait for the investment deletion event also
-        // We are deleting vote notification for assigned and then adding it back so wait for admin that won't do that
-        return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
-          object_id: adminExternalId}, {event_type: 'investment', object_id: marketId}]);
+        // wait for the investment deletion event
+        return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+            {event_type: 'investment', object_id: marketId});
       }).then(() => {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
-          return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
+          return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
         });
         assert(newAssignment, 'New assigned gets approve notification');
         return getMessages(adminConfiguration);
       }).then((messages) => {
         const vote = messages.find(obj => {
-          return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
+          return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
         });
-        assert(vote, 'Reassignment sends not fully voted');
+        assert(!vote, 'Updater does not get vote request');
         return userClient.markets.updateInvestment(storyId, 100, 0);
       }).then(() => {
         // Delete of unaccepted notification now that approving has accepted
@@ -96,7 +94,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getMessages(userConfiguration);
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
-          return obj.type_object_id === 'NOT_FULLY_VOTED_' + storyId;
+          return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
         });
         assert(!newAssignment, 'Accepting clears approve notification');
       }).catch(function (error) {
