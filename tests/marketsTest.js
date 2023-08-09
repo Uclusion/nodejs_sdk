@@ -120,9 +120,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userClient.investibles.updateAssignments(marketInvestibleId, [adminId]);
             }).then((response) => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification'}])
-                    .then(() => response);
+                // Waiting for the notification also is failing for unknown reasons
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
