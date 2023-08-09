@@ -128,8 +128,7 @@ class WebSocketRunner {
                     // Drain the previous queue now that got something
                     this.previouslyQueued = [];
                     previouslyQueued.forEach((previousPayload) => {
-                        console.log("This payload queued before waiting:");
-                        console.log(previousPayload);
+                        console.log("Checking payload queued before waiting:");
                         if (this.checkPayload(previousPayload, signature)) {
                             resolve(previousPayload);
                             return true;
