@@ -120,7 +120,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userClient.investibles.updateAssignments(marketInvestibleId, [adminId]);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
                     {event_type: 'notification', object_id: userExternalId}])
                     .then(() => response);
             }).then(() => {
@@ -132,31 +132,25 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const { assigned, stage } = marketInfo;
                 assert(assigned[0] === adminId, 'Should be assigned');
                 assert(stage === inDialogStage.id, 'Should be in voting stage');
-                return getMessages(userConfiguration);
+                return getMessages(adminConfiguration);
             }).then((messages) => {
                 const unread = messages.find(obj => {
                     return (obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(unread && unread.level === 'YELLOW', `changing assignment should mark unvoted for ${marketInvestibleId}`);
+                assert(unread, `changing assignment should mark unvoted for ${marketInvestibleId}`);
                 assert(unread.market_investible_id === marketInfo.id, 'notification is for market info');
                 assert(unread.market_investible_version === marketInfo.version, 'notification version should match market info version');
                 return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
-                return getMessages(userConfiguration);
-            }).then((messages) => {
-                const helpAssign = messages.find(obj => {
-                    return (obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
-                });
-                assert(!helpAssign, 'UNREAD_JOB_APPROVAL_REQUEST gone after investment');
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
+                    return obj.type_object_id === 'FULLY_VOTED_' + marketInvestibleId;
                 });
-                assert(newVoting, 'Assigned should be notified of story');
+                assert(newVoting, 'Assigned should be notified of approval');
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
