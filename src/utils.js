@@ -26,13 +26,13 @@ export function getSummariesInfo(configuration) {
 }
 
 export function getWebSocketRunner(configuration) {
-    return getSSOInfo(configuration)
-        .then(info => {
-            const { idToken } = info;
+    return loginUserToAccountAndGetToken(configuration)
+        .then(response => {
+            const { accountToken } = response;
             const webSocketRunner = new WebSocketRunner({ wsUrl: configuration.websocketURL,
                 reconnectInterval: 3000});
             webSocketRunner.connect();
-            webSocketRunner.subscribe(idToken);
+            webSocketRunner.subscribe(accountToken);
             return webSocketRunner;
         });
 }
@@ -55,7 +55,7 @@ export function loginUserToAccount(configuration) {
 export function loginUserToAccountAndGetToken(configuration) {
     return getSSOInfo(configuration)
         .then(info => {
-            const { ssoClient, idToken } = info;
+            const { ssoClient } = info;
             const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
             return tokenManager.getToken()
                 .then((accountToken) => {
