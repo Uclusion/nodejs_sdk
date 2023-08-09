@@ -26,9 +26,11 @@ export function getSummariesInfo(configuration) {
 }
 
 export function getWebSocketRunner(configuration) {
-    return loginUserToIdentity(configuration)
-        .then(idToken => {
-            const webSocketRunner = new WebSocketRunner({ wsUrl: configuration.websocketURL, reconnectInterval: 3000});
+    return getSSOInfo(configuration)
+        .then(info => {
+            const { idToken } = info;
+            const webSocketRunner = new WebSocketRunner({ wsUrl: configuration.websocketURL,
+                reconnectInterval: 3000});
             webSocketRunner.connect();
             webSocketRunner.subscribe(idToken);
             return webSocketRunner;
