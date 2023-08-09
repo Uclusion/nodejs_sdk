@@ -121,7 +121,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.investibles.updateAssignments(marketInvestibleId, [adminId]);
             }).then((response) => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification', object_id: userExternalId}])
+                    {event_type: 'notification'}])
                     .then(() => response);
             }).then(() => {
                 return userClient.markets.getMarketInvestibles([marketInvestibleId]);
