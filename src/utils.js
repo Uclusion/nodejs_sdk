@@ -63,7 +63,7 @@ export function getMessages(configuration) {
             const { accountToken } = response;
             return uclusion.constructSSOClient(configuration)
                 .then((ssoClient) => {
-                    ssoClient.getMessages(accountToken);
+                    return ssoClient.getMessages(accountToken);
                 });
         });
 }
