@@ -30,9 +30,9 @@ module.exports = function(adminConfiguration) {
                         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
                     })
                     .then(() => {
-                        return summariesClient.idList(idToken).then((audits) => {
+                        return client.summaries.idList(idToken).then((audits) => {
                             const allMarkets = audits.map((audit) => audit.id);
-                            return summariesClient.versions(idToken, allMarkets);
+                            return client.summaries.versions(idToken, allMarkets);
                         });
                     }).then((versions) => {
                         const { signatures } = versions;
