@@ -147,9 +147,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
-                console.log(messages);
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_VOTE_' + marketInvestibleId;
+                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
                 });
                 assert(newVoting, 'Assigned should be notified of approval');
                 stateOptions = {
