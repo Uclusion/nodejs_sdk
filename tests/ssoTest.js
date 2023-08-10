@@ -1,5 +1,5 @@
 import assert from 'assert';
-import {getSummariesInfo, loginUserToAccount} from '../src/utils';
+import {loginUserToAccount, loginUserToAccountAndGetToken} from '../src/utils';
 import _ from 'lodash';
 
 module.exports = function(adminConfiguration) {
@@ -10,13 +10,13 @@ module.exports = function(adminConfiguration) {
 
     describe('#do identity sso tests, ', () => {
         it('should retrieve login info without error', async () => {
-            let authPromise = getSummariesInfo(adminConfiguration);
+            let authPromise = loginUserToAccountAndGetToken(adminConfiguration);
             let createdMarketId;
-            await authPromise.then((summariesInfo) => {
-                const {summariesClient, idToken} = summariesInfo;
-                return summariesClient.idList(idToken).then((audits) => {
+            await authPromise.then((response) => {
+                const { client, accountToken } = response;
+                return client.summaries.idList(accountToken).then((audits) => {
                     const allMarkets = audits.map((audit) => audit.id);
-                    return summariesClient.versions(idToken, allMarkets);
+                    return client.summaries.versions(accountToken, allMarkets);
                 }).then((versions) => {
                         const { signatures } = versions;
                         console.dir(signatures);

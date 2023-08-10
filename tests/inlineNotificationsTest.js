@@ -3,7 +3,7 @@ import {
     loginUserToMarket,
     getMessages,
     loginUserToMarketInvite,
-    loginUserToAccountAndGetToken, getSummariesInfo, loginUserToAccount
+    loginUserToAccountAndGetToken, loginUserToAccount
 } from "../src/utils";
 import _ from "lodash";
 
@@ -30,6 +30,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let inlineUserId;
             let globalStages;
             let globalUserAccountToken;
+            let globalUserAccountClient;
             await promise.then((client) => {
                 accountClient = client;
                 const marketOptions = {
@@ -73,12 +74,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 createdCommentId = comment.id;
                 return loginUserToAccountAndGetToken(userConfiguration);
             }).then((response) => {
-                const { accountToken } = response;
+                const { client, accountToken } = response;
                 globalUserAccountToken = accountToken;
-                return getSummariesInfo(userConfiguration).then((summariesInfo) => {
-                    const {summariesClient} = summariesInfo;
-                    return summariesClient.versions(globalUserAccountToken, [createdMarketId]);
-                });
+                globalUserAccountClient = client;
+                return client.summaries.versions(globalUserAccountToken, [createdMarketId]);
             }).then((versions) => {
                 const { signatures } = versions;
                 let foundInvestible = false;
@@ -104,10 +103,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     [{event_type: 'comment', object_id: createdMarketId},
                         {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
-                return getSummariesInfo(userConfiguration).then((summariesInfo) => {
-                    const {summariesClient} = summariesInfo;
-                    return summariesClient.versions(globalUserAccountToken, [createdMarketId]);
-                });
+                return globalUserAccountClient.summaries.versions(globalUserAccountToken, [createdMarketId]);
             }).then((versions) => {
                 const { signatures } = versions;
                 let foundInvestible = false;

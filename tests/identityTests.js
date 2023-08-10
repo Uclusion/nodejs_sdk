@@ -1,4 +1,4 @@
-import {getSummariesInfo, loginUserToAccount, loginUserToMarket} from '../src/utils';
+import {loginUserToAccount, loginUserToAccountAndGetToken, loginUserToMarket} from '../src/utils';
 import { sleep } from './commonTestFunctions';
 import _ from 'lodash';
 
@@ -8,17 +8,17 @@ module.exports = function (adminConfiguration) {
     describe('#cleanup old runs, ', () => {
       let timeout;
         it('should cleanup old markets for the identity', async () => {
-            const promise = getSummariesInfo(adminConfiguration);
-            await promise.then((summariesInfo) => {
-                const {summariesClient, idToken} = summariesInfo;
-                return summariesClient.idList(idToken).then((audits) => {
+            const promise = loginUserToAccountAndGetToken(adminConfiguration);
+            await promise.then((response) => {
+                const { client, accountToken } = response;
+                return client.summaries.idList(accountToken).then((audits) => {
                     if (_.isEmpty(audits)) {
                         return {signatures: []};
                     }
                     const allMarkets = audits.map((audit) => audit.id);
                     const chunks = _.chunk(allMarkets, 24);
                     const versionPromises = chunks.map((chunk) => {
-                        return summariesClient.versions(idToken, chunk).then((versions) => {
+                        return client.summaries.versions(accountToken, chunk).then((versions) => {
                             const { signatures } = versions;
                             const deletions = signatures.map((signature) => {
                                 const {market_id: marketId} = signature;

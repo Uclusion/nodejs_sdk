@@ -1,6 +1,5 @@
 import assert from 'assert'
 import {
-    getSummariesInfo,
     loginUserToAccountAndGetToken,
     loginUserToMarket,
     loginUserToMarketInvite
@@ -17,7 +16,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let otherAccountId;
             let otherUserExternalId;
-            let globalSummariesClient;
             let inlineMarketId;
             let createdMarketInvite;
             let globalAccountToken;
@@ -53,12 +51,10 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Since admin client created the comment we are not expecting a notification here
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
                     {event_type: 'market_investible', object_id: createdMarketId}]);
-            }).then(() => getSummariesInfo(adminConfiguration)).then((summariesInfo) => {
-                const {summariesClient} = summariesInfo;
-                globalSummariesClient = summariesClient;
-                return summariesClient.idList(globalAccountToken).then((audits) => {
+            }).then(() => {
+                return adminClient.summaries.idList(globalAccountToken).then((audits) => {
                     const allMarkets = audits.map((audit) => audit.id);
-                    return summariesClient.versions(globalAccountToken, allMarkets)
+                    return adminClient.summaries.versions(globalAccountToken, allMarkets)
                 });
             }).then((versions) => {
                 let marketVersion = 0;
