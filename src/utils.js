@@ -15,16 +15,6 @@ export function getSSOInfo(configuration) {
     });
 }
 
-export function getSummariesInfo(configuration) {
-    return loginUserToIdentity(configuration)
-        .then(idToken => {
-            return uclusion.constructSummariesClient(configuration)
-                .then((summariesClient) => {
-                    return { idToken, summariesClient };
-                });
-        });
-}
-
 export function getWebSocketRunner(configuration) {
     return loginUserToAccountAndGetToken(configuration)
         .then(response => {
@@ -68,10 +58,13 @@ export function loginUserToAccountAndGetToken(configuration) {
 }
 
 export function getMessages(configuration) {
-    return getSSOInfo(configuration)
-        .then(info => {
-            const { ssoClient, idToken } = info;
-            return ssoClient.getMessages(idToken);
+    return loginUserToAccountAndGetToken(configuration)
+        .then(response => {
+            const { accountToken } = response;
+            return uclusion.constructSSOClient(configuration)
+                .then((ssoClient) => {
+                    ssoClient.getMessages(accountToken);
+                });
         });
 }
 

@@ -27,13 +27,11 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
     describe('#Test without coupons', () => {
         it('create a subscription without coupons', async () => {
             let adminAccountClient;
-            let adminIdToken;
             let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
-                adminIdToken = ssoInfo.idToken;
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
@@ -129,13 +127,11 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
         it('create a subscription with Test12Month coupon', async () => {
             const promoCode = 'Test12Month';
             let adminAccountClient;
-            let adminIdToken;
             let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
-                adminIdToken = ssoInfo.idToken;
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
@@ -174,11 +170,9 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
             let adminAccountClient;
-            let adminIdToken;
             let ssoClient;
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
-                adminIdToken = ssoInfo.idToken;
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
@@ -206,11 +200,9 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             let adminAccountClient;
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
-            let adminIdToken;
             let ssoClient;
             await getSSOInfo(adminConfiguration).then((ssoInfo) => {
                 ssoClient = ssoInfo.ssoClient;
-                adminIdToken = ssoInfo.idToken;
                 // make our client
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
                 const config = {...adminConfiguration, tokenManager};

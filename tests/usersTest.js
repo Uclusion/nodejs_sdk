@@ -17,15 +17,12 @@ module.exports = function (adminConfiguration, userConfiguration) {
     it('should login and pull without error', async () => {
       let adminAccountClient;
       const date = new Date();
-      const timestamp = date.getTime();
-      let adminIdToken;
       let ssoClient;
       let createdMarketId;
       let adminClient;
       let createdMarketInvite;
       await getSSOInfo(adminConfiguration).then(ssoInfo => {
         ssoClient = ssoInfo.ssoClient;
-        adminIdToken = ssoInfo.idToken;
         return getWebSocketRunner(adminConfiguration);
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
