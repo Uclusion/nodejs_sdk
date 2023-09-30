@@ -18,8 +18,8 @@ class WebSocketRunner {
             //console.log(event);
             const payload = JSON.parse(event.data);
             if (this.messageHanders.length === 0) {
-                console.log("Queuing for later:");
-                console.log(payload);
+                // console.log("Queuing for later:");
+                // console.log(payload);
                 // No active message handler so try to avoid dropping a message
                 this.previouslyQueued.push(payload);
             }
