@@ -17,6 +17,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let userClient;
             let userId;
             let userExternalId;
+            let adminUserId;
+            let adminUserExternalId;
             let createdMarketId;
             let marketInvestibleId;
             let globalStages;
@@ -48,6 +50,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
                 adminClient = client;
+                return adminClient.users.get();
+            }).then((user) => {
+                adminUserId = user.id;
+                adminUserExternalId = user.external_id;
                 console.log(`Logging user into market ${createdMarketId}`);
                 return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
@@ -114,8 +120,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 });
                 assert(!investibleIssue, 'Issue notification removed by reply');
                 const mention = {
-                    user_id: userId,
-                    external_id: userExternalId,
+                    user_id: adminUserId,
+                    external_id: adminUserExternalId,
                 };
                 return userClient.investibles.updateComment(parentCommentId, 'new body', true, undefined, [mention]);
             }).then((comment) => {
