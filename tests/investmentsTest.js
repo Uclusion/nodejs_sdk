@@ -128,7 +128,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 console.log('Checking updated comment');
                 assert(comment.body === 'new body', 'updated comment body incorrect');
                 assert(comment.mentions.length === 1, 'mentions should contain just one person');
-                assert(comment.mentions[0].user_id === userId, 'mention should just be for the user id');
+                assert(comment.mentions[0].user_id === adminUserId, 'mention should be admin user id');
                 assert(comment.resolved, 'updated resolved incorrect');
                 assert(comment.children, 'now parent should have children');
                 assert(comment.version === 4, `update, reply and resolve should each bump version but ${comment.version}`);
