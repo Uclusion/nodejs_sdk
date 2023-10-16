@@ -222,9 +222,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const voted = messages.find(obj => {
-                    return obj.type_object_id === 'FULLY_VOTED_' + inlineMarketId;
+                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
                 });
-                assert(voted, 'Fully voted when all voted or abstained');
+                assert(!voted, 'Abstain removes vote notification');
             }).then(() => {
                 return inlineUserClient.markets.listUsers();
             }).then((users) => {
