@@ -106,7 +106,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
                 });
                 assert(openComment, 'Must respond to admin opening comment');
                 return getMessages(adminConfiguration);
@@ -123,7 +123,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
                 });
                 assert(!openComment, 'Resolving comment removes issue notification');
                 return getMessages(adminConfiguration);

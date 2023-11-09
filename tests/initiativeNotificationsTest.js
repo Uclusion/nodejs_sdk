@@ -77,7 +77,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
                 });
                 assert(openComment, 'Must respond to user opening comment');
                 return getMessages(userConfiguration);
@@ -94,7 +94,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
                 });
                 assert(!openComment, 'Resolving comment removes issue notification');
                 return getMessages(userConfiguration);
@@ -151,7 +151,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
-                    return obj.type_object_id === 'ISSUE_' + createdCommentId;
+                    return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
                 });
                 assert(openComment, 'Unresolving comment restores issue notification');
             }).catch(function (error) {
