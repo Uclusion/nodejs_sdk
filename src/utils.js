@@ -17,7 +17,7 @@ export function getSSOInfo(configuration) {
 
 export function getWebSocketRunner(configuration) {
     // Websocket is its own thread so doesn't share identity login
-    return loginUserToIdentity(adminConfiguration)
+    return loginUserToIdentity(configuration)
         .then(() => loginUserToAccountAndGetToken(configuration))
         .then(response => {
             const { accountToken } = response;
