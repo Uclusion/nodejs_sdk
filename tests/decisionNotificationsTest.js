@@ -117,8 +117,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(!submitted, 'Investible submitted removed if leave comment');
                 return userClient.investibles.updateComment(createdCommentId, undefined, true);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                // Wait for comment and also UNREAD_UNRESOLVED notification
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
+                    object_id: createdMarketId}, {event_type: 'notification', object_id: adminExternalId}]);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -179,8 +180,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     'ISSUE');
             }).then((comment) => {
                 createdCommentId = comment.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
+                    object_id: createdCommentId}, {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
