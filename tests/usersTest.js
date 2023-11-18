@@ -27,7 +27,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
         return loginUserToIdentity(userConfiguration)
-            .then(() => getWebSocketRunner(userConfiguration));
+            .then((jwtToken) => {
+              userConfiguration.idToken = jwtToken;
+              return getWebSocketRunner(userConfiguration);
+            });
       }).then((webSocketRunner) => {
         userConfiguration.webSocketRunner = webSocketRunner;
         const info = {
@@ -42,7 +45,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return ssoClient.resendVerification(adminConfiguration.username);
       }).then((result) => {
         assert(result.response === 'ACCOUNT_EXISTS', 'Account should have existed');
-        const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+        const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
+            adminConfiguration.idToken);
         const config = { ...adminConfiguration, tokenManager };
         return uclusion.constructClient(config);
       }).then((client) => {

@@ -30,9 +30,10 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
-            await getSSOInfo(adminConfiguration).then((ssoInfo) => {
-                ssoClient = ssoInfo.ssoClient;
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+            await getSSOInfo(adminConfiguration).then((info) => {
+                const { ssoClient, idToken } = info;
+                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
+                    idToken);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
             }).then((client) => {
@@ -84,10 +85,11 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
-            await getSSOInfo(adminConfiguration).then((ssoInfo) => {
-                ssoClient = ssoInfo.ssoClient;
-                adminIdToken = ssoInfo.idToken;
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+            await getSSOInfo(adminConfiguration).then((info) => {
+                const { ssoClient, idToken } = info;
+                adminIdToken = idToken;
+                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
+                    idToken);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
             }).then((client) => {
@@ -130,9 +132,10 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
-            await getSSOInfo(adminConfiguration).then((ssoInfo) => {
-                ssoClient = ssoInfo.ssoClient;
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+            await getSSOInfo(adminConfiguration).then((info) => {
+                const { ssoClient, idToken } = info;
+                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
+                    idToken);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
             }).then((client) => {
@@ -171,9 +174,10 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             const invalidPromoCode = 'TestInvalid';
             let adminAccountClient;
             let ssoClient;
-            await getSSOInfo(adminConfiguration).then((ssoInfo) => {
-                ssoClient = ssoInfo.ssoClient;
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+            await getSSOInfo(adminConfiguration).then((info) => {
+                const { ssoClient, idToken } = info;
+                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
+                    idToken);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
             }).then((client) => {
@@ -201,10 +205,10 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
             let ssoClient;
-            await getSSOInfo(adminConfiguration).then((ssoInfo) => {
-                ssoClient = ssoInfo.ssoClient;
-                // make our client
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient);
+            await getSSOInfo(adminConfiguration).then((info) => {
+                const { ssoClient, idToken } = info;
+                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
+                    idToken);
                 const config = {...adminConfiguration, tokenManager};
                 return uclusion.constructClient(config);
             }).then((client) => {

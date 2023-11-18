@@ -6,11 +6,22 @@ import { getIdentity } from './amplifyAuth';
 
     class TestTokenManager{
 
-      constructor(tokenType, itemId, ssoClient) {
+      constructor(tokenType, itemId, ssoClient, idToken) {
         this.tokenType = tokenType;
         this.itemId = itemId;
         this.ssoClient = ssoClient;
         this.token = null;
+        this.idToken = idToken;
+      }
+
+      getLogin() {
+          if (TOKEN_TYPE_MARKET === this.tokenType) {
+              return this.ssoClient.marketCognitoLogin(this.idToken, this.itemId);
+          }
+          if (TOKEN_TYPE_MARKET_INVITE === this.tokenType) {
+              return this.ssoClient.marketInviteLogin(this.idToken, this.itemId);
+          }
+          return this.ssoClient.accountCognitoLogin(this.idToken);
       }
 
       getToken() {
@@ -19,16 +30,8 @@ import { getIdentity } from './amplifyAuth';
        //   console.log(`using existing token ${this.token}`);
           return Promise.resolve(this.token);
         }
-        return getIdentity()
-          .then((idToken) => {
-            if (TOKEN_TYPE_MARKET === this.tokenType) {
-              return this.ssoClient.marketCognitoLogin(idToken, this.itemId);
-            }
-            if (TOKEN_TYPE_MARKET_INVITE === this.tokenType) {
-              return this.ssoClient.marketInviteLogin(idToken, this.itemId);
-            }
-            return this.ssoClient.accountCognitoLogin(idToken);
-          })
+
+        return this.getLogin()
           .then((loginData) => {
        //     console.log(loginData);
             const { uclusion_token } = loginData;

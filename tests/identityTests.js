@@ -18,8 +18,12 @@ module.exports = function (adminConfiguration) {
     describe('#login and cleanup old runs, ', () => {
       let timeout;
         it('should cleanup old markets for the identity', async () => {
+            // idToken lasts an hour so use it instead of trying to switch by signing in again
             const promise = loginUserToIdentity(adminConfiguration)
-                .then(() => loginUserToAccountAndGetToken(adminConfiguration));
+                .then((jwtToken) => {
+                    adminConfiguration.idToken = jwtToken;
+                    return loginUserToAccountAndGetToken(adminConfiguration);
+                });
             await promise.then((response) => {
                 const { client, accountToken } = response;
                 return client.summaries.idList(accountToken).then((audits) => {
