@@ -5,7 +5,7 @@ import {
   getSSOInfo,
   loginUserToAccount,
   getWebSocketRunner,
-  loginUserToMarketInvite
+  loginUserToMarketInvite, loginUserToIdentity
 } from '../src/utils';
 
 /*
@@ -26,7 +26,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return getWebSocketRunner(adminConfiguration);
       }).then((webSocketRunner) => {
         adminConfiguration.webSocketRunner = webSocketRunner;
-        return getWebSocketRunner(userConfiguration);
+        return loginUserToIdentity(userConfiguration)
+            .then(() => getWebSocketRunner(userConfiguration));
       }).then((webSocketRunner) => {
         userConfiguration.webSocketRunner = webSocketRunner;
         const info = {

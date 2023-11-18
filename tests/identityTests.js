@@ -1,4 +1,4 @@
-import {loginUserToAccount, loginUserToAccountAndGetToken, loginUserToMarket} from '../src/utils';
+import {loginUserToAccount, loginUserToAccountAndGetToken, loginUserToIdentity, loginUserToMarket} from '../src/utils';
 import { sleep } from './commonTestFunctions';
 import _ from 'lodash';
 
@@ -15,10 +15,11 @@ module.exports = function (adminConfiguration) {
         return results;
     };
 
-    describe('#cleanup old runs, ', () => {
+    describe('#login and cleanup old runs, ', () => {
       let timeout;
         it('should cleanup old markets for the identity', async () => {
-            const promise = loginUserToAccountAndGetToken(adminConfiguration);
+            const promise = loginUserToIdentity(adminConfiguration)
+                .then(() => loginUserToAccountAndGetToken(adminConfiguration));
             await promise.then((response) => {
                 const { client, accountToken } = response;
                 return client.summaries.idList(accountToken).then((audits) => {

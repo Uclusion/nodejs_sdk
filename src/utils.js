@@ -6,7 +6,7 @@ import {WebSocketRunner} from './WebSocketRunner';
 
 
 export function getSSOInfo(configuration) {
-  return loginUserToIdentity(configuration)
+  return getIdentity()
     .then(idToken => {
       return uclusion.constructSSOClient(configuration)
         .then((ssoClient) => {
@@ -28,7 +28,6 @@ export function getWebSocketRunner(configuration) {
 }
 
 export function loginUserToIdentity(configuration) {
-    console.log(configuration);
     return Auth.signIn(configuration)
         .then(() => getIdentity());
 }
