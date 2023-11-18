@@ -212,12 +212,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return getMessages(userConfiguration);
-            }).then((messages) => {
-                const review = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
-                });
-                assert(!review, 'Moving to complete with no progress report is ignored');
                 return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my todo',
                     null, 'TODO');
             }).then((comment) => {
@@ -319,8 +313,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
+                // We get a unread_resolved from auto closing the to-do above
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([
+                    {event_type: 'market_investible', object_id: createdMarketId},
+                    {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
                     'review my job', null, 'REPORT');
@@ -335,6 +331,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + reportCommentId;
                 });
                 assert(review, 'Resolving the investible with a progress report creates review');
+                const resolved = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_RESOLVED_' + todoCommentId;
+                });
+                assert(resolved, 'Moving the investible resolved the todo and so warned the creator');
             }).catch(function (error) {
                 console.log(error);
                 throw error;

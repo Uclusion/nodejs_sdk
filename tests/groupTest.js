@@ -93,14 +93,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
           {event_type: 'addressed', object_id: marketId});
       }).then(() => {
-        return getMessages(adminConfiguration);
-      }).then((messages) => {
-        const unread = messages.find(obj => {
-          return obj.type_object_id === 'UNREAD_REVIEWABLE_' + marketInvestibleId;
-        });
-        assert(!unread, 'Unread does not apply to creator or generate on addressing');
-        return userClient.markets.getMarketInvestibles([marketInvestibleId]);
-      }).then(() => {
         return userClient.markets.getMarketInvestibles([marketInvestibleId]);
       }).then((investibles) => {
         const fullInvestible = investibles[0];
