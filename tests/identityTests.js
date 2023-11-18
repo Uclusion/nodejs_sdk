@@ -5,6 +5,16 @@ import _ from 'lodash';
 const DELETION_TIMEOUT = 60000; // wait 60 seconds to delete a market
 module.exports = function (adminConfiguration) {
 
+    // Avoid parallel logins into Cognito
+    const resolvePromisesSeq = async (tasks) => {
+        const results = [];
+        for (const task of tasks) {
+            results.push(await task);
+        }
+
+        return results;
+    };
+
     describe('#cleanup old runs, ', () => {
       let timeout;
         it('should cleanup old markets for the identity', async () => {
@@ -37,10 +47,10 @@ module.exports = function (adminConfiguration) {
                                 deletions.push(sleep(DELETION_TIMEOUT));
                             }
                             timeout = DELETION_TIMEOUT + (DELETION_TIMEOUT * deletions.length);
-                            return Promise.all(deletions);
+                            return resolvePromisesSeq(deletions);
                         });
                     });
-                    return Promise.all(versionPromises);
+                    return resolvePromisesSeq(versionPromises);
                 }).then(() => loginUserToAccount(adminConfiguration))
                     .then((client) => client.users.cleanAccount())
                     .then(() => console.log('Done with cleanup'));
