@@ -28,6 +28,7 @@ export function getWebSocketRunner(configuration) {
 }
 
 export function loginUserToIdentity(configuration) {
+    console.log(configuration);
     return Auth.signIn(configuration)
         .then(() => getIdentity());
 }

@@ -26,6 +26,7 @@ module.exports = function (adminConfiguration) {
                         return {signatures: []};
                     }
                     const allMarkets = audits.map((audit) => audit.id);
+                    console.log(`Processing ${allMarkets}`);
                     const chunks = _.chunk(allMarkets, 24);
                     const versionPromises = chunks.map((chunk) => {
                         return client.summaries.versions(accountToken, chunk).then((versions) => {
@@ -33,6 +34,7 @@ module.exports = function (adminConfiguration) {
                             const deletions = signatures.map((signature) => {
                                 const {market_id: marketId} = signature;
                                 let globalClient;
+                                console.log(`Now on ${marketId}`)
                                 return loginUserToMarket(adminConfiguration, marketId)
                                     .then((client) => {
                                         globalClient = client;
