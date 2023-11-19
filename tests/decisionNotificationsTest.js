@@ -181,7 +181,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((comment) => {
                 createdCommentId = comment.id;
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
-                    object_id: createdMarketId}, {event_type: 'notification', object_id: userExternalId}]);
+                    object_id: createdMarketId}, {event_type: 'notification', object_id: userExternalId},
+                    {event_type: 'market_investible', object_id: createdMarketId}]);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
