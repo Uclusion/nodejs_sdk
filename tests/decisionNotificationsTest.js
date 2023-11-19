@@ -144,8 +144,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
+                // Wait on user to drain more notifications
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([
+                    {event_type: 'market_investible', object_id: createdMarketId},
+                    {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
