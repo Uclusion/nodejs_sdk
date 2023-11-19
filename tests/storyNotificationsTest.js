@@ -135,6 +135,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: adminExternalId});
             }).then(() => {
+                // User should unread job approval request removed
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId});
+            }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
