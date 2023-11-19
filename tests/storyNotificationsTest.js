@@ -254,8 +254,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(requiresInputStage.id === stage, 'Investible should move to assistance');
                 return userClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([
+                    {event_type: 'market_investible', object_id: createdMarketId},
+                    {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
             }).then((investibles) => {
