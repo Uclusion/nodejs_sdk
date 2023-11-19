@@ -228,8 +228,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(inApprovalStage.id === stage, 'Investible should move to approval');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
+                // Resolving this question also sends unread unresolved
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
+                    object_id: createdMarketId}, {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
