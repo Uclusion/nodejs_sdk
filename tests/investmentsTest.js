@@ -105,7 +105,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
-                    return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED');
+                    return (obj.type_object_id === 'UNREAD_COMMENT_' + parentCommentId)&&(obj.level === 'RED');
                 });
                 assert(investibleIssue, 'No investible issue notification');
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,'a reply comment', parentCommentId);
