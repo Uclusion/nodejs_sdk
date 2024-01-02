@@ -35,7 +35,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     market_type: 'PLANNING',
                     name: 'Company A',
                     market_sub_type: 'INTEGRATION_TEST',
-                    investment_expiration: 1
+                    investment_expiration: 1,
+                    started_expiration: 0
                 };
                 return accountClient.markets.createMarket(planningOptions);
             }).then((response) => {
@@ -94,8 +95,28 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // Now a second one since investment expiration is 1 minute
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
-                // Turn off investment expiration 1m so it can't affect the rest of this test
-                return adminClient.markets.updateMarket({investment_expiration: 30});
+                acceptedStage = globalStages.find(stage => stage.assignee_enter_only);
+                stateOptions = {
+                    current_stage_id: inDialogStage.id,
+                    stage_id: acceptedStage.id
+                };
+                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+            }).then(() => {
+                console.log('started_expiration zero so will be moved from accepted on next schedule run');
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([
+                    {event_type: 'notification', type_object_id: `UNREAD_MOVE_REPORT_${marketInvestibleId}`},
+                    {event_type: 'market_investible', object_id: createdMarketId}]);
+            }).then(() => {
+                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+            }).then((investibles) => {
+                const fullInvestible = investibles[0];
+                investible = fullInvestible.investible;
+                const marketInfo = fullInvestible.market_infos.find(info => {
+                    return info.market_id === createdMarketId;
+                });
+                assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
+                // Turn off lowered expirations so it can't affect the rest of this test
+                return adminClient.markets.updateMarket({investment_expiration: 30, started_expiration: 3});
             }).then(() => {
                 notDoingStage = globalStages.find(stage => { return !stage.allows_assignment && stage.close_comments_on_entrance });
                 stateOptions = {
