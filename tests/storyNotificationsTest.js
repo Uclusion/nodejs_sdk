@@ -64,11 +64,16 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId;
                 });
-                assert(vote, 'Should receive not fully voted for existing stories on login');
+                assert(vote, 'Should receive approval request for existing stories on login');
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
+                return adminClient.users.pokeInvestible(marketInvestibleId);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    type_object_id: `UNREAD_JOB_APPROVAL_REQUEST_${marketInvestibleId}`});
+            }).then(() => {
                 const mention = {
                     user_id: adminId,
                     external_id: adminExternalId,
