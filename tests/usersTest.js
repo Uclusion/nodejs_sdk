@@ -52,7 +52,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((client) => {
         adminAccountClient = client;
         return adminAccountClient.users.update({'name': 'Daniel', 'uiPreferences': '{ "code": "red" }',
-          'clear_notification_configs': true});
+          'clearNotificationConfigs': true});
       }).then((user) => {
         assert(user.name === 'Daniel', 'User update was not successful');
         return adminAccountClient.users.get();
@@ -63,7 +63,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return loginUserToAccount(userConfiguration);
       }).then((client) => {
         // Also clear user notification configs to clean up and so can test last email sent later
-        client.users.update({'clear_notification_configs': true});
+        client.users.update({'clearNotificationConfigs': true});
         const marketOptions = {
           name: 'Company A',
           market_type: 'PLANNING'
