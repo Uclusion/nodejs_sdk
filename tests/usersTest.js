@@ -51,20 +51,24 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return uclusion.constructClient(config);
       }).then((client) => {
         adminAccountClient = client;
-        return adminAccountClient.users.update({'name': 'Daniel', 'uiPreferences': '{ "code": "red" }'});
+        return adminAccountClient.users.update({'name': 'Daniel', 'uiPreferences': '{ "code": "red" }',
+          'clear_notification_configs': true});
       }).then((user) => {
         assert(user.name === 'Daniel', 'User update was not successful');
         return adminAccountClient.users.get(adminConfiguration.userId);
       }).then((user) => {
         assert(user.name === 'Daniel', 'Name not updated properly');
         assert(user.ui_preferences === '{ "code": "red" }', 'UI preferences not updated properly');
-        return loginUserToAccount(adminConfiguration);
+        assert(user.notification_configs === undefined, 'Notification configs not cleared');
+        return loginUserToAccount(userConfiguration);
       }).then((client) => {
+        // Also clear user notification configs to clean up and so can test last email sent later
+        client.users.update({'clear_notification_configs': true});
         const marketOptions = {
           name: 'Company A',
           market_type: 'PLANNING'
         };
-        return client.markets.createMarket(marketOptions);
+        return adminAccountClient.markets.createMarket(marketOptions);
       }).then((response) => {
         createdMarketId = response.market.id;
         createdMarketInvite = response.market.invite_capability;

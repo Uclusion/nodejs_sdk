@@ -90,6 +90,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.listUsers();
             }).then((users) => {
                 assert(users.length === 2, '2 users in this dialog');
+                return loginUserToAccount(userConfiguration);
+            }).then((client) => {
+                return client.users.get(adminConfiguration.userId);
+            }).then((user) => {
+                assert(user.notification_configs, 'Notification configs not created');
+                assert(user.notification_configs.length > 0, 'Notification configs not created');
+                const notification_config = user.notification_configs.find((config) =>
+                    config.last_email_at !== undefined);
+                assert(notification_config, 'last_email_at not updating');
                 adminConfiguration.webSocketRunner.terminate();
                 return userConfiguration.webSocketRunner.terminate();
             }).catch(function(error) {
