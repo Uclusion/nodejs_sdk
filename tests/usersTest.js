@@ -55,7 +55,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
           'clear_notification_configs': true});
       }).then((user) => {
         assert(user.name === 'Daniel', 'User update was not successful');
-        return adminAccountClient.users.get(adminConfiguration.userId);
+        return adminAccountClient.users.get();
       }).then((user) => {
         assert(user.name === 'Daniel', 'Name not updated properly');
         assert(user.ui_preferences === '{ "code": "red" }', 'UI preferences not updated properly');

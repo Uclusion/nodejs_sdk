@@ -92,7 +92,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(users.length === 2, '2 users in this dialog');
                 return loginUserToAccount(userConfiguration);
             }).then((client) => {
-                return client.users.get(adminConfiguration.userId);
+                return client.users.get();
             }).then((user) => {
                 assert(user.notification_configs, 'Notification configs not created');
                 assert(user.notification_configs.length > 0, 'Notification configs not created');
