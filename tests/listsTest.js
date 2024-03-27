@@ -90,7 +90,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.listUsers();
             }).then((users) => {
                 assert(users.length === 2, '2 users in this dialog');
-                return loginUserToAccount(userConfiguration);
+                return loginUserToAccount(adminConfiguration);
             }).then((client) => {
                 return client.users.get();
             }).then((user) => {
