@@ -63,14 +63,14 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }).then((client) => {
                         userClient = client;
                         return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                            {event_type: 'notification'});
+                            {event_type: 'notification', type_object_id: `UNASSIGNED_${createdMarketId}`});
                     }).then(() => {
                         return getMessages(userConfiguration);
                     }).then((messages) => {
                         const criticalRollup = messages.filter((message) =>
                             message.associated_object_id === createdMarketId && message.type === 'UNASSIGNED');
-                        assert(criticalRollup.comment_list && criticalRollup.comment_list.length === 1 &&
-                            criticalRollup.comment_list[0] === bugCommentId,
+                        assert(criticalRollup && criticalRollup.comment_list && criticalRollup.comment_list.length === 1
+                            && criticalRollup.comment_list[0] === bugCommentId,
                             "Critical bug rollup not associated with bug id");
                         return adminClient.users.pokeComment(bugCommentId);
                     }).then(() => {
@@ -82,8 +82,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }).then((messages) => {
                         const criticalRollup = messages.filter((message) =>
                             message.associated_object_id === createdMarketId && message.type === 'UNASSIGNED');
-                        assert(criticalRollup.comment_list && criticalRollup.comment_list.length === 1 &&
-                            criticalRollup.comment_list[0] === bugCommentId,
+                        assert(criticalRollup && criticalRollup.comment_list && criticalRollup.comment_list.length === 1
+                            && criticalRollup.comment_list[0] === bugCommentId,
                             "Critical bug rollup not associated with bug id after poke");
                         assert(criticalRollup.poked_list && criticalRollup.poked_list.length === 1 &&
                             criticalRollup.poked_list[0] === bugCommentId,
