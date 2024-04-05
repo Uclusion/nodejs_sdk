@@ -36,7 +36,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }).then(client => client.markets.createMarket(marketOptions))
                     .then((response) => {
                         createdMarketId = response.market.id;
-                        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId});
+                        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market',
+                            object_id: createdMarketId});
                     })
                     .then(() => {
                         return client.summaries.idList(accountToken).then((audits) => {
@@ -62,8 +63,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                         return loginUserToMarket(userConfiguration, createdMarketId);
                     }).then((client) => {
                         userClient = client;
+                        // No post-processing on the push type object id
                         return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                            {event_type: 'notification', type_object_id: `UNASSIGNED_${createdMarketId}`});
+                            {event_type: 'notification', type_object_id: `UNASSIGNED_${bugCommentId}`});
                     }).then(() => {
                         return getMessages(userConfiguration);
                     }).then((messages) => {
@@ -76,7 +78,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }).then(() => {
                         return userConfiguration.webSocketRunner.waitForReceivedMessage(
                             {event_type: 'notification',
-                                type_object_id: `UNASSIGNED_${createdMarketId}`});
+                                type_object_id: `UNASSIGNED_${bugCommentId}`});
                     }).then(() => {
                         return getMessages(userConfiguration);
                     }).then((messages) => {
