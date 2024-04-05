@@ -69,7 +69,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }).then(() => {
                         return getMessages(userConfiguration);
                     }).then((messages) => {
-                        const criticalRollup = messages.filter((message) =>
+                        const criticalRollup = messages.find((message) =>
                             message.associated_object_id === createdMarketId && message.type === 'UNASSIGNED');
                         assert(criticalRollup && criticalRollup.comment_list && criticalRollup.comment_list.length === 1
                             && criticalRollup.comment_list[0] === bugCommentId,
@@ -82,7 +82,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }).then(() => {
                         return getMessages(userConfiguration);
                     }).then((messages) => {
-                        const criticalRollup = messages.filter((message) =>
+                        const criticalRollup = messages.find((message) =>
                             message.associated_object_id === createdMarketId && message.type === 'UNASSIGNED');
                         assert(criticalRollup && criticalRollup.comment_list && criticalRollup.comment_list.length === 1
                             && criticalRollup.comment_list[0] === bugCommentId,
@@ -108,7 +108,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     }).then(() => {
                         return getMessages(userConfiguration);
                     }).then((messages) => {
-                        const questionNotification = messages.filter((message) =>
+                        const questionNotification = messages.find((message) =>
                             message.type_object_id === `UNREAD_COMMENT_${questionCommentId}`);
                         assert(questionNotification.level === 'RED', "Question notification not red after poke");
                         assert(questionNotification.alert_type === 'POKED',
