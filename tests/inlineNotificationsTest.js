@@ -221,7 +221,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessages(
                     [{event_type: 'market_capability', object_id: inlineMarketId},
-                    {event_type: 'notification', object_id: userExternalId}]);
+                    {event_type: 'notification', object_id: userExternalId,
+                        type_object_id: `NOT_FULLY_VOTED_${inlineMarketId}`}]);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
