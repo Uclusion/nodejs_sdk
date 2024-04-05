@@ -219,8 +219,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(vote && vote.is_highlighted, 'Poke should restore unread');
                 return inlineUserClient.markets.updateAbstain(true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_capability', object_id: inlineMarketId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessages(
+                    [{event_type: 'market_capability', object_id: inlineMarketId},
+                    {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {

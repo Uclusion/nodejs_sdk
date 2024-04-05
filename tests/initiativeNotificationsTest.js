@@ -106,7 +106,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return inlineUserClient.markets.updateInvestment(marketInvestibleId, -50, 0);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
+                    object_id: adminExternalId, type_object_id: `UNREAD_VOTE_${marketInvestibleId}_${userId}`});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
