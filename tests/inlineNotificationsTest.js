@@ -121,6 +121,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                         }
                     });
                 });
+                if (!foundInvestible || !foundComment) {
+                    console.log(signatures);
+                }
                 assert(foundInvestible && foundComment, 'Comment should be out of draft');
                 return getMessages(userConfiguration);
             }).then((messages) => {
