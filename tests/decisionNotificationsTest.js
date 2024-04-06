@@ -119,7 +119,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 // Wait for comment and also UNREAD_UNRESOLVED notification
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
-                    object_id: createdMarketId}, {event_type: 'notification', object_id: adminExternalId}]);
+                    object_id: createdMarketId}, {event_type: 'notification', object_id: adminExternalId,
+                    type_object_id: `UNREAD_COMMENT_${createdCommentId}`}]);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
