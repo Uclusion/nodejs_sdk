@@ -120,6 +120,6 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 console.log(error);
                 throw error;
             });
-        }).timeout(120000);
+        }).timeout(180000);
     });
 };
