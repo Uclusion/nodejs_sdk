@@ -72,7 +72,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((comment) => {
                 createdCommentId = comment.id;
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
+                    object_id: adminExternalId, type_object_id: `UNREAD_COMMENT_${createdCommentId}`});
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
