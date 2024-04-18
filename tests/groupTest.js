@@ -88,7 +88,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         return userClient.markets.listUsers();
       }).then((users) => {
-        const addressed = users.filter((user) => user.investments && len(user.investments) === 1);
+        const addressed = users.filter((user) => user.investments && user.investments.length === 1);
         assert(addressed.length === 1 && addressed[0].id === userId, 'Investments should only includes added user');
         const investments = addressed[0].investments;
         assert(investments.length === 1, 'Should be only one investment.');
@@ -102,7 +102,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then(() => {
         return userClient.markets.listUsers();
       }).then((users) => {
-        const addressed = users.filter((user) => user.investments && len(user.investments) === 1);
+        const addressed = users.filter((user) => user.investments && user.investments.length === 1);
         assert(addressed.length === 1 && addressed[0].id === userId, 'Investments should only includes added user');
         const investments = addressed[0].investments;
         assert(investments.length === 1, 'Should be only one investment.');
