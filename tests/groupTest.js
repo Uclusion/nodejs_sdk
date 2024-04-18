@@ -74,13 +74,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
           object_id: marketId});
       }).then(() => {
-        return adminClient.markets.getMarketInvestibles([marketInvestibleId]);
-      }).then((investibles) => {
-        const fullInvestible = investibles[0];
-        const { market_infos } = fullInvestible;
-        const marketInfo = market_infos[0];
-        const { addressed } = marketInfo;
-        assert(addressed.length === 0, 'Addressed only includes those not included elsewhere');
         return loginUserToMarketInvite(userConfiguration, marketCapability);
       }).then((client) => {
         userClient = client;
@@ -91,30 +84,31 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: true}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
-          {event_type: 'addressed', object_id: marketId});
+          {event_type: 'investment', object_id: marketId});
       }).then(() => {
-        return userClient.markets.getMarketInvestibles([marketInvestibleId]);
-      }).then((investibles) => {
-        const fullInvestible = investibles[0];
-        const { market_infos } = fullInvestible;
-        const marketInfo = market_infos[0];
-        const { addressed } = marketInfo;
-        const notAbstaining = addressed.filter((address) => !address.abstain);
-        assert(notAbstaining.length === 1, 'Addressed now only includes added user');
-        assert(notAbstaining.find((address) => address.user_id === userId), 'Addressed now includes added user');
+        return userClient.markets.listUsers();
+      }).then((users) => {
+        const addressed = users.filter((user) => user.investments && len(user.investments) === 1);
+        assert(addressed.length === 1 && addressed[0].id === userId, 'Investments should only includes added user');
+        const investments = addressed[0].investments;
+        assert(investments.length === 1, 'Should be only one investment.');
+        const investment = investments[0];
+        assert(investment.abstain === false && investment.investible_id === marketInvestibleId,
+            'Addressed should be for created investible and not abstained');
         return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: false}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
-            {event_type: 'addressed', object_id: marketId});
+            {event_type: 'investment', object_id: marketId});
       }).then(() => {
-        return userClient.markets.getMarketInvestibles([marketInvestibleId]);
-      }).then((investibles) => {
-        const fullInvestible = investibles[0];
-        const { market_infos } = fullInvestible;
-        const marketInfo = market_infos[0];
-        const { addressed } = marketInfo;
-        const notAbstaining = addressed.filter((address) => !address.abstain);
-        assert(notAbstaining.length === 0, 'Addressed no longer includes added user');
+        return userClient.markets.listUsers();
+      }).then((users) => {
+        const addressed = users.filter((user) => user.investments && len(user.investments) === 1);
+        assert(addressed.length === 1 && addressed[0].id === userId, 'Investments should only includes added user');
+        const investments = addressed[0].investments;
+        assert(investments.length === 1, 'Should be only one investment.');
+        const investment = investments[0];
+        assert(investment.abstain === true && investment.investible_id === marketInvestibleId,
+            'Addressed should be for created investible and abstained');
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: true}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
