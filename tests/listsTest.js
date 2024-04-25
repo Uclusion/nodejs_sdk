@@ -35,6 +35,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     false, true);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                globalStages = response.stages;
                 createdMarketInvite = response.market.invite_capability;
                 return loginUserToMarket(adminConfiguration, createdMarketId);
             }).then((client) => {
@@ -49,11 +50,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return adminClient.markets.listStages();
-            }).then((stageList) => {
-                globalStages = stageList;
-                checkStages(adminExpectedStageNames, stageList);
-                return userClient.investibles.create({groupId: createdMarketId, name: 'butter', description: 'good on bagels'});
+                checkStages(adminExpectedStageNames, globalStages);
+                return userClient.investibles.create({groupId: createdMarketId, name: 'butter',
+                    description: 'good on bagels'});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
                 const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
@@ -87,7 +86,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     return obj.investible.id === globalCSMMarketInvestibleId;
                 });
                 assert(investible, 'Should be able to see other\'s investible in Created');
-                return adminClient.markets.listUsers();
+                return adminClient.markets.listUsers([{id: userId, version: 1}, {id: adminId, version: 1}]);
             }).then((users) => {
                 assert(users.length === 2, '2 users in this dialog');
                 return loginUserToAccount(adminConfiguration);

@@ -49,6 +49,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return adminAccountClient.markets.createMarket(fishOptions);
             }).then((response) => {
+                globalStages = response.stages;
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
                 // Immediately wait for the not fully voted notification to avoid race condition
@@ -133,9 +134,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
                 });
                 assert(submitted, 'Should receive investible submitted when comment resolved');
-                return adminClient.markets.listStages();
-            }).then((stages) => {
-                globalStages = stages;
                 const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
                 const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 let stateOptions = {

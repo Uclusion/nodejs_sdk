@@ -23,6 +23,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminClient.markets.createMarket(planningMarket);
       }).then((result) => {
         marketId = result.market.id;
+        const marketPresence = result.presence;
+        assert(marketPresence && marketPresence.market_banned === false, "Should exist and not be banned");
+        adminUserId = marketPresence.id;
         marketCapability = result.market.invite_capability;
         return loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
       }).then((client) => {
@@ -31,12 +34,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((me) => {
         userId = me.id;
         externalId = me.external_id;
-        return userClient.markets.listUsers();
+        return userClient.markets.listUsers([{id: adminUserId, version: 1}, {id: userId, version: 1}]);
       }).then((users) => {
         const marketPresence = users.find((user) => user.id === userId);
         const adminPresence = users.find((user) => user.id !== userId);
-        adminUserId = adminPresence.id;
-        adminExternalId = adminPresence.external_id
+        adminExternalId = adminPresence.external_id;
         assert(marketPresence.market_banned === false, "Should not be banned");
         // not following users should be able to create stories
         const tomorrow = new Date();

@@ -13,6 +13,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let marketId;
       let marketCapability;
       let globalGroupId;
+      let globalInvestibleId;
       let marketInvestibleId;
       const promise = loginUserToAccount(adminConfiguration);
       await promise.then((client) => {
@@ -32,9 +33,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((me) => {
         adminUserId = me.id;
         adminExternalId = me.external_id;
-        return adminClient.markets.lock(marketId);
-      }).then((group) => {
-        assert(group.locked_by === adminUserId, 'Lock failed');
         return adminClient.markets.updateGroup(marketId,
             {name: 'Company A', description: 'See if can change description'});
       }).then((group) => {
@@ -52,7 +50,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminConfiguration.webSocketRunner.waitForReceivedMessages([
             {event_type: 'group', object_id: marketId}, {event_type: 'group_capability', object_id: marketId}]);
       }).then(() => {
-        return adminClient.markets.listGroups();
+        return adminClient.markets.listGroups([{id: globalGroupId, version: 1}]);
       }).then((groups) => {
         groups.forEach((group) => {
           if (group.id === globalGroupId) {
@@ -63,14 +61,15 @@ module.exports = function (adminConfiguration, userConfiguration) {
             assert(group.description === 'See if can change description', 'Company A wrong description');
           }
         });
-        return adminClient.markets.listGroupMembers(globalGroupId);
+        return adminClient.markets.listGroupMembers(globalGroupId, [{id: adminUserId, version: 1}]);
       }).then((members) => {
         assert(members.length === 1, 'Team A wrong size');
         assert(members.find((member) => member.id === adminUserId), 'Team A wrong members');
         return adminClient.investibles.create({name: 'salmon spawning', description: 'plan to catch',
           groupId: globalGroupId, openForInvestment: true});
       }).then((investible) => {
-        marketInvestibleId = investible.investible.id;
+        globalInvestibleId = investible.investible.id;
+        marketInvestibleId = investible.market_infos[0].id;
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
           object_id: marketId});
       }).then(() => {
@@ -81,40 +80,37 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((me) => {
         userId = me.id;
         externalId = me.external_id;
-        return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: true}]);
+        return userClient.investibles.follow(globalInvestibleId, [{user_id: userId, is_following: true}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
           {event_type: 'investment', object_id: marketId});
       }).then(() => {
-        return userClient.markets.listUsers();
-      }).then((users) => {
-        const addressed = users.filter((user) => user.investments && user.investments.length === 1);
-        assert(addressed.length === 1 && addressed[0].id === userId, 'Investments should only includes added user');
-        const investments = addressed[0].investments;
+        return userClient.markets.listInvestments(userId,
+            [{market_investible_id: marketInvestibleId, version: 1}]);
+      }).then((investments) => {
         assert(investments.length === 1, 'Should be only one investment.');
         const investment = investments[0];
-        assert(investment.abstain === false && investment.investible_id === marketInvestibleId,
+        assert(investment.abstain === false && investment.investible_id === globalInvestibleId,
             'Addressed should be for created investible and not abstained');
-        return userClient.investibles.follow(marketInvestibleId, [{user_id: userId, is_following: false}]);
+        return userClient.investibles.follow(globalInvestibleId, [{user_id: userId, is_following: false}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
             {event_type: 'investment', object_id: marketId});
       }).then(() => {
-        return userClient.markets.listUsers();
-      }).then((users) => {
-        const addressed = users.filter((user) => user.investments && user.investments.length === 1);
-        assert(addressed.length === 1 && addressed[0].id === userId, 'Investments should only includes added user');
-        const investments = addressed[0].investments;
+        return userClient.markets.listInvestments(userId,
+            [{market_investible_id: marketInvestibleId, version: 2}]);
+      }).then((investments) => {
         assert(investments.length === 1, 'Should be only one investment.');
         const investment = investments[0];
-        assert(investment.abstain === true && investment.investible_id === marketInvestibleId,
+        assert(investment.abstain === true && investment.investible_id === globalInvestibleId,
             'Addressed should be for created investible and abstained');
         return userClient.markets.followGroup(globalGroupId, [{user_id: userId, is_following: true}]);
       }).then(() => {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
           {event_type: 'group_capability', object_id: marketId});
       }).then(() => {
-        return adminClient.markets.listGroupMembers(globalGroupId);
+        return adminClient.markets.listGroupMembers(globalGroupId,
+            [{id: adminUserId, version: 1}, {id: userId, version: 1}]);
       }).then((members) => {
         assert(members.length === 2, 'Team A wrong size');
         assert(members.find((member) => member.id === userId), 'Team A wrong members');
@@ -123,7 +119,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessage(
             {event_type: 'group_capability', object_id: marketId});
       }).then(() => {
-        return adminClient.markets.listGroupMembers([globalGroupId]);
+        return adminClient.markets.listGroupMembers(globalGroupId,
+            [{id: adminUserId, version: 1}, {id: userId, version: 2}]);
       }).then((members) => {
         assert(members.find((member) => member.id === userId && member.deleted), 'Team A wrong members');
       }).catch(function (error) {

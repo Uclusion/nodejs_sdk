@@ -20,6 +20,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let ssoClient;
       let createdMarketId;
       let adminClient;
+      let adminId;
       let createdMarketInvite;
       await getSSOInfo(adminConfiguration).then(ssoInfo => {
         ssoClient = ssoInfo.ssoClient;
@@ -57,6 +58,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(user.name === 'Daniel', 'User update was not successful');
         return adminAccountClient.users.get();
       }).then((user) => {
+        adminId = user.id;
         assert(user.name === 'Daniel', 'Name not updated properly');
         assert(user.ui_preferences === '{ "code": "red" }', 'UI preferences not updated properly');
         assert(user.notification_configs === undefined, 'Notification configs not cleared');
@@ -91,7 +93,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability',
           object_id: createdMarketId});
       }).then(() => {
-        return adminClient.markets.listUsers();
+        return adminClient.markets.listUsers([{id: adminId, version: 1}]);
       }).then((users) => {
         const addedUser = users.find(obj => {
           return obj.email === userConfiguration.username;

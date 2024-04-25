@@ -6,6 +6,7 @@ import {
     loginUserToAccountAndGetToken, loginUserToAccount
 } from "../src/utils";
 import _ from "lodash";
+import {version} from "websocket";
 
 module.exports = function (adminConfiguration, userConfiguration) {
 
@@ -137,6 +138,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 };
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
+                globalStages = response.stages;
                 inlineMarketId = response.market.id;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_capability', object_id: inlineMarketId});
@@ -159,9 +161,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: inlineMarketId});
             }).then(() => {
-                return inlineAdminClient.markets.listStages();
-            }).then((stageList) => {
-                globalStages = stageList;
                 const createdStage = globalStages.find(stage => { return !stage.allows_investment; });
                 const inDialogStage = globalStages.find(stage => { return stage.allows_investment; });
                 const stateOptions = {
@@ -231,7 +230,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 });
                 assert(!voted, 'Abstain removes vote notification');
             }).then(() => {
-                return inlineUserClient.markets.listUsers();
+                return inlineUserClient.markets.listUsers([{id: inlineUserId, version: 2}]);
             }).then((users) => {
                 const myInlineUser = users.find(obj => {
                     return obj.id === inlineUserId;
@@ -243,12 +242,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
                 assert(!vote, 'No call to vote after abstain');
-                return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100, 0);
+                return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100,
+                    0);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
                     object_id: adminExternalId}, {event_type: 'market_capability', object_id: inlineMarketId}]);
             }).then(() => {
-                return inlineUserClient.markets.listUsers();
+                return inlineUserClient.markets.listUsers([{id: inlineUserId, version: 3}]);
             }).then((users) => {
                 const myInlineUser = users.find(obj => {
                     return obj.id === inlineUserId;

@@ -16,6 +16,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let userId;
             let adminExternalId;
             let adminId;
+            let globalInvestibleId;
             let marketInvestibleId;
             let marketInvestibleTwoId;
             let globalStages;
@@ -41,6 +42,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return accountClient.markets.createMarket(planningOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                globalStages = response.stages;
                 globalAccountId = response.market.account_id;
                 assert(response.market.name === 'Company A', 'market name is incorrect');
                 console.log(`logging into planning market ${createdMarketId}`);
@@ -56,9 +58,11 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((market) => {
                 assert(market.id === createdMarketId, 'ID is incorrect');
                 assert(market.account_id === globalAccountId, 'Account is incorrect');
-                return adminClient.markets.listStages();
+                const signatures = globalStages.map((stage) => {
+                    return {id: stage.id, version: stage.version};
+                });
+                return adminClient.markets.listStages(signatures);
             }).then((stageList) => {
-                globalStages = stageList;
                 checkStages(plannedStageNames, stageList);
                 acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
                 return adminClient.markets.updateStage(acceptedStage.id, 1)
@@ -74,8 +78,13 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.investibles.create({groupId: createdMarketId, name: 'salmon spawning', description: 'plan to catch',
                     assignments: [userId]});
             }).then((investible) => {
-                marketInvestibleId = investible.investible.id;
-                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+                globalInvestibleId = investible.investible.id;
+                marketInvestibleId = investible.market_infos[0].id;
+                return userClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 1},
+                            market_infos: [{id: marketInvestibleId, version: 1}]}
+                    ]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 investible = fullInvestible.investible;
@@ -86,9 +95,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 inDialogStage = globalStages.find(stage => { return stage.allows_investment });
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 archivedStage = globalStages.find(stage => { return !stage.allows_tasks });
-                return adminClient.markets.updateInvestment(marketInvestibleId, 50, 0, null, 1);
+                return adminClient.markets.updateInvestment(globalInvestibleId, 50, 0, null, 1);
             }).then(() => {
-                console.log(`waiting for created investment on ${marketInvestibleId}`);
+                console.log(`waiting for created investment on ${globalInvestibleId}`);
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
                 console.log('waiting for that investment expired');
@@ -100,14 +109,18 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
-                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return userClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
                 console.log('started_expiration zero so will be moved from accepted on next schedule run');
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([
-                    {event_type: 'notification', type_object_id: `UNREAD_MOVE_REPORT_${marketInvestibleId}`},
+                    {event_type: 'notification', type_object_id: `UNREAD_MOVE_REPORT_${globalInvestibleId}`},
                     {event_type: 'market_investible', object_id: createdMarketId}]);
             }).then(() => {
-                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+                return userClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 1},
+                            market_infos: [{id: marketInvestibleId, version: 2}]}
+                    ]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 investible = fullInvestible.investible;
@@ -123,11 +136,15 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     current_stage_id: inDialogStage.id,
                     stage_id: notDoingStage.id
                 };
-                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return userClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+                return userClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 1},
+                            market_infos: [{id: marketInvestibleId, version: 3}]}
+                    ]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -135,16 +152,20 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const { assigned, stage } = market_info;
                 assert(!assigned, 'Moving to Not Doing clears assignments');
                 assert(stage === notDoingStage.id, 'Should be in Not Doing stage');
-                return userClient.investibles.lock(marketInvestibleId);
+                return userClient.investibles.lock(globalInvestibleId);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId});
             }).then(() => {
-                return userClient.investibles.updateAssignments(marketInvestibleId, [adminId]);
+                return userClient.investibles.updateAssignments(globalInvestibleId, [adminId]);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
                     {event_type: 'notification', object_id: adminExternalId}]);
             }).then(() => {
-                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+                return userClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 2},
+                            market_infos: [{id: marketInvestibleId, version: 3}]}
+                    ]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -155,35 +176,35 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const unread = messages.find(obj => {
-                    return (obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + marketInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
+                    return (obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));
                 });
-                assert(unread, `changing assignment should mark unvoted for ${marketInvestibleId}`);
+                assert(unread, `changing assignment should mark unvoted for ${globalInvestibleId}`);
                 assert(unread.market_investible_id === marketInfo.id, 'notification is for market info');
                 assert(unread.market_investible_version === marketInfo.version, 'notification version should match market info version');
-                return adminClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
+                return adminClient.markets.updateInvestment(globalInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'accepting investment quantity should be 100');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
-                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0, null, 1);
+                return userClient.markets.updateInvestment(globalInvestibleId, 100, 0, null, 1);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages(
                     [{event_type: 'notification',
-                        type_object_id: `UNREAD_VOTE_${marketInvestibleId}_${userId}`},
+                        type_object_id: `UNREAD_VOTE_${globalInvestibleId}_${userId}`},
                         {event_type: 'investment', object_id: createdMarketId}]);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
+                    return obj.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`;
                 });
                 assert(newVoting, 'Assigned should be notified of approval if already accepted');
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
                     stage_id: acceptedStage.id
                 };
-                return userClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return userClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
@@ -201,12 +222,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                     current_stage_id: acceptedStage.id,
                     stage_id: archivedStage.id
                 };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return adminClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
                 //Move it into blocking so that that the vote expiration code can be invoked - not testing here but will see if errors
-                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'actually its not done', null, 'ISSUE');
+                return userClient.investibles.createComment(globalInvestibleId, createdMarketId, 'actually its not done', null, 'ISSUE');
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
             }).then(() => {
@@ -224,6 +245,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return loginUserToAccount(userConfiguration)
                     .then((userAccountClient) => userAccountClient.markets.createMarket(initiativeOptions));
             }).then((response) => {
+                globalStages = response.stages;
                 return loginUserToMarketInvite(adminConfiguration, response.market.invite_capability);
             }).then((client) => {
                 adminClient = client;
@@ -232,9 +254,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(market.market_type === 'INITIATIVE', 'Type is incorrect');
                 assert(market.parent_comment_id === globalCommentId, 'Parent comment id is incorrect');
                 assert(market.account_id === globalAccountId, 'Market should be in same account');
-                return adminClient.markets.listStages();
-            }).then((stageList) => {
-                checkStages(initiativeStageNames, stageList);
+                checkStages(initiativeStageNames, globalStages);
             }).catch(function(error) {
                 console.log(error);
                 throw error;

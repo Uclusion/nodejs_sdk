@@ -20,6 +20,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let adminUserId;
             let adminUserExternalId;
             let createdMarketId;
+            let globalInvestibleId;
             let marketInvestibleId;
             let globalStages;
             let parentCommentId;
@@ -32,6 +33,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return client.markets.createMarket(planningOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                globalStages = response.stages;
                 createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
@@ -64,25 +66,23 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 userExternalId = user.external_id;
                 return userClient.investibles.create({groupId: createdMarketId, name: 'salmon', description: 'good on bagels'});
             }).then((investible) => {
-                marketInvestibleId = investible.investible.id;
-                console.log('Investible ID is ' + marketInvestibleId);
+                globalInvestibleId = investible.investible.id;
+                marketInvestibleId = investible.market_infos[0].id;
+                console.log('Investible ID is ' + globalInvestibleId);
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.markets.listStages();
-            }).then((stages) => {
-                globalStages = stages;
                 const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
                 const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 let stateOptions = {
                     current_stage_id: currentStage.id,
                     stage_id: stage.id
                 };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return adminClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
                     {event_type: 'notification', object_id: userExternalId}]);
             }).then(() => {
-                return userClient.markets.updateInvestment(marketInvestibleId, 100, 0);
+                return userClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
@@ -90,10 +90,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
-                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
+                    return obj.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`;
                 });
                 assert(newVoting, 'Moderator should be notified of investment');
-                return userClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'ISSUE');
+                return userClient.investibles.createComment(globalInvestibleId, createdMarketId, 'body of my comment', null, 'ISSUE');
             }).then((comment) => {
                 parentCommentId = comment.id;
                 console.log("Parent comment ID is " + parentCommentId)
@@ -108,7 +108,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     return (obj.type_object_id === 'UNREAD_COMMENT_' + parentCommentId)&&(obj.level === 'RED');
                 });
                 assert(investibleIssue, 'No investible issue notification');
-                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,'a reply comment', parentCommentId);
+                return adminClient.investibles.createComment(globalInvestibleId, createdMarketId,'a reply comment', parentCommentId);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
@@ -139,11 +139,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
-                    return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === marketInvestibleId);
+                    return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === globalInvestibleId);
                 });
                 assert(!investibleIssue, 'Investible issue notification should have been deleted');
                 const investibleIssueResolved = messages.find(obj => {
-                    return (obj.type_object_id === 'ISSUE_RESOLVED_' + parentCommentId)&&(obj.associated_object_id === marketInvestibleId);
+                    return (obj.type_object_id === 'ISSUE_RESOLVED_' + parentCommentId)&&(obj.associated_object_id === globalInvestibleId);
                 });
                 assert(!investibleIssueResolved, 'Resolution should only notify creator');
                 const mention = {
@@ -162,17 +162,17 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(comment.mentions.length === 1 , 'mentions should include just the one');
                 assert(comment.mentions[0].user_id === userId, 'mention should just be for the user id');
                 assert(!comment.resolved, 'QUESTION resolved incorrect');
-                return userClient.investibles.getMarketComments([comment.id]);
+                return userClient.investibles.getMarketComments([{id: comment.id, version: 1}]);
             }).then((comments) => {
                 let comment = comments[0];
                 assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
                 assert(comment.market_id === createdMarketId, 'market was not set properly on the comment');
-                return adminClient.investibles.lock(marketInvestibleId);
+                return adminClient.investibles.lock(globalInvestibleId);
             }).then((fullInvestible) => {
                 const { investible } = fullInvestible;
                 assert(investible.name === 'salmon', 'lock investible name not passed correctly');
                 assert(investible.description === 'good on bagels', 'lock investible description not passed correctly');
-                return adminClient.investibles.update(marketInvestibleId, updateFish.name, updateFish.description, updateFish.label_list);
+                return adminClient.investibles.update(globalInvestibleId, updateFish.name, updateFish.description, updateFish.label_list);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId})
                   .then(() => response);
@@ -181,7 +181,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(investible.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(investible.description === 'possibly poisonous', 'update market investible description not passed on correctly');
                 assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
-                return userClient.markets.getMarketInvestibles([marketInvestibleId]);
+                return userClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 1},
+                        market_infos: [{id: marketInvestibleId, version: 1}]}
+                    ]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const investible = fullInvestible.investible;
