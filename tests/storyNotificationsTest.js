@@ -228,7 +228,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.markets.getMarketInvestibles([globalInvestibleId]);
+                return adminClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 1},
+                            market_infos: [{id: marketInvestibleId, version: 1}]}
+                    ]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -287,7 +291,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                return adminClient.markets.getMarketInvestibles([globalInvestibleId]);
+                return adminClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 1},
+                            market_infos: [{id: marketInvestibleId, version: 1}]}
+                    ]);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;

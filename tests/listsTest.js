@@ -12,7 +12,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
             let adminId;
             let userId;
             let userExternalId;
-            let globalCSMMarketInvestibleId;
+            let globalCSMInvestibleId;
+            let csmMarketInvestibleId;
+            let globalInvestibleId;
             let marketInvestibleId;
             let globalStages;
             let createdMarketId;
@@ -30,7 +32,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
-                return client.investibles.createComment(marketInvestibleId, createdMarketId, 'Which kind of butter?', null,
+                return client.investibles.createComment(globalInvestibleId, createdMarketId, 'Which kind of butter?', null,
                     'QUESTION', null, null, null, 'DECISION',
                     false, true);
             }).then((response) => {
@@ -54,28 +56,37 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 return userClient.investibles.create({groupId: createdMarketId, name: 'butter',
                     description: 'good on bagels'});
             }).then((investible) => {
-                marketInvestibleId = investible.investible.id;
+                globalInvestibleId = investible.investible.id;
+                marketInvestibleId = investible.market_infos[0].id;
                 const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
                 const nextStage = globalStages.find(stage => { return stage.name === 'In Dialog'});
                 let stateOptions = {
                     current_stage_id: currentStage.id,
                     stage_id: nextStage.id
                 };
-                return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
+                return adminClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
                 return adminClient.investibles.create({groupId: createdMarketId, name: 'peanut butter', description: 'good with jelly'});
             }).then((investible) => {
-                globalCSMMarketInvestibleId = investible.investible.id;
-                return userClient.markets.updateInvestment(marketInvestibleId, 5, 0);
+                globalCSMInvestibleId = investible.investible.id;
+                csmMarketInvestibleId = investible.market_infos[0].id;
+                return userClient.markets.updateInvestment(globalInvestibleId, 5, 0);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
                     .then(() => response);
             }).then((investment) => {
                 assert(investment.quantity === 5, 'investment quantity should be 5 instead of ' + investment.quantity);
-                return userClient.markets.getMarketInvestibles([marketInvestibleId, globalCSMMarketInvestibleId]);
+                return userClient.markets.getMarketInvestibles(
+                    [
+                        {investible: {id: globalInvestibleId, version: 1},
+                            market_infos: [{id: marketInvestibleId, version: 1}]},
+                        {investible: {id: globalCSMInvestibleId, version: 1},
+                            market_infos: [{id: csmMarketInvestibleId, version: 1}]}
+                    ]);
+                return userClient.markets.getMarketInvestibles([globalInvestibleId, globalCSMInvestibleId]);
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
-                    return obj.investible.id === marketInvestibleId;
+                    return obj.investible.id === globalInvestibleId;
                 });
                 const marketInfo = investible.market_infos.find(info => {
                     return info.market_id === createdMarketId;
@@ -83,7 +94,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 const stage = globalStages.find(stage => { return stage.id === marketInfo.stage});
                 assert(stage.name === 'In Dialog', 'investible stage should be Created');
                 investible = investibles.find(obj => {
-                    return obj.investible.id === globalCSMMarketInvestibleId;
+                    return obj.investible.id === globalCSMInvestibleId;
                 });
                 assert(investible, 'Should be able to see other\'s investible in Created');
                 return adminClient.markets.listUsers([{id: userId, version: 1}, {id: adminId, version: 1}]);
