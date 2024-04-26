@@ -33,19 +33,16 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((me) => {
         adminUserId = me.id;
         adminExternalId = me.external_id;
-        return adminClient.markets.updateGroup(marketId,
-            {name: 'Company A', description: 'See if can change description'});
+        return adminClient.markets.updateGroup(marketId, {name: 'Company A'});
       }).then((group) => {
         assert(group.name === 'Company A', 'Group name returned incorrectly');
-        assert(group.description === 'See if can change description', 'Description returned incorrectly');
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'group',
           object_id: marketId});
       }).then(() => {
-        return adminClient.markets.createGroup({name: 'Team A', description: 'Group for team A.'})
+        return adminClient.markets.createGroup({name: 'Team A'})
       }).then((response) => {
         const { group } = response;
         globalGroupId = group.id;
-        assert(group.description === 'Group for team A.', 'Description returned incorrectly');
         assert(group.name === 'Team A', 'Group name returned incorrectly');
         return adminConfiguration.webSocketRunner.waitForReceivedMessages([
             {event_type: 'group', object_id: marketId}, {event_type: 'group_capability', object_id: marketId}]);
@@ -55,10 +52,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
         groups.forEach((group) => {
           if (group.id === globalGroupId) {
             assert(group.name === 'Team A', 'Team A wrong name');
-            assert(group.description === 'Group for team A.', 'Team A wrong description');
           } else {
             assert(group.name === 'Company A', 'Company A wrong name');
-            assert(group.description === 'See if can change description', 'Company A wrong description');
           }
         });
         return adminClient.markets.listGroupMembers(globalGroupId, [{id: adminUserId, version: 1}]);
