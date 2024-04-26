@@ -21,6 +21,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       let createdMarketId;
       let adminClient;
       let adminId;
+      let placeholderId;
       let createdMarketInvite;
       await getSSOInfo(adminConfiguration).then(ssoInfo => {
         ssoClient = ssoInfo.ssoClient;
@@ -88,12 +89,14 @@ module.exports = function (adminConfiguration, userConfiguration) {
         assert(notification_config.slack_enabled, 'Update slack enabled not successful');
         // Add placeholder user to the market
         return adminClient.users.inviteUsers([userConfiguration.username]);
-      }).then(() => {
+      }).then((added) => {
+        const placeholder = added[0];
+        placeholderId = placeholder.id;
         // This should be the user pushed out
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability',
           object_id: createdMarketId});
       }).then(() => {
-        return adminClient.markets.listUsers([{id: adminId, version: 1}]);
+        return adminClient.markets.listUsers([{id: placeholderId, version: 1}]);
       }).then((users) => {
         const addedUser = users.find(obj => {
           return obj.email === userConfiguration.username;
