@@ -81,7 +81,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
           {event_type: 'investment', object_id: marketId});
       }).then(() => {
         return userClient.markets.listInvestments(userId,
-            [{market_investible_id: marketInvestibleId, version: 1}]);
+            [{market_investible_id: marketInvestibleId, market_investible_version: 1}]);
       }).then((investments) => {
         assert(investments.length === 1, 'Should be only one investment.');
         const investment = investments[0];
@@ -93,7 +93,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             {event_type: 'investment', object_id: marketId});
       }).then(() => {
         return userClient.markets.listInvestments(userId,
-            [{market_investible_id: marketInvestibleId, version: 2}]);
+            [{market_investible_id: marketInvestibleId, market_investible_version: 2}]);
       }).then((investments) => {
         assert(investments.length === 1, 'Should be only one investment.');
         const investment = investments[0];
