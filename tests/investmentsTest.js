@@ -33,7 +33,6 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 return client.markets.createMarket(planningOptions);
             }).then((response) => {
                 createdMarketId = response.market.id;
-                globalStages = response.stages;
                 createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
@@ -47,6 +46,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     null, 'DECISION', false, true);
             }).then((response) => {
                 createdMarketId = response.market.id;
+                globalStages = response.stages;
                 createdMarketInvite = response.market.invite_capability;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarket(adminConfiguration, createdMarketId);
