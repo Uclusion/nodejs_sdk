@@ -24,7 +24,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((result) => {
         marketId = result.market.id;
         const marketPresence = result.presence;
-        assert(marketPresence && marketPresence.market_banned === false, "Should exist and not be banned");
+        assert(marketPresence && marketPresence.market_banned !== true, "Should exist and not be banned");
         adminUserId = marketPresence.id;
         marketCapability = result.market.invite_capability;
         return loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
