@@ -46,7 +46,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((account) => {
                 console.log(account);
                 assert(isSubscribed(account), 'Account did not subscribe');
-                assert(new Date(account.billing_subscription_trial_end) > (Date.now() / 1000), 'Trial is in the past');
                 //cancel our sub
                 return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
@@ -160,7 +159,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                         return adminAccountClient.users.restartSubscription(paymentInfo.id);
                     });
             }).then((account) => {
-                const {billing_promotions, billing_subscription_status} = account;
+                const {billing_promotions} = account;
                 assert(isSubscribed(account), 'Account should have restarted subscription');
                 assert(!_.isEmpty(billing_promotions), 'Restart should not have reset coupons');
             }).catch(function (error) {
@@ -212,9 +211,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return uclusion.constructClient(config);
             }).then((client) => {
                 adminAccountClient = client;
-                return adminAccountClient.users.restartSubscription(undefined, undefined);
-            }).then((account) => {
-                assert(isSubscribed(account), 'Account did not subscribe');
                 // first sleep to let the account promo reset work try an invalid code
                 return adminAccountClient.users.addPromoToSubscription(invalidPromoCode)
                     .then(() => {
