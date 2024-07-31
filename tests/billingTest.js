@@ -39,7 +39,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 // make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription(undefined, undefined, true);
+                return adminAccountClient.users.restartSubscription(undefined, undefined);
             }).then((account) => {
                 console.log(account);
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
@@ -82,7 +82,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             const promoCode = 'Test12Month';
             let adminAccountClient;
             let adminIdToken;
-            let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((info) => {
@@ -95,7 +94,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 //make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription( undefined, promoCode, true);
+                return adminAccountClient.users.restartSubscription( undefined, promoCode);
             }).then((account) => {
                 //console.log(account)
                 const {billing_promotions, billing_subscription_status} = account;
@@ -129,7 +128,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
         it('create a subscription with Test12Month coupon', async () => {
             const promoCode = 'Test12Month';
             let adminAccountClient;
-            let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((info) => {
@@ -141,7 +139,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 //make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription( undefined, promoCode, true);
+                return adminAccountClient.users.restartSubscription( undefined, promoCode);
             }).then((account) => {
                 //console.log(account)
                 const {billing_promotions, billing_subscription_status} = account;
@@ -173,7 +171,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
             let adminAccountClient;
-            let ssoClient;
             await getSSOInfo(adminConfiguration).then((info) => {
                 const { ssoClient, idToken } = info;
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
@@ -204,7 +201,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             let adminAccountClient;
             const validPromoCode = 'Test12Month';
             const invalidPromoCode = 'TestInvalid';
-            let ssoClient;
             await getSSOInfo(adminConfiguration).then((info) => {
                 const { ssoClient, idToken } = info;
                 const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
@@ -213,7 +209,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return uclusion.constructClient(config);
             }).then((client) => {
                 adminAccountClient = client;
-                return adminAccountClient.users.startSubscription(undefined, undefined, true);
+                return adminAccountClient.users.restartSubscription(undefined, undefined);
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
                 // first sleep to let the account promo reset work try an invalid code
