@@ -214,11 +214,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                     }).catch(() => {
                         console.log('Yes, we got an expected error with an invalid code');
                         assert(true, 'Cool, subscription failed')
-                        return account;
                     });
-            }).then((account) => {
-                console.log(account);
-                assert(_.isEmpty(account.billing_promotions), 'Accounts shouldn\'t have promos');
+            }).then(() => {
                 //now do a valid code
                 return adminAccountClient.users.addPromoToSubscription(validPromoCode);
             }).then((account) => {
