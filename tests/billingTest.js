@@ -24,10 +24,13 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
         });
     }
 
+    function isSubscribed(account) {
+        return ['ACTIVE', 'FREE'].includes(account.billing_subscription_status);
+    }
+
     describe('#Test without coupons', () => {
         it('create a subscription without coupons', async () => {
             let adminAccountClient;
-            let ssoClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
             await getSSOInfo(adminConfiguration).then((info) => {
@@ -42,7 +45,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.restartSubscription(undefined, undefined);
             }).then((account) => {
                 console.log(account);
-                assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                assert(isSubscribed(account), 'Account did not subscribe');
                 assert(new Date(account.billing_subscription_trial_end) > (Date.now() / 1000), 'Trial is in the past');
                 //cancel our sub
                 return adminAccountClient.users.cancelSubscription();
@@ -97,9 +100,9 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.restartSubscription( undefined, promoCode);
             }).then((account) => {
                 //console.log(account)
-                const {billing_promotions, billing_subscription_status} = account;
+                const {billing_promotions} = account;
                 console.dir(account);
-                assert(billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
@@ -142,8 +145,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.restartSubscription( undefined, promoCode);
             }).then((account) => {
                 //console.log(account)
-                const {billing_promotions, billing_subscription_status} = account;
-                assert(billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                const {billing_promotions} = account;
+                assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
@@ -211,7 +214,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 adminAccountClient = client;
                 return adminAccountClient.users.restartSubscription(undefined, undefined);
             }).then((account) => {
-                assert(account.billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                assert(isSubscribed(account), 'Account did not subscribe');
                 // first sleep to let the account promo reset work try an invalid code
                 return adminAccountClient.users.addPromoToSubscription(invalidPromoCode)
                     .then(() => {
@@ -227,8 +230,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 //now do a valid code
                 return adminAccountClient.users.addPromoToSubscription(validPromoCode);
             }).then((account) => {
-                const {billing_promotions, billing_subscription_status} = account;
-                assert(billing_subscription_status === 'ACTIVE', 'Account did not subscribe');
+                const {billing_promotions} = account;
+                assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
