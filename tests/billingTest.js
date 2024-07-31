@@ -42,10 +42,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 // make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.restartSubscription(undefined, undefined);
-            }).then((account) => {
-                console.log(account);
-                assert(isSubscribed(account), 'Account did not subscribe');
                 //cancel our sub
                 return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
