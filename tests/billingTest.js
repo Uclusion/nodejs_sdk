@@ -116,8 +116,8 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                         return adminAccountClient.users.restartSubscription(paymentInfo.id, promoCode);
                     });
             }).then((account) => {
-                const {billing_promotions, billing_subscription_status} = account;
-                assert(billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
+                const {billing_promotions} = account;
+                assert(isSubscribed(account), 'Account should have restarted subscription');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
@@ -161,7 +161,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                     });
             }).then((account) => {
                 const {billing_promotions, billing_subscription_status} = account;
-                assert(billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
+                assert(isSubscribed(account), 'Account should have restarted subscription');
                 assert(!_.isEmpty(billing_promotions), 'Restart should not have reset coupons');
             }).catch(function (error) {
                 console.log(error);
