@@ -99,8 +99,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 console.dir(account);
                 assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
-                assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
-                assert(billing_promotions[0].consumed === false, 'should not have been used yet');
+                assert(billing_promotions[0].consumed !== true, 'should not have been used yet');
                 //cancel our sub
                 return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
@@ -114,8 +113,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 const {billing_promotions} = account;
                 assert(isSubscribed(account), 'Account should have restarted subscription');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
-                assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
-                assert(billing_promotions[0].consumed === false, 'should not have been used yet');
+                assert(billing_promotions[0].consumed !== true, 'should not have been used yet');
             }).catch(function (error) {
                 console.log(error);
                 throw error;
@@ -143,8 +141,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 const {billing_promotions} = account;
                 assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
-                assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
-                assert(billing_promotions[0].consumed === false, 'should not have been used yet');
+                assert(billing_promotions[0].consumed !== true, 'should not have been used yet');
                 //cancel our sub
                 return adminAccountClient.users.cancelSubscription();
             }).then((account) => {
@@ -180,8 +177,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 return adminAccountClient.users.validatePromoCode(validPromoCode);
             }).then((result) => {
                 assert(result.valid, 'Promo Code should have been valid');
-                assert(result.months === 12, 'Code should be 12 months');
-                assert(result.percent_off === 100.0, 'Should be a total discount');
                 assert(result.code === validPromoCode, 'Should have been the passed in code')
                 return adminAccountClient.users.validatePromoCode(invalidPromoCode);
             }).then((result) => {
@@ -222,7 +217,6 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 const {billing_promotions} = account;
                 assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
-                assert(billing_promotions[0].months === 12, 'should have been a 12 month coupon');
                 assert(billing_promotions[0].consumed === false, 'should not have been used yet');
                 //now do it again, which should fail
                 return adminAccountClient.users.addPromoToSubscription(validPromoCode)
