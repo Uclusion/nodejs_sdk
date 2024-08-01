@@ -192,7 +192,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
     describe('#Check adding coupons', () => {
         it('adds a coupon to an existing subscription', async () => {
             let adminAccountClient;
-            const validPromoCode = 'Test12Month';
+            const validPromoCode = 'Meetup6Month';
             const invalidPromoCode = 'TestInvalid';
             await getSSOInfo(adminConfiguration).then((info) => {
                 const { ssoClient, idToken } = info;
