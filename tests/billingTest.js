@@ -57,7 +57,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 // now restart subscribe without a promo code
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
-                        return adminAccountClient.users.restartSubscription(paymentInfo.id);
+                        return adminAccountClient.users.updatePaymentInfo(paymentInfo.id);
                     });
             }).then((account) => {
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
@@ -75,51 +75,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             });
         }).timeout(60000);
     });
-    describe('#Test coupons', () => {
-        it('create a subscription with Test12Month coupon', async () => {
-            const promoCode = 'Test12Month';
-            let adminAccountClient;
-            let adminIdToken;
-            //first load stripe
-            const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
-            await getSSOInfo(adminConfiguration).then((info) => {
-                const { ssoClient, idToken } = info;
-                adminIdToken = idToken;
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
-                    idToken);
-                const config = {...adminConfiguration, tokenManager};
-                return uclusion.constructClient(config);
-            }).then((client) => {
-                //make our client
-                adminAccountClient = client;
-                return adminAccountClient.users.restartSubscription( undefined, promoCode);
-            }).then((account) => {
-                //console.log(account)
-                const {billing_promotions} = account;
-                console.dir(account);
-                assert(isSubscribed(account), 'Account did not subscribe');
-                assert(billing_promotions.length > 0, 'Should have had coupons')
-                assert(billing_promotions[0].consumed !== true, 'should not have been used yet');
-                //cancel our sub
-                return adminAccountClient.users.cancelSubscription();
-            }).then((account) => {
-                assert(account.billing_subscription_status === 'CANCELED', 'Account still has subscription');
-                // now restart subscribe without a promo code
-                return createTestStripePayment(stripeClient)
-                    .then((paymentInfo) => {
-                        return adminAccountClient.users.restartSubscription(paymentInfo.id, promoCode);
-                    });
-            }).then((account) => {
-                const {billing_promotions} = account;
-                assert(isSubscribed(account), 'Account should have restarted subscription');
-                assert(billing_promotions.length > 0, 'Should have had coupons')
-                assert(billing_promotions[0].consumed !== true, 'should not have been used yet');
-            }).catch(function (error) {
-                console.log(error);
-                throw error;
-            });
-        }).timeout(60000);
-    });
+
     describe('#Test coupon reset on restart', () => {
         it('create a subscription with Test12Month coupon', async () => {
             const promoCode = 'Test12Month';
@@ -135,7 +91,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
             }).then((client) => {
                 //make our client
                 adminAccountClient = client;
-                return adminAccountClient.users.restartSubscription( undefined, promoCode);
+                return adminAccountClient.users.addPromoToSubscription(promoCode);
             }).then((account) => {
                 //console.log(account)
                 const {billing_promotions} = account;
@@ -149,7 +105,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 // now restart subscribe without a promo code
                 return createTestStripePayment(stripeClient)
                     .then((paymentInfo) => {
-                        return adminAccountClient.users.restartSubscription(paymentInfo.id);
+                        return adminAccountClient.users.updatePaymentInfo(paymentInfo.id);
                     });
             }).then((account) => {
                 const {billing_promotions} = account;
