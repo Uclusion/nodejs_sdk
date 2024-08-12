@@ -173,7 +173,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 const {billing_promotions} = account;
                 assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons');
-                const my_promotion = billing_promotions.find((promotion) => promotion.id === validPromoCode);
+                const my_promotion = billing_promotions.find((promotion) => promotion.code === validPromoCode);
                 assert(my_promotion, 'Should have this coupon');
                 assert(my_promotion.consumed !== true, 'this coupon should not have been used yet');
                 //now do it again, which should fail
