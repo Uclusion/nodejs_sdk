@@ -163,8 +163,14 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((presences) => {
                 const { id } = presences[0];
                 assert(id, 'Add not successful');
-                return adminClient.investibles.create({groupId: createdMarketId, name: 'A job', description: 'To verify push.'});
-            }).then(() => {
+                return adminClient.investibles.create({groupId: createdMarketId, name: 'A job',
+                    description: 'To verify push.', todos: ['<p>My thing one.</p>','<p>My thing two.</p>']});
+            }).then((result) => {
+                const { investible, todos } = result;
+                assert(investible, 'Investible missing');
+                assert(todos.length === 2, 'Todos wrong size');
+                const todoOne = todos.find((todo) => todo.body === '<p>My thing one.</p>');
+                assert(todoOne, 'Matching todo missing');
                 // Verify user getting push from admin client creating investible after user added from addUsers api
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
                     object_id: secondMarketId});
