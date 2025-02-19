@@ -56,7 +56,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
         return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});
       }).then(() => {
         // not following should be able to vote
-        return userClient.markets.updateInvestment(storyId, 100, 0, null, 1);
+        return userClient.markets.updateInvestment(storyId, 100, 0);
       }).then(() => {
         return loginUserToMarketInvite(adminConfiguration, marketCapability);
       }).then((client) => {

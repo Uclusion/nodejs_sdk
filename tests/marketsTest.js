@@ -95,7 +95,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 inDialogStage = globalStages.find(stage => { return stage.allows_investment });
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 archivedStage = globalStages.find(stage => { return !stage.allows_tasks });
-                return adminClient.markets.updateInvestment(globalInvestibleId, 50, 0, null, 1);
+                return adminClient.markets.updateInvestment(globalInvestibleId, 50, 0);
             }).then(() => {
                 console.log(`waiting for created investment on ${globalInvestibleId}`);
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
@@ -181,12 +181,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 assert(unread, `changing assignment should mark unvoted for ${globalInvestibleId}`);
                 assert(unread.market_investible_id === marketInfo.id, 'notification is for market info');
                 assert(unread.market_investible_version === marketInfo.version, 'notification version should match market info version');
-                return adminClient.markets.updateInvestment(globalInvestibleId, 100, 0, null, 1);
+                return adminClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'accepting investment quantity should be 100');
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
             }).then(() => {
-                return userClient.markets.updateInvestment(globalInvestibleId, 100, 0, null, 1);
+                return userClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages(
