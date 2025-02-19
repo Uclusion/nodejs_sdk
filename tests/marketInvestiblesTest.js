@@ -69,6 +69,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 let commentId = null;
                 let commentVersion = 0;
                 let groupVersion = 0;
+                let groupCapabilityVersion = 0;
                 const { signatures } = versions;
                 signatures.forEach((signature) => {
                     const {market_id: marketId, signatures: marketSignatures} = signature;
@@ -96,6 +97,9 @@ module.exports = function(adminConfiguration, userConfiguration) {
                                 else if (aType === 'market_capability') {
                                     marketCapabilityVersion = version;
                                 }
+                                else if (aType === 'group_capability') {
+                                    groupCapabilityVersion = version;
+                                }
                                 else if (aType === 'stage') {
                                     stageVersion = version;
                                 }
@@ -120,8 +124,8 @@ module.exports = function(adminConfiguration, userConfiguration) {
                 // groupVersion is 1 because group code updates are not saved as object versions
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 2
                     && marketCapabilityVersion === 1 && stageVersion === 1 && commentVersion === 1 &&
-                    addressedVersion === 0 && groupVersion === 1,
-                    `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion} ${addressedVersion} ${groupVersion}`);
+                    addressedVersion === 0 && groupVersion === 1 && groupCapabilityVersion === 1,
+                    `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion} ${addressedVersion} ${groupVersion} ${groupCapabilityVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
