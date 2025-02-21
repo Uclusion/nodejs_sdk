@@ -67,11 +67,23 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId;
                 });
-                assert(vote, 'Should receive approval request for existing stories on login');
+                assert(!vote, 'Should not receive approval request for existing stories till subscribed');
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
+                // The default group has the same id as the market
+                return userClient.markets.followGroup(createdMarketId, [{user_id: userId, is_following: true}]);
+            }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    type_object_id: `UNREAD_JOB_APPROVAL_REQUEST_${globalInvestibleId}`});
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId;
+                });
+                assert(vote, 'Should receive approval request for existing stories on subscribe');
                 return adminClient.users.pokeInvestible(globalInvestibleId);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
