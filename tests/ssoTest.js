@@ -65,6 +65,12 @@ module.exports = function(adminConfiguration, userConfiguration) {
                         return loginUserToMarket(userConfiguration, createdMarketId);
                     }).then((client) => {
                         userClient = client;
+                        return userClient.users.get();
+                    }).then((user) => {
+                        // The default group has the same id as the market
+                        return userClient.markets.followGroup(createdMarketId, [{user_id: user.id,
+                            is_following: true}]);
+                    }).then(() => {
                         // No post-processing on the push type object id
                         return userConfiguration.webSocketRunner.waitForReceivedMessage(
                             {event_type: 'notification', type_object_id: `UNASSIGNED_${bugCommentId}`});

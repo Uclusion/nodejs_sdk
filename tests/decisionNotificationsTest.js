@@ -42,6 +42,13 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 // Have to log the user in also, or he won't receive notifications
                 return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
+            }).then((client) => {
+                userClient = client;
+                return client.users.get();
+            }).then((user) => {
+                userId = user.id;
+                return userClient.markets.followGroup(createdMarketId, [{user_id: userId,
+                    is_following: true}]);
             }).then(() => {
                 const fishOptions = {
                     market_type: 'DECISION',

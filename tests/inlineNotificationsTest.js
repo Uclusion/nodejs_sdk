@@ -97,6 +97,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     });
                 });
                 assert(foundInvestible && !foundComment, 'Comment should still be in draft');
+                // The default group has the same id as the market
+                return userClient.markets.followGroup(createdMarketId, [{user_id: userId, is_following: true}]);
+            }).then(() => {
                 return adminClient.investibles.updateComment(createdCommentId, undefined, undefined,
                     undefined, undefined, undefined, undefined, true);
             }).then(() => {

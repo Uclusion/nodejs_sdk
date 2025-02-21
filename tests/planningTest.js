@@ -69,6 +69,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
       }).then((comments) => {
         const comment = comments[0];
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
+        // First subscribe user to group or not allowed to assign to user
+        return adminClient.markets.followGroup(marketId, [{user_id: userId, is_following: true}]);
+      }).then(() => {
         return adminClient.investibles.updateAssignments(storyId, [userId]);
       }).then(() => {
         // wait for the investment deletion event

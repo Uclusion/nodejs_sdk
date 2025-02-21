@@ -100,7 +100,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'notification'}]);
+                    {event_type: 'notification', type_object_id: `UNREAD_COMMENT_${parentCommentId}`}]);
             }).then(() => {
                 return getMessages(adminConfiguration);
             }).then((messages) => {
