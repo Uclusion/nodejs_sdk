@@ -18,6 +18,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             let inlineCreatedMarketInvite;
             let createdCommentId;
             let adminAccountClient;
+            let userClient;
             await promise.then((client) => {
                 adminAccountClient = client;
                 const planningOptions = {
@@ -31,7 +32,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 createdMarketInvite = response.market.invite_capability;
                 // Must log in user in order to receive notifications
                 return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
-            }).then(() => {
+            }).then((client) => {
+                userClient = client;
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
@@ -67,8 +69,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
             }).then((user) => {
                 userId = user.id;
                 userExternalId = user.external_id;
-                return inlineUserClient.markets.followGroup(createdMarketId, [{user_id: userId,
-                    is_following: true}]);
+                return userClient.markets.followGroup(createdMarketId, [{user_id: userId, is_following: true}]);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'notification', type_object_id: `NOT_FULLY_VOTED_${inlineCreatedMarketId}`});
