@@ -126,7 +126,11 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     });
                 });
                 if (!foundInvestible || !foundComment) {
-                    console.log(signatures);
+                    signatures.forEach((signature) => {
+                        signature.forEach((sig) => {
+                            console.log(sig);
+                        });
+                    });
                 }
                 assert(foundInvestible && foundComment, 'Comment should be out of draft');
                 return getMessages(userConfiguration);
