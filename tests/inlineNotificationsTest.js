@@ -100,6 +100,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 // The default group has the same id as the market
                 return userClient.markets.followGroup(createdMarketId, [{user_id: userId, is_following: true}]);
             }).then(() => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId, type_object_id: `UNREAD_GROUP_${createdMarketId}`});
+            }).then(() => {
                 return adminClient.investibles.updateComment(createdCommentId, undefined, undefined,
                     undefined, undefined, undefined, undefined, true);
             }).then(() => {
