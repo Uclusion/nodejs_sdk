@@ -127,9 +127,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 });
                 if (!foundInvestible || !foundComment) {
                     signatures.forEach((signature) => {
-                        signature.forEach((sig) => {
-                            console.log(sig);
-                        });
+                        console.log(signature);
                     });
                 }
                 assert(foundInvestible && foundComment, 'Comment should be out of draft');
