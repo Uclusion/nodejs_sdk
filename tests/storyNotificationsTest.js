@@ -237,8 +237,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     null, 'TODO');
             }).then((comment) => {
                 todoCommentId = comment.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
+                return adminConfiguration.webSocketRunner.waitForReceivedMessages(
+                    [{event_type: 'market_investible', object_id: createdMarketId},
+                        {event_type: 'notification',
+                            type_object_id: `UNREAD_JOB_APPROVAL_REQUEST_${globalInvestibleId}`}]);
             }).then(() => {
                 return adminClient.markets.getMarketInvestibles(
                     [
