@@ -167,7 +167,7 @@ module.exports = function(adminConfiguration, userConfiguration) {
             }).then((presences) => {
                 const { id } = presences[0];
                 assert(id, 'Add not successful');
-                return adminClient.investibles.create({groupId: createdMarketId, name: 'A job',
+                return adminClient.investibles.create({groupId: secondMarketId, name: 'A job',
                     description: 'To verify push.', todos: ['<p>My thing one.</p>','<p>My thing two.</p>']});
             }).then((result) => {
                 const { investible, todos } = result;
