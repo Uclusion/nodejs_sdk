@@ -300,7 +300,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const marketInfo = market_infos[0];
                 const { stage } = marketInfo;
                 assert(inApprovalStage.id === stage, 'Investible should move back to former');
-                return userClient.investibles.updateComment(questionCommentId, undefined, false);
+                return adminClient.investibles.updateComment(questionCommentId, undefined, false);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
