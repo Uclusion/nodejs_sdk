@@ -365,7 +365,8 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 // We get a unread_resolved from auto closing the to-do above
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([
                     {event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification', object_id: userExternalId}]);
+                    {event_type: 'notification', object_id: userExternalId,
+                        type_object_id: `UNREAD_RESOLVED_${todoCommentId}`}]);
             }).then(() => {
                 return adminClient.investibles.createComment(globalInvestibleId, createdMarketId,
                     'review my job', null, 'REPORT');
