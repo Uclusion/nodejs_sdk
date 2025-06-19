@@ -191,7 +191,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     external_id: userExternalId,
                 };
                 return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
-                    undefined, [mention]);
+                    undefined, [mention], undefined, undefined,
+                    undefined, undefined, undefined, undefined, undefined,
+                    undefined, 2);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: userExternalId});

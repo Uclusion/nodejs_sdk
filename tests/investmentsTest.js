@@ -123,7 +123,10 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     user_id: adminUserId,
                     external_id: adminUserExternalId,
                 };
-                return userClient.investibles.updateComment(parentCommentId, 'new body', true, undefined, [mention]);
+                return userClient.investibles.updateComment(parentCommentId, 'new body', true,
+                    undefined, [mention], undefined, undefined,
+                    undefined, undefined, undefined, undefined, undefined,
+                    undefined, 1);
             }).then((comment) => {
                 console.log('Checking updated comment');
                 assert(comment.body === 'new body', 'updated comment body incorrect');
