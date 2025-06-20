@@ -175,7 +175,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const { investible } = fullInvestible;
                 assert(investible.name === 'salmon', 'lock investible name not passed correctly');
                 assert(investible.description === 'good on bagels', 'lock investible description not passed correctly');
-                return adminClient.investibles.update(globalInvestibleId, updateFish.name, updateFish.description, updateFish.label_list);
+                return adminClient.investibles.update(globalInvestibleId, updateFish.name, updateFish.description,
+                    updateFish.label_list, undefined, undefined, undefined,
+                    undefined, undefined, 1);
             }).then((response) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId})
                   .then(() => response);
