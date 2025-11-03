@@ -69,8 +69,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 userId = user.id;
                 userExternalId = user.external_id;
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment',
-                    null, 'QUESTION', undefined, undefined, undefined,
-                    undefined, undefined, false);
+                    null, 'QUESTION', undefined, undefined, undefined, undefined, undefined, false);
             }).then((comment) => {
                 createdCommentId = comment.id;
                 return loginUserToAccountAndGetToken(userConfiguration);
@@ -191,9 +190,7 @@ module.exports = function (adminConfiguration, userConfiguration) {
                     external_id: userExternalId,
                 };
                 return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
-                    undefined, [mention], undefined, undefined,
-                    undefined, undefined, undefined, undefined, undefined,
-                    undefined, 2);
+                    undefined, [mention], undefined, undefined, undefined, undefined, undefined, undefined, undefined, 2);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
                     object_id: userExternalId});
