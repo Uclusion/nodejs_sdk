@@ -185,7 +185,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 const { investible } = response;
                 assert(investible.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(investible.description === 'possibly poisonous', 'update market investible description not passed on correctly');
-                assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
+                const { label_list } = investible;
+                const labels = label_list.map(item => item.label );
+                assert(arrayEquals(labels, ['freshwater', 'spawning']), 'update market investible labels not passed on correctly');
                 return userClient.markets.getMarketInvestibles(
                     [
                         {investible: {id: globalInvestibleId, version: 1},
@@ -197,7 +199,9 @@ module.exports = function (adminConfiguration, userConfiguration) {
                 assert(investible.name === 'pufferfish', 'get market investible name incorrect');
                 assert(!investible.updated_by_you, 'Market investible should have been updated by the admin not the user');
                 assert(investible.description === 'possibly poisonous', 'get market investible description incorrect');
-                assert(arrayEquals(investible.label_list, ['freshwater', 'spawning']), 'update market investible label list not passed on correctly');
+                const { label_list } = investible;
+                const labels = label_list.map(item => item.label );
+                assert(arrayEquals(labels, ['freshwater', 'spawning']), 'update market investible labels not passed on correctly');
                 const marketInfo = fullInvestible.market_infos.find(info => {
                     return info.market_id === createdMarketId;
                 });
