@@ -3563,7 +3563,7 @@ typedarray-to-buffer@^3.1.5:
 "uclusion_sdk@https://github.com/Uclusion/uclusion_sdk.git":
   version "0.0.2"
   resolved "git+ssh://git@github.com/Uclusion/uclusion_sdk.git"
-  integrity sha512-a1x0/720W3jl4uXX1g+yp79aYzbZsh9xdKT4EpykqctgoxrfIUpAvkDWHVkEYtJ4EYgy+qy1FhhuDDlM0lW9ZQ==
+  integrity sha512-tHrQNkan+TOTpUx3BRc56Tdy2/luOQdLhf39a04uyOTVALGZFPMzzfMCq9gosV8pT5eZFX0329nS5bXlEIrXvw==
 
 uglify-js@^3.1.4:
   version "3.4.9"
