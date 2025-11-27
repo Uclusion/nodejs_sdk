@@ -64,7 +64,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
-                return getMessages(adminCobilling_subscription_statusnfiguration);
+                return getMessages(adminConfiguration);
             }).then((messages) => {
                 const upgradeReminder = messages.find(obj => {
                     return obj.market_id_user_id.startsWith('upgrade_reminder');
