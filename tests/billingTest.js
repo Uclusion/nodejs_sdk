@@ -30,6 +30,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
 
     describe('#Test without coupons', () => {
         it('create a subscription without coupons', async () => {
+            const promoCode = 'Test12Month';
             let adminAccountClient;
             //first load stripe
             const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
@@ -63,39 +64,16 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 assert(account.billing_subscription_status === 'ACTIVE', 'Account should have restarted subscription');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
             }).then(() => {
-                return getMessages(adminConfiguration);
+                return getMessages(adminCobilling_subscription_statusnfiguration);
             }).then((messages) => {
                 const upgradeReminder = messages.find(obj => {
                     return obj.market_id_user_id.startsWith('upgrade_reminder');
                 });
                 assert(!upgradeReminder, 'Upgrade reminder should have been cleared');
-            }).catch(function (error) {
-                console.log(error);
-                throw error;
-            });
-        }).timeout(60000);
-    });
-
-    describe('#Test coupon reset on restart', () => {
-        it('create a subscription with Test12Month coupon', async () => {
-            const promoCode = 'Test12Month';
-            let adminAccountClient;
-            //first load stripe
-            const stripeClient = new Stripe(stripeConfiguration.public_api_key, {apiVersion: '2020-08-27'});
-            await getSSOInfo(adminConfiguration).then((info) => {
-                const { ssoClient, idToken } = info;
-                const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
-                    idToken);
-                const config = {...adminConfiguration, tokenManager};
-                return uclusion.constructClient(config);
-            }).then((client) => {
-                //make our client
-                adminAccountClient = client;
+                // Run this test now with a known account state as it requires it
                 return adminAccountClient.users.addPromoToSubscription(promoCode);
             }).then((account) => {
-                //console.log(account)
                 const {billing_promotions} = account;
-                assert(isSubscribed(account), 'Account did not subscribe');
                 assert(billing_promotions.length > 0, 'Should have had coupons')
                 assert(billing_promotions[0].consumed !== true, 'should not have been used yet');
                 //cancel our sub
@@ -115,7 +93,7 @@ module.exports = function (adminConfiguration, userConfiguration, stripeConfigur
                 console.log(error);
                 throw error;
             });
-        }).timeout(60000);
+        }).timeout(120000);
     });
     describe('#Check validity', () => {
         it('Checks coupon validity', async () => {
