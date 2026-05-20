@@ -1,9 +1,9 @@
-import {loginUserToAccount, loginUserToAccountAndGetToken, loginUserToIdentity, loginUserToMarket} from '../src/utils';
-import { sleep } from './commonTestFunctions';
+import {loginUserToAccount, loginUserToAccountAndGetToken, loginUserToIdentity, loginUserToMarket} from '../src/utils.js';
+import { sleep } from './commonTestFunctions.js';
 import _ from 'lodash';
 
 const DELETION_TIMEOUT = 60000; // wait 60 seconds to delete a market
-module.exports = function (adminConfiguration) {
+export default function (adminConfiguration) {
 
     // Avoid parallel logins into Cognito
     const resolvePromisesSeq = async (tasks) => {

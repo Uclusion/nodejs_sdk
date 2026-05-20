@@ -4,11 +4,12 @@ import {
     getMessages,
     loginUserToMarketInvite,
     loginUserToAccountAndGetToken, loginUserToAccount
-} from "../src/utils";
+} from "../src/utils.js";
 import _ from "lodash";
-import {version} from "websocket";
+import websocket from 'websocket';
+const {version} = websocket;
 
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
 
     describe('#doInlineNotifications', () => {
         it('should do persistent inline notifications without error', async () => {

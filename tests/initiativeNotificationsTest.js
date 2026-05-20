@@ -1,7 +1,7 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils.js";
 
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
     describe('#doInitiativeNotifications', () => {
         it('should do persistent Initiative notifications without error', async () => {
             let promise = loginUserToAccount(adminConfiguration);

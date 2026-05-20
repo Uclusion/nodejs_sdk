@@ -1,15 +1,15 @@
 import assert from 'assert';
 import _ from 'lodash';
 import uclusion from 'uclusion_sdk';
-import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager';
-import {getMessages, getSSOInfo} from '../src/utils';
+import TestTokenManager, {TOKEN_TYPE_ACCOUNT} from '../src/TestTokenManager.js';
+import {getMessages, getSSOInfo} from '../src/utils.js';
 import Stripe from 'stripe';
 
 /*
 Admin Configuration and User Configuration are used as in/out params here,
 so that we don't have to keep making accounts for every separate test
  */
-module.exports = function (adminConfiguration, userConfiguration, stripeConfiguration) {
+export default function (adminConfiguration, userConfiguration, stripeConfiguration) {
 
     function createTestStripePayment(stripeClient) {
         const card = {

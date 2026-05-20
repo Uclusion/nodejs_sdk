@@ -3,9 +3,9 @@ import {
     loginUserToAccountAndGetToken,
     loginUserToMarket,
     loginUserToMarketInvite
-} from "../src/utils";
+} from "../src/utils.js";
 
-module.exports = function(adminConfiguration, userConfiguration) {
+export default function(adminConfiguration, userConfiguration) {
     describe('#do market investible tests', () => {
         it('create investible and deletion without error', async() => {
             let promise = loginUserToAccountAndGetToken(adminConfiguration);

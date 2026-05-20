@@ -1,8 +1,8 @@
 import assert from 'assert'
-import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
-import {arrayEquals, checkStages} from "./commonTestFunctions";
+import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils.js";
+import {arrayEquals, checkStages} from "./commonTestFunctions.js";
 
-module.exports = function(adminConfiguration, userConfiguration) {
+export default function(adminConfiguration, userConfiguration) {
     const plannedStageNames = ['In Dialog', 'Accepted', 'Blocked', 'Complete', 'Not Doing', 'Further Work',
         'Requires Input'];
     const initiativeStageNames = ['In Dialog'];

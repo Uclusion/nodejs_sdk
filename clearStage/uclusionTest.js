@@ -1,6 +1,9 @@
 import fetch from 'node-fetch';
 import AbortController from 'abort-controller';
-import Amplify from 'aws-amplify';
+import awsAmplify from 'aws-amplify';
+import identityTests from '../tests/identityTests.js';
+
+const Amplify = awsAmplify.default;
 
 global.fetch = fetch;
 global.AbortController = AbortController;
@@ -28,6 +31,6 @@ const mattConfiguration = {
 };
 
 describe('uclusion', () => {
-  require('../tests/identityTests.js')(adminConfiguration);
-  require('../tests/identityTests.js')(mattConfiguration);
+  identityTests(adminConfiguration);
+  identityTests(mattConfiguration);
 });

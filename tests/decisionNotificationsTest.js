@@ -1,7 +1,7 @@
 import assert from 'assert';
-import {loginUserToAccount, getMessages, loginUserToMarketInvite} from "../src/utils";
+import {loginUserToAccount, getMessages, loginUserToMarketInvite} from "../src/utils.js";
 
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
 
     describe('#doDecisionNotifications', () => {
         it('should do persistent Dialog notifications without error', async () => {

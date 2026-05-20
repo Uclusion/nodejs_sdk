@@ -1,8 +1,8 @@
 import assert from 'assert';
-import { arrayEquals } from './commonTestFunctions';
-import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils";
+import { arrayEquals } from './commonTestFunctions.js';
+import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils.js";
 
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
     const updateFish = {
         name: 'pufferfish',
         description: 'possibly poisonous',
