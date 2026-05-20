@@ -1,5 +1,7 @@
 import _ from 'lodash';
-var W3CWebSocket = require('websocket').w3cwebsocket;
+import websocket from 'websocket';
+
+const W3CWebSocket = websocket.w3cwebsocket;
 
 /**
  * Class which fires and manages a websocket connection to the server. Copied from and derived from the uclusion web ui code

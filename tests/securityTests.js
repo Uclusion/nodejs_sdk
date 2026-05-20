@@ -1,11 +1,11 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils";
+import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils.js";
 
 /**
  THe only security related thing we have that's not explicitly taken care
  of in our model is banning from the market.
  **/
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
   const planningMarket = {
     name: 'Company A',
     market_type: 'PLANNING'

@@ -1,7 +1,7 @@
 import assert from 'assert';
-import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
+import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils.js";
 
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
   describe('#group specific actions', () => {
     it('addressing an investible should work', async () => {
       let adminClient;

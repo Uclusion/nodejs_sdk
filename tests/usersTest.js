@@ -1,18 +1,18 @@
 import assert from 'assert';
 import uclusion from 'uclusion_sdk';
-import TestTokenManager, { TOKEN_TYPE_ACCOUNT } from '../src/TestTokenManager';
+import TestTokenManager, { TOKEN_TYPE_ACCOUNT } from '../src/TestTokenManager.js';
 import {
   getSSOInfo,
   loginUserToAccount,
   getWebSocketRunner,
   loginUserToMarketInvite, loginUserToIdentity
-} from '../src/utils';
+} from '../src/utils.js';
 
 /*
 Admin Configuration and User Configuration are used as in/out params here,
 so that we don't have to keep making accounts for every seperate test
  */
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
   describe('#doCreate account and update user', () => {
     it('should login and pull without error', async () => {
       let adminAccountClient;

@@ -1,5 +1,22 @@
 import fetch from 'node-fetch';
-import Amplify from 'aws-amplify';
+import awsAmplify from 'aws-amplify';
+import identityTests from '../tests/identityTests.js';
+import usersTest from '../tests/usersTest.js';
+import ssoTest from '../tests/ssoTest.js';
+import groupTest from '../tests/groupTest.js';
+import inlineNotificationsTest from '../tests/inlineNotificationsTest.js';
+import storyNotificationsTest from '../tests/storyNotificationsTest.js';
+import initiativeNotificationsTest from '../tests/initiativeNotificationsTest.js';
+import decisionNotificationsTest from '../tests/decisionNotificationsTest.js';
+import securityTests from '../tests/securityTests.js';
+import marketsTest from '../tests/marketsTest.js';
+import planningTest from '../tests/planningTest.js';
+import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
+import investmentsTest from '../tests/investmentsTest.js';
+import listsTest from '../tests/listsTest.js';
+
+const Amplify = awsAmplify.default;
+
 global.fetch = fetch;
 
 const cognitoConfiguration = {
@@ -25,18 +42,18 @@ const userConfiguration = {
 };
 
 describe('uclusion', () => {
-  require('../tests/identityTests.js')(adminConfiguration);
-  require('../tests/usersTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/ssoTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/groupTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/inlineNotificationsTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/storyNotificationsTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/initiativeNotificationsTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/decisionNotificationsTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/securityTests.js')(adminConfiguration, userConfiguration);
-  require('../tests/marketsTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/planningTest.js')(adminConfiguration, userConfiguration);
-  require('../tests/marketInvestiblesTest')(adminConfiguration, userConfiguration);
-  require('../tests/investmentsTest.js')(adminConfiguration, userConfiguration, 2);
-  require('../tests/listsTest.js')(adminConfiguration, userConfiguration);
+  identityTests(adminConfiguration);
+  usersTest(adminConfiguration, userConfiguration);
+  ssoTest(adminConfiguration, userConfiguration);
+  groupTest(adminConfiguration, userConfiguration);
+  inlineNotificationsTest(adminConfiguration, userConfiguration);
+  storyNotificationsTest(adminConfiguration, userConfiguration);
+  initiativeNotificationsTest(adminConfiguration, userConfiguration);
+  decisionNotificationsTest(adminConfiguration, userConfiguration);
+  securityTests(adminConfiguration, userConfiguration);
+  marketsTest(adminConfiguration, userConfiguration);
+  planningTest(adminConfiguration, userConfiguration);
+  marketInvestiblesTest(adminConfiguration, userConfiguration);
+  investmentsTest(adminConfiguration, userConfiguration, 2);
+  listsTest(adminConfiguration, userConfiguration);
 });

@@ -1,8 +1,8 @@
 import { Auth } from 'aws-amplify';
 import uclusion from 'uclusion_sdk';
-import TestTokenManager, {TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET, TOKEN_TYPE_MARKET_INVITE} from './TestTokenManager';
-import {getIdentity} from './amplifyAuth';
-import {WebSocketRunner} from './WebSocketRunner';
+import TestTokenManager, {TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET, TOKEN_TYPE_MARKET_INVITE} from './TestTokenManager.js';
+import {getIdentity} from './amplifyAuth.js';
+import {WebSocketRunner} from './WebSocketRunner.js';
 
 
 export function getSSOInfo(configuration) {

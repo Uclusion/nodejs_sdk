@@ -1,7 +1,7 @@
 import assert from 'assert';
-import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils";
+import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils.js";
 
-module.exports = function (adminConfiguration, userConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
   describe('#test plan specific actions', () => {
     it('should let a non assignable person vote', async () => {
       let adminClient;

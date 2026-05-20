@@ -1,4 +1,4 @@
-import { getIdentity } from './amplifyAuth';
+import { getIdentity } from './amplifyAuth.js';
 
     export const TOKEN_TYPE_ACCOUNT = 'ACCOUNT';
     export const TOKEN_TYPE_MARKET = 'MARKET';

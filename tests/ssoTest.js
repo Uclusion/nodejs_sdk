@@ -4,10 +4,10 @@ import {
     loginUserToAccount,
     loginUserToAccountAndGetToken,
     loginUserToMarket
-} from '../src/utils';
+} from '../src/utils.js';
 import _ from 'lodash';
 
-module.exports = function(adminConfiguration, userConfiguration) {
+export default function(adminConfiguration, userConfiguration) {
     const marketOptions = {
         name: 'Company A',
         market_type: 'PLANNING'
