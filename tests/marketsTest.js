@@ -2,7 +2,7 @@ import assert from 'assert'
 import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils.js";
 import {arrayEquals, checkStages} from "./commonTestFunctions.js";
 
-module.exports = function(adminConfiguration, userConfiguration) {
+export default function(adminConfiguration, userConfiguration) {
     const plannedStageNames = ['Approvable', 'Doable', 'Blocked', 'Reviewable', 'Skippable', 'Backlog',
         'Requires Input'];
     const initiativeStageNames = ['Approvable'];

@@ -2,7 +2,7 @@ import assert from 'assert'
 import {checkStages} from './commonTestFunctions.js';
 import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils.js";
 
-module.exports = function(adminConfiguration, userConfiguration) {
+export default function(adminConfiguration, userConfiguration) {
     const adminExpectedStageNames = [ 'Created', 'In Dialog'];
     describe('#doList', () => {
         it('should list without error', async () => {
