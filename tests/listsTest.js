@@ -2,7 +2,7 @@ import assert from 'assert'
 import {checkStages} from './commonTestFunctions.js';
 import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils.js";
 
-export default function(adminConfiguration, userConfiguration) {
+module.exports = function(adminConfiguration, userConfiguration) {
     const adminExpectedStageNames = [ 'Created', 'In Dialog'];
     describe('#doList', () => {
         it('should list without error', async () => {
@@ -92,7 +92,7 @@ export default function(adminConfiguration, userConfiguration) {
                     return info.market_id === createdMarketId;
                 });
                 const stage = globalStages.find(stage => { return stage.id === marketInfo.stage});
-                assert(stage.name === 'In Dialog', 'investible stage should be Created');
+                assert(stage.name === 'Approvable', 'investible stage name incorrect');
                 investible = investibles.find(obj => {
                     return obj.investible.id === globalCSMInvestibleId;
                 });

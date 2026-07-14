@@ -2,10 +2,10 @@ import assert from 'assert'
 import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils.js";
 import {arrayEquals, checkStages} from "./commonTestFunctions.js";
 
-export default function(adminConfiguration, userConfiguration) {
-    const plannedStageNames = ['In Dialog', 'Accepted', 'Blocked', 'Complete', 'Not Doing', 'Further Work',
+module.exports = function(adminConfiguration, userConfiguration) {
+    const plannedStageNames = ['Approvable', 'Doable', 'Blocked', 'Reviewable', 'Skippable', 'Backlog',
         'Requires Input'];
-    const initiativeStageNames = ['In Dialog'];
+    const initiativeStageNames = ['Approvable'];
     describe('#doCreate market and asynchronously expire investments', () => {
         it('should create market without error', async() => {
             let promise = loginUserToAccount(adminConfiguration);
@@ -64,7 +64,7 @@ export default function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.listStages(signatures);
             }).then((stageList) => {
                 checkStages(plannedStageNames, stageList);
-                acceptedStage = globalStages.find(stage => { return stage.name === 'Accepted'});
+                acceptedStage = globalStages.find(stage => { return stage.name === 'Doable'});
                 return adminClient.markets.updateStage(acceptedStage.id, 1)
             }).then(() => {
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'stage', object_id: createdMarketId}));
