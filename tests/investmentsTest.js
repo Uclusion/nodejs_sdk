@@ -71,8 +71,8 @@ export default function (adminConfiguration, userConfiguration) {
                 console.log('Investible ID is ' + globalInvestibleId);
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
             }).then(() => {
-                const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
-                const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
+                const currentStage = globalStages.find(stage => { return stage.name === 'Proposed'});
+                const stage = globalStages.find(stage => { return stage.name === 'Approvable'});
                 let stateOptions = {
                     current_stage_id: currentStage.id,
                     stage_id: stage.id

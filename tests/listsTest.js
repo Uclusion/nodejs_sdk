@@ -3,7 +3,7 @@ import {checkStages} from './commonTestFunctions.js';
 import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils.js";
 
 export default function(adminConfiguration, userConfiguration) {
-    const adminExpectedStageNames = [ 'Created', 'In Dialog'];
+    const adminExpectedStageNames = [ 'Proposed', 'Approvable'];
     describe('#doList', () => {
         it('should list without error', async () => {
             let promise = loginUserToAccount(adminConfiguration);

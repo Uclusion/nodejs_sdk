@@ -141,8 +141,8 @@ export default function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
                 });
                 assert(submitted, 'Should receive investible submitted when comment resolved');
-                const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
-                const stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
+                const currentStage = globalStages.find(stage => { return stage.name === 'Proposed'});
+                const stage = globalStages.find(stage => { return stage.name === 'Approvable'});
                 let stateOptions = {
                     current_stage_id: currentStage.id,
                     stage_id: stage.id
