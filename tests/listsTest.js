@@ -58,8 +58,8 @@ export default function(adminConfiguration, userConfiguration) {
             }).then((investible) => {
                 globalInvestibleId = investible.investible.id;
                 marketInvestibleId = investible.market_infos[0].id;
-                const currentStage = globalStages.find(stage => { return stage.name === 'Created'});
-                const nextStage = globalStages.find(stage => { return stage.name === 'In Dialog'});
+                const currentStage = globalStages.find(stage => { return stage.name === 'Proposed'});
+                const nextStage = globalStages.find(stage => { return stage.name === 'Approvable'});
                 let stateOptions = {
                     current_stage_id: currentStage.id,
                     stage_id: nextStage.id

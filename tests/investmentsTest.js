@@ -203,7 +203,7 @@ export default function (adminConfiguration, userConfiguration) {
                 const marketInfo = fullInvestible.market_infos.find(info => {
                     return info.market_id === createdMarketId;
                 });
-                const current_stage = globalStages.find(stage => { return stage.name === 'In Dialog'});
+                const current_stage = globalStages.find(stage => { return stage.name === 'Approvable'});
                 assert(marketInfo.stage === current_stage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 assert(marketInfo.open_for_investment === true, 'open_for_investment true');
                 return getMessages(userConfiguration);
