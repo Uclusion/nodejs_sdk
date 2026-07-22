@@ -6,7 +6,7 @@ import {
   loginUserToMarket,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration, userConfiguration) {
   describe('#test resolve question notification cleanup', () => {
@@ -189,31 +189,10 @@ export default function (adminConfiguration, userConfiguration) {
       const reply = await userClient.investibles.createComment(undefined, marketId, 'a reply',
         question.id);
       await assertNotificationArrives(adminConfiguration, `UNREAD_REPLY_${reply.id}`, 'reply to question');
-      const secretUser = await adminClient.users.getSecret();
-      const cliLoginResponse = await fetch(adminConfiguration.baseURL.replace('https://', 'https://sso.') + '/cli', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          market_id: marketId,
-          client_id: `${secretUser.external_id}_${secretUser.account_id}`,
-          client_secret: secretUser.client_secret
-        })
-      });
-      assert(cliLoginResponse.ok, `CLI login failed with status ${cliLoginResponse.status}`);
-      const { uclusion_token: uclusionToken } = await cliLoginResponse.json();
+      const uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
       // MCP is just a post - resolve as the AI user with the question's ticket code
-      const mcpResponse = await fetch(adminConfiguration.baseURL.replace('https://', 'https://investibles.') + '/mcp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: uclusionToken },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'tools/call',
-          params: { name: 'resolve', arguments: { short_code_id: question.ticket_code } }
-        })
-      });
-      assert(mcpResponse.ok, `MCP resolve failed with status ${mcpResponse.status}`);
-      const mcpResult = JSON.stringify(await mcpResponse.json());
+      const mcpResult = await mcpCall(adminConfiguration, uclusionToken, 'resolve',
+        { short_code_id: question.ticket_code });
       assert(mcpResult.includes(`Resolved comment ${question.ticket_code}`),
         `MCP resolve response wrong: ${mcpResult}`);
       await assertNotificationRemoved(adminConfiguration, `UNREAD_REPLY_${reply.id}`, 'AI user resolving');

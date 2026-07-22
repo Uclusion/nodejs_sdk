@@ -15,6 +15,7 @@ import marketsTest from '../tests/marketsTest.js';
 import planningTest from '../tests/planningTest.js';
 import conversionsTest from '../tests/conversionsTest.js';
 import resolveNotificationsTest from '../tests/resolveNotificationsTest.js';
+import mcpVotingTest from '../tests/mcpVotingTest.js';
 import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
 import listsTest from '../tests/listsTest.js';
@@ -66,6 +67,7 @@ describe('uclusion', () => {
   planningTest(adminConfiguration, userConfiguration);
   conversionsTest(adminConfiguration);
   resolveNotificationsTest(adminConfiguration, userConfiguration);
+  mcpVotingTest(adminConfiguration, userConfiguration);
   marketInvestiblesTest(adminConfiguration, userConfiguration);
   investmentsTest(adminConfiguration, userConfiguration, 2);
   listsTest(adminConfiguration, userConfiguration);

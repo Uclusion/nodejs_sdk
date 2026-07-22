@@ -59,3 +59,40 @@ export function sleep(ms) {
         setTimeout(resolve, ms);
     })
 }
+
+// Logs into the CLI/MCP endpoint with the user's secret the same way uclusionCLI.py does
+export async function mcpLogin(configuration, marketClient, marketId) {
+    const secretUser = await marketClient.users.getSecret();
+    const response = await fetch(configuration.baseURL.replace('https://', 'https://sso.') + '/cli', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            market_id: marketId,
+            client_id: `${secretUser.external_id}_${secretUser.account_id}`,
+            client_secret: secretUser.client_secret
+        })
+    });
+    assert(response.ok, `CLI login failed with status ${response.status}`);
+    const { uclusion_token: uclusionToken } = await response.json();
+    return uclusionToken;
+}
+
+// MCP is just a post - JSON-RPC tools/call against the investibles mcp endpoint
+export async function mcpCall(configuration, uclusionToken, toolName, args) {
+    const response = await fetch(configuration.baseURL.replace('https://', 'https://investibles.') + '/mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: uclusionToken },
+        body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'tools/call',
+            params: { name: toolName, arguments: args }
+        })
+    });
+    if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        assert.fail(`MCP ${toolName} failed with status ${response.status}: ${errorBody}`);
+    }
+    const result = await response.json();
+    return JSON.stringify(result);
+}
