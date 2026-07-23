@@ -77,6 +77,21 @@ export function loginUserToMarket(configuration, marketId) {
     });
 }
 
+export function loginUserToMarketAndGetToken(configuration, marketId) {
+  return getSSOInfo(configuration)
+    .then(info => {
+      const { ssoClient, idToken } = info;
+      const tokenManager = new TestTokenManager(TOKEN_TYPE_MARKET, marketId, ssoClient, idToken);
+      return tokenManager.getToken()
+        .then((marketToken) => {
+          return uclusion.constructClient({ ...configuration, tokenManager })
+            .then((client) => {
+              return { marketToken, client };
+            });
+        });
+    });
+}
+
 export function loginUserToMarketInvite(configuration, marketToken) {
     return getSSOInfo(configuration)
         .then(info => {
