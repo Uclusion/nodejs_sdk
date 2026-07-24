@@ -153,16 +153,13 @@ class WebSocketRunner {
     }
 
     checkPayload(payload, signature) {
-        console.log("Received payload for matching:");
-        console.log(payload);
         let stillMatching = true;
-        console.log("Testing message against signature:");
-        console.log(signature);
         for(const key of Object.keys(signature)){
             stillMatching &= (payload[key] === signature[key] || isSubsetEquivalent(payload[key], signature[key]));
         }
         if (stillMatching) {
-            console.log("Found match");
+            console.log("Matched websocket signature:");
+            console.log(signature);
             return true;
         }
         return false;

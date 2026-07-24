@@ -100,10 +100,11 @@ export default function (adminConfiguration, userConfiguration) {
                 console.log("Parent comment ID is " + parentCommentId)
                 assert(comment.body === 'body of my comment', 'comment body incorrect');
                 assert(comment.comment_type === 'ISSUE', 'comment_type incorrect');
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'notification', type_object_id: `UNREAD_COMMENT_${parentCommentId}`}]);
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === `UNREAD_COMMENT_${parentCommentId}` &&
+                        message.level === 'RED'));
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
                     return (obj.type_object_id === 'UNREAD_COMMENT_' + parentCommentId)&&(obj.level === 'RED');
@@ -220,4 +221,3 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(240000);
     });
 };
-
