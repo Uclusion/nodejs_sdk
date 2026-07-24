@@ -136,10 +136,10 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(!vote, 'Not fully voted removed on voting');
                 return inlineUserClient.markets.removeInvestment(marketInvestibleId);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`));
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
                     return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
@@ -153,16 +153,16 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(vote, 'Removing investment restores not fully voted');
                 return inlineUserClient.investibles.updateComment(createdCommentId, undefined, false);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: inlineCreatedMarketId});
-            }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineCreatedMarketId;
                 });
                 assert(vote, 'Unresolving comment does not remove not fully voted');
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === `UNREAD_COMMENT_${createdCommentId}`));
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
@@ -175,4 +175,3 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(480000);
     });
 };
-

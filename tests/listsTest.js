@@ -72,7 +72,11 @@ export default function(adminConfiguration, userConfiguration) {
                 csmMarketInvestibleId = investible.market_infos[0].id;
                 return userClient.markets.updateInvestment(globalInvestibleId, 5, 0);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market', object_id: createdMarketId})
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({
+                    event_type: 'investment',
+                    object_id: createdMarketId,
+                    object_id_one_two: `${marketInvestibleId}_${userId}`
+                }, 30000)
                     .then(() => response);
             }).then((investment) => {
                 assert(investment.quantity === 5, 'investment quantity should be 5 instead of ' + investment.quantity);
