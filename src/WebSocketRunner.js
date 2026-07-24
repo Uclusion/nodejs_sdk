@@ -226,6 +226,10 @@ function isSubsetEquivalent(payload, signature) {
     if ((!payload && signature) || (!signature && payload)) {
         return false
     }
+    if (payload === null || signature === null ||
+        typeof payload !== 'object' || typeof signature !== 'object') {
+        return false;
+    }
     for(const key of Object.keys(signature)){
         if (payload[key] !== signature[key]) {
             return false;

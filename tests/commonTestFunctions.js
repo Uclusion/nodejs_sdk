@@ -60,6 +60,34 @@ export function sleep(ms) {
     })
 }
 
+/**
+ * Polls an eventually-consistent read until it reaches the expected state.
+ * Returning the last result lets the caller's assertion describe the state
+ * that failed to converge.
+ */
+export async function pollFor(fetcher, isDone, attempts = 20, interval = 3000) {
+    let lastResult;
+    let lastError;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+        try {
+            lastResult = await fetcher();
+            lastError = undefined;
+            if (isDone(lastResult)) {
+                return lastResult;
+            }
+        } catch (error) {
+            lastError = error;
+        }
+        if (attempt + 1 < attempts) {
+            await sleep(interval);
+        }
+    }
+    if (lastResult === undefined && lastError) {
+        throw lastError;
+    }
+    return lastResult;
+}
+
 // Logs into the CLI/MCP endpoint with the user's secret the same way uclusionCLI.py does
 export async function mcpLogin(configuration, marketClient, marketId) {
     const secretUser = await marketClient.users.getSecret();

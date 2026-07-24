@@ -1,6 +1,6 @@
 import assert from 'assert'
 import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils.js";
-import {arrayEquals, checkStages} from "./commonTestFunctions.js";
+import {arrayEquals, checkStages, pollFor} from "./commonTestFunctions.js";
 
 export default function(adminConfiguration, userConfiguration) {
     const plannedStageNames = ['Approvable', 'Doable', 'Blocked', 'Reviewable', 'Skippable', 'Backlog',
@@ -158,14 +158,19 @@ export default function(adminConfiguration, userConfiguration) {
             }).then(() => {
                 return userClient.investibles.updateAssignments(globalInvestibleId, [adminId]);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification', object_id: adminExternalId}]);
-            }).then(() => {
-                return userClient.markets.getMarketInvestibles(
-                    [
+                return pollFor(
+                    () => userClient.markets.getMarketInvestibles([
                         {investible: {id: globalInvestibleId, version: 2},
                             market_infos: [{id: marketInvestibleId, version: 3}]}
-                    ]);
+                    ]),
+                    (investibles) => {
+                        const fullInvestible = investibles[0];
+                        const currentMarketInfo = fullInvestible && fullInvestible.market_infos.find((info) =>
+                            info.market_id === createdMarketId);
+                        return Boolean(currentMarketInfo && currentMarketInfo.assigned &&
+                            currentMarketInfo.assigned[0] === adminId &&
+                            currentMarketInfo.stage === inDialogStage.id);
+                    });
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -173,7 +178,10 @@ export default function(adminConfiguration, userConfiguration) {
                 const { assigned, stage } = marketInfo;
                 assert(assigned[0] === adminId, 'Should be assigned');
                 assert(stage === inDialogStage.id, 'Should be in voting stage');
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId));
             }).then((messages) => {
                 const unread = messages.find(obj => {
                     return (obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId) && (obj.market_id_user_id.startsWith(createdMarketId));

@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils.js";
+import {pollFor} from "./commonTestFunctions.js";
 
 export default function (adminConfiguration, userConfiguration) {
 
@@ -17,6 +18,7 @@ export default function (adminConfiguration, userConfiguration) {
             let marketInvestibleId;
             let createdMarketInvite;
             let questionCommentId;
+            let adminMentionCapabilityVersion;
             let todoCommentId;
             let reportCommentId;
             let globalStages;
@@ -24,6 +26,23 @@ export default function (adminConfiguration, userConfiguration) {
             let resolvedStage;
             let inApprovalStage;
             let requiresInputStage;
+            const pollForStage = async (stageId) => {
+                const investibles = await pollFor(
+                    () => adminClient.markets.getMarketInvestibles([
+                        {investible: {id: globalInvestibleId, version: 1},
+                            market_infos: [{id: marketInvestibleId, version: 1}]}
+                    ]),
+                    (fetched) => {
+                        const marketInfo = fetched[0] && fetched[0].market_infos.find((info) =>
+                            info.market_id === createdMarketId);
+                        return Boolean(marketInfo && marketInfo.stage === stageId);
+                    });
+                const marketInfo = investibles[0] && investibles[0].market_infos.find((info) =>
+                    info.market_id === createdMarketId);
+                assert(marketInfo && marketInfo.stage === stageId,
+                    `Market investible should reach stage ${stageId}`);
+                return investibles;
+            };
             await promise.then((client) => {
                 const marketOptions = {
                     market_type: 'PLANNING',
@@ -98,17 +117,25 @@ export default function (adminConfiguration, userConfiguration) {
                     null, 'QUESTION', undefined, [mention]);
             }).then((comment) => {
                 questionCommentId = comment.id;
-                // Also wait the push of the capability from the mention
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([
-                    {event_type: 'notification', object_id: adminExternalId},
-                    {event_type: 'market_capability', object_id: createdMarketId}]);
+                return adminConfiguration.webSocketRunner.waitForReceivedMessage(
+                    {event_type: 'notification', object_id: adminExternalId,
+                        type_object_id: `ISSUE_${questionCommentId}`}, 30000);
             }).then(() => {
-                return userClient.markets.listUsers([{id: adminId, version: 1}]);
+                return pollFor(
+                    () => userClient.markets.listUsers([{id: adminId, version: 1}]),
+                    (users) => {
+                        const admin = users.find((user) => user.id === adminId);
+                        return Boolean(admin && admin.mentioned_notifications &&
+                            admin.mentioned_notifications.length > 0);
+                    });
             }).then((users) => {
                 const myAdminUser = users.find(obj => {
                     return obj.id === adminId;
                 });
-                assert(myAdminUser.mentioned_notifications, 'admin should show as mentioned');
+                assert(myAdminUser.mentioned_notifications && myAdminUser.mentioned_notifications.length > 0,
+                    'admin should show as mentioned');
+                // Mention membership lives on the market capability, not the user profile version.
+                adminMentionCapabilityVersion = myAdminUser.market_capability_version;
                 return getMessages(adminConfiguration);
             }).then(() => {
                 return getMessages(adminConfiguration);
@@ -125,27 +152,34 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(!vote, 'Not fully voted removed if leave comment');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
-                // Also wait the push of the capability from removing the mention
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([
-                    {event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'market_capability', object_id: createdMarketId}]);
-            }).then(() => {
-                return userClient.markets.listUsers([{id: adminId, version: 1}]);
+                return pollFor(
+                    () => userClient.markets.listUsers([{id: adminId, version: 1}]),
+                    (users) => {
+                        const admin = users.find((user) => user.id === adminId);
+                        return Boolean(admin &&
+                            admin.market_capability_version > adminMentionCapabilityVersion &&
+                            (!admin.mentioned_notifications || admin.mentioned_notifications.length === 0));
+                    });
             }).then((users) => {
                 const myAdminUser = users.find(obj => {
                     return obj.id === adminId;
                 });
-                assert(!myAdminUser.mentioned_notifications || myAdminUser.mentioned_notifications.length === 0,
+                assert(myAdminUser.market_capability_version > adminMentionCapabilityVersion &&
+                    (!myAdminUser.mentioned_notifications || myAdminUser.mentioned_notifications.length === 0),
                     'admin should now not show as mentioned');
-                return getMessages(adminConfiguration);
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.find((message) =>
+                        message.type_object_id === 'ISSUE_' + questionCommentId));
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + questionCommentId;
                 });
                 assert(!openComment, 'Resolving comment removes issue notification');
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (fetched) => fetched.some((message) =>
+                        message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId));
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId;
@@ -153,37 +187,39 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(vote, 'Should receive not fully voted when comment resolved');
                 return userClient.markets.updateInvestment(globalInvestibleId, 50, 0);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
-            }).then(() => {
-                // User should unread job approval request removed
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`));
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
                     return obj.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`;
                 });
                 assert(newVoting, 'Assignee should be notified of investment');
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (fetched) => !fetched.some((message) =>
+                        message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId));
             }).then((messages) => {
                 const vote = messages.find(obj => {
-                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + createdMarketId;
+                    return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId;
                 });
                 assert(!vote, 'Not fully voted removed on approval');
                 return userClient.markets.removeInvestment(globalInvestibleId);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`));
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
                     return obj.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`;
                 });
                 assert(!newVoting, 'Unread vote should clear when remove investment');
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (fetched) => fetched.some((message) =>
+                        message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId));
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId;
@@ -191,16 +227,19 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(vote, 'Removing investment restores not fully voted');
                 return userClient.investibles.updateComment(questionCommentId, undefined, false);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: createdMarketId});
-            }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId));
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId;
                 });
                 assert(!vote, 'Unresolving comment removes not fully voted');
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (fetched) => fetched.some((message) =>
+                        message.type_object_id === 'ISSUE_' + questionCommentId));
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + questionCommentId;
@@ -238,16 +277,7 @@ export default function (adminConfiguration, userConfiguration) {
                     null, 'TODO');
             }).then((comment) => {
                 todoCommentId = comment.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages(
-                    [{event_type: 'market_investible', object_id: createdMarketId},
-                        {event_type: 'notification',
-                            type_object_id: `UNREAD_JOB_APPROVAL_REQUEST_${globalInvestibleId}`}]);
-            }).then(() => {
-                return adminClient.markets.getMarketInvestibles(
-                    [
-                        {investible: {id: globalInvestibleId, version: 1},
-                            market_infos: [{id: marketInvestibleId, version: 1}]}
-                    ]);
+                return pollForStage(inApprovalStage.id);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -256,11 +286,10 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(inApprovalStage.id === stage, 'Investible should move to approval');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
-                // Resolving this question also sends unread unresolved
-                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
-                    object_id: createdMarketId}, {event_type: 'notification', object_id: userExternalId}]);
-            }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'ISSUE_' + questionCommentId));
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + questionCommentId;
@@ -270,14 +299,7 @@ export default function (adminConfiguration, userConfiguration) {
                     'body of my assisted comment', null, 'QUESTION');
             }).then((comment) => {
                 questionCommentId = comment.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.markets.getMarketInvestibles(
-                    [
-                        {investible: {id: globalInvestibleId, version: 1},
-                            market_infos: [{id: marketInvestibleId, version: 1}]}
-                    ]);
+                return pollForStage(requiresInputStage.id);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -286,15 +308,7 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(requiresInputStage.id === stage, 'Investible should move to assistance');
                 return userClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessages([
-                    {event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification', object_id: userExternalId}]);
-            }).then(() => {
-                return adminClient.markets.getMarketInvestibles(
-                    [
-                        {investible: {id: globalInvestibleId, version: 1},
-                            market_infos: [{id: marketInvestibleId, version: 1}]}
-                    ]);
+                return pollForStage(inApprovalStage.id);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -303,14 +317,7 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(inApprovalStage.id === stage, 'Investible should move back to former');
                 return adminClient.investibles.updateComment(questionCommentId, undefined, false);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.markets.getMarketInvestibles(
-                    [
-                        {investible: {id: globalInvestibleId, version: 1},
-                            market_infos: [{id: marketInvestibleId, version: 1}]}
-                    ]);
+                return pollForStage(requiresInputStage.id);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -319,21 +326,13 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(requiresInputStage.id === stage, 'Investible should move again to assistance');
                 return userClient.investibles.updateComment(questionCommentId, undefined, true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
+                return pollForStage(inApprovalStage.id);
             }).then(() => {
                 return adminClient.investibles.createComment(globalInvestibleId, createdMarketId,
                     'body of my assisted comment', null, 'SUGGEST');
             }).then((comment) => {
                 questionCommentId = comment.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.markets.getMarketInvestibles(
-                    [
-                        {investible: {id: globalInvestibleId, version: 1},
-                            market_infos: [{id: marketInvestibleId, version: 1}]}
-                    ]);
+                return pollForStage(requiresInputStage.id);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -343,14 +342,7 @@ export default function (adminConfiguration, userConfiguration) {
                 return userClient.investibles.updateComment(questionCommentId, undefined, undefined,
                     undefined, undefined, 'TODO');
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage(
-                    {event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.markets.getMarketInvestibles(
-                    [
-                        {investible: {id: globalInvestibleId, version: 1},
-                            market_infos: [{id: marketInvestibleId, version: 1}]}
-                    ]);
+                return pollForStage(inApprovalStage.id);
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const { market_infos } = fullInvestible;
@@ -377,7 +369,12 @@ export default function (adminConfiguration, userConfiguration) {
                     object_id: createdMarketId}, {event_type: 'notification', object_id: userExternalId,
                     type_object_id: 'UNREAD_REVIEWABLE_' + reportCommentId}]);
             }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === 'UNREAD_REVIEWABLE_' + reportCommentId) &&
+                        messages.some((message) =>
+                            message.type_object_id === 'UNREAD_RESOLVED_' + todoCommentId));
             }).then((messages) => {
                 const review = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_REVIEWABLE_' + reportCommentId;
@@ -394,5 +391,3 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(240000);
     });
 };
-
-

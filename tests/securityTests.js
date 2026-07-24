@@ -28,7 +28,7 @@ export default function (adminConfiguration, userConfiguration) {
         return adminConfiguration.webSocketRunner.waitForReceivedMessage({
           event_type: 'market',
           object_id: createdMarketId
-        });
+        }, 30000);
       }).then(() => {
         return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
       }).then((admin) => {
@@ -36,23 +36,16 @@ export default function (adminConfiguration, userConfiguration) {
         return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
       }).then((client) => {
         bannedClient = client;
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability',
-          object_id: createdMarketId});
-      }).then(() => {
         return bannedClient.users.get();
       }).then((user) => {
         bannedUserId = user.id;
         return adminClient.users.banUser(bannedUserId, true);
-      }).then(() => {
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_capability', object_id: createdMarketId});
-      }).then(() => {
-        return loginUserToMarket(userConfiguration, createdMarketId)
-          .then(() => {
-            assert(false, "This should have failed");
-            return Promise.resolve(false);
-          }).catch(() => {
-            return Promise.resolve(true);
-          });
+      }).then((marketPresence) => {
+        assert.strictEqual(marketPresence.market_banned, true, 'Ban response should mark the user banned');
+        return assert.rejects(
+          () => loginUserToMarket(userConfiguration, createdMarketId),
+          (error) => error && error.status === 410,
+          'A banned user should receive a 410 when logging into the market');
       }).catch(function (error) {
         console.log(error);
         throw error;
@@ -60,7 +53,4 @@ export default function (adminConfiguration, userConfiguration) {
     }).timeout(120000);
   });
 };
-
-
-
 

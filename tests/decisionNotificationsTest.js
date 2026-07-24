@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {loginUserToAccount, getMessages, loginUserToMarketInvite} from "../src/utils.js";
+import {pollFor} from "./commonTestFunctions.js";
 
 export default function (adminConfiguration, userConfiguration) {
 
@@ -47,6 +48,7 @@ export default function (adminConfiguration, userConfiguration) {
                 return client.users.get();
             }).then((user) => {
                 userId = user.id;
+                userExternalId = user.external_id;
                 return userClient.markets.followGroup(createdMarketId, [{user_id: userId,
                     is_following: true}]);
             }).then(() => {
@@ -59,9 +61,6 @@ export default function (adminConfiguration, userConfiguration) {
                 globalStages = response.stages;
                 createdMarketId = response.market.id;
                 createdMarketInvite = response.market.invite_capability;
-                // Immediately wait for the not fully voted notification to avoid race condition
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
-            }).then(() => {
                 console.log(`Logging admin into market ${createdMarketId}`);
                 return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
             }).then((client) => {
@@ -90,7 +89,8 @@ export default function (adminConfiguration, userConfiguration) {
                 marketInvestibleId = investible.investible.id;
                 console.log('Investible ID is ' + marketInvestibleId);
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
+                    object_id: adminExternalId,
+                    type_object_id: `INVESTIBLE_SUBMITTED_${marketInvestibleId}`}, 30000);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -98,7 +98,10 @@ export default function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
                 });
                 assert(!vote, 'Un-promoted investible does not send not fully voted');
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (fetched) => fetched.some((message) =>
+                        message.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId));
             }).then((messages) => {
                 const submitted = messages.find(obj => {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
@@ -109,15 +112,21 @@ export default function (adminConfiguration, userConfiguration) {
             }).then((comment) => {
                 createdCommentId = comment.id;
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId, type_object_id: `UNREAD_COMMENT_${createdCommentId}`});
+                    object_id: userExternalId, type_object_id: `UNREAD_COMMENT_${createdCommentId}`}, 30000);
             }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === 'UNREAD_COMMENT_' + createdCommentId));
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
                 });
                 assert(openComment, 'Must respond to admin opening comment');
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId));
             }).then((messages) => {
                 const submitted = messages.find(obj => {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
@@ -125,17 +134,19 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(!submitted, 'Investible submitted removed if leave comment');
                 return userClient.investibles.updateComment(createdCommentId, undefined, true);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
-                    object_id: createdMarketId}, {event_type: 'notification', object_id: adminExternalId,
-                    type_object_id: `INVESTIBLE_SUBMITTED_${marketInvestibleId}`}]);
-            }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'UNREAD_COMMENT_' + createdCommentId));
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
                 });
                 assert(!openComment, 'Resolving comment removes issue notification');
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (fetched) => fetched.some((message) =>
+                        message.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId));
             }).then((messages) => {
                 const submitted = messages.find(obj => {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
@@ -149,12 +160,15 @@ export default function (adminConfiguration, userConfiguration) {
                 };
                 return adminClient.investibles.stateChange(marketInvestibleId, stateOptions);
             }).then(() => {
-                // Wait on user to drain more notifications
                 return userConfiguration.webSocketRunner.waitForReceivedMessages([
                     {event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification', object_id: userExternalId}]);
+                    {event_type: 'notification', object_id: userExternalId,
+                        type_object_id: `NOT_FULLY_VOTED_${createdMarketId}`}], 30000);
             }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId));
             }).then((messages) => {
                 const submitted = messages.find(obj => {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
@@ -173,10 +187,13 @@ export default function (adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(marketInvestibleId, 100,
                     0);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: adminExternalId});
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
+                    object_id: userExternalId, type_object_id: `NOT_FULLY_VOTED_${createdMarketId}`}, 30000);
             }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId));
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
@@ -187,11 +204,16 @@ export default function (adminConfiguration, userConfiguration) {
                     'ISSUE');
             }).then((comment) => {
                 createdCommentId = comment.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment',
-                    object_id: createdMarketId}, {event_type: 'notification', object_id: userExternalId},
-                    {event_type: 'market_investible', object_id: createdMarketId}]);
+                return userConfiguration.webSocketRunner.waitForReceivedMessages([
+                    {event_type: 'comment', object_id: createdMarketId,
+                        object_id_one_two: createdCommentId, version: comment.version},
+                    {event_type: 'notification', object_id: userExternalId,
+                        type_object_id: `NOT_FULLY_VOTED_${createdMarketId}`}], 30000);
             }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId));
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + createdMarketId;
@@ -204,5 +226,3 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(240000);
     });
 };
-
-

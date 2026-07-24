@@ -7,7 +7,15 @@ import {
 } from "../src/utils.js";
 import _ from "lodash";
 import websocket from 'websocket';
+import {pollFor} from "./commonTestFunctions.js";
 const {version} = websocket;
+
+function hasSummaryObject(versions, marketId, type, objectId) {
+    return (versions.signatures || []).some((market) => market.market_id === marketId &&
+        (market.signatures || []).some((signature) => signature.type === type &&
+            (signature.object_versions || []).some((objectVersion) =>
+                objectVersion.object_id_one === objectId)));
+}
 
 export default function (adminConfiguration, userConfiguration) {
 
@@ -20,7 +28,6 @@ export default function (adminConfiguration, userConfiguration) {
             let userId;
             let userExternalId;
             let adminId;
-            let adminExternalId;
             let createdMarketId;
             let marketInvestibleId;
             let createdMarketInvite;
@@ -50,7 +57,6 @@ export default function (adminConfiguration, userConfiguration) {
                 return adminClient.users.get();
             }).then((user) => {
                 adminId = user.id;
-                adminExternalId = user.external_id;
                 return adminClient.investibles.create({groupId: createdMarketId, name: 'A test story', description: 'See if notifications work.',
                     assignments: [adminId]});
             }).then((investible) => {
@@ -82,7 +88,6 @@ export default function (adminConfiguration, userConfiguration) {
             }).then((versions) => {
                 const { signatures } = versions;
                 let foundInvestible = false;
-                let foundComment = false;
                 signatures.forEach((signature) => {
                     const {signatures: marketSignatures} = signature;
                     marketSignatures.forEach((marketSignature) => {
@@ -90,13 +95,13 @@ export default function (adminConfiguration, userConfiguration) {
                         if (!_.isEmpty(objectVersions)) {
                             if (aType === 'investible') {
                                 foundInvestible = true;
-                            } else if (aType === 'comment') {
-                                foundComment = true;
                             }
                         }
                     });
                 });
-                assert(foundInvestible && !foundComment, 'Comment should still be in draft');
+                const foundCreatedComment = hasSummaryObject(
+                    versions, createdMarketId, 'comment', createdCommentId);
+                assert(foundInvestible && !foundCreatedComment, 'Comment should still be in draft');
                 // The default group has the same id as the market
                 return userClient.markets.followGroup(createdMarketId, [{user_id: userId, is_following: true}]);
             }).then(() => {
@@ -105,16 +110,19 @@ export default function (adminConfiguration, userConfiguration) {
             }).then(() => {
                 return adminClient.investibles.updateComment(createdCommentId, undefined, undefined,
                     undefined, undefined, undefined, undefined, true);
-            }).then(() => {
+            }).then((comment) => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessages(
-                    [{event_type: 'comment', object_id: createdMarketId},
-                        {event_type: 'notification', object_id: userExternalId}]);
+                    [{event_type: 'comment', object_id: createdMarketId, object_id_one_two: createdCommentId,
+                        version: comment.version},
+                        {event_type: 'notification', object_id: userExternalId,
+                            type_object_id: `UNREAD_COMMENT_${createdCommentId}`}], 30000);
             }).then(() => {
-                return globalUserAccountClient.summaries.versions(globalUserAccountToken, [createdMarketId]);
+                return pollFor(
+                    () => globalUserAccountClient.summaries.versions(globalUserAccountToken, [createdMarketId]),
+                    (versions) => hasSummaryObject(versions, createdMarketId, 'comment', createdCommentId));
             }).then((versions) => {
                 const { signatures } = versions;
                 let foundInvestible = false;
-                let foundComment = false;
                 signatures.forEach((signature) => {
                     const {signatures: marketSignatures} = signature;
                     marketSignatures.forEach((marketSignature) => {
@@ -122,18 +130,18 @@ export default function (adminConfiguration, userConfiguration) {
                         if (!_.isEmpty(objectVersions)) {
                             if (aType === 'investible') {
                                 foundInvestible = true;
-                            } else if (aType === 'comment') {
-                                foundComment = true;
                             }
                         }
                     });
                 });
-                if (!foundInvestible || !foundComment) {
+                const foundCreatedComment = hasSummaryObject(
+                    versions, createdMarketId, 'comment', createdCommentId);
+                if (!foundInvestible || !foundCreatedComment) {
                     signatures.forEach((signature) => {
                         console.log(signature);
                     });
                 }
-                assert(foundInvestible && foundComment, 'Comment should be out of draft');
+                assert(foundInvestible && foundCreatedComment, 'Comment should be out of draft');
                 return getMessages(userConfiguration);
             }).then((messages) => {
                 const openComment = messages.find(obj => {
@@ -193,9 +201,10 @@ export default function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.updateComment(createdCommentId, 'new body', undefined,
                     undefined, [mention], undefined, undefined, undefined, undefined, undefined, undefined, undefined, 
                     undefined, 2);
-            }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
+            }).then((comment) => {
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
+                    object_id: createdMarketId, object_id_one_two: createdCommentId,
+                    version: comment.version}, 30000);
             }).then(() => {
                 return getMessages(userConfiguration);
             }).then((messages) => {
@@ -206,9 +215,16 @@ export default function (adminConfiguration, userConfiguration) {
                 return inlineUserClient.users.dehighlightNotifications([vote.type_object_id]);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
+                    object_id: userExternalId,
+                    type_object_id: `NOT_FULLY_VOTED_${inlineMarketId}`}, 30000);
             }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => {
+                        const vote = messages.find((message) =>
+                            message.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId);
+                        return Boolean(vote && vote.is_highlighted === false);
+                    });
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
@@ -217,9 +233,16 @@ export default function (adminConfiguration, userConfiguration) {
                 return adminClient.users.pokeComment(createdCommentId);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId});
+                    object_id: userExternalId,
+                    type_object_id: `NOT_FULLY_VOTED_${inlineMarketId}`}, 30000);
             }).then(() => {
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (messages) => {
+                        const vote = messages.find((message) =>
+                            message.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId);
+                        return Boolean(vote && vote.is_highlighted);
+                    });
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
@@ -227,25 +250,30 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(vote && vote.is_highlighted, 'Poke should restore unread');
                 return inlineUserClient.markets.updateAbstain(true);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessages(
-                    [{event_type: 'market_capability', object_id: inlineMarketId},
-                    {event_type: 'notification', object_id: userExternalId,
-                        type_object_id: `NOT_FULLY_VOTED_${inlineMarketId}`}]);
-            }).then(() => {
-                return getMessages(adminConfiguration);
-            }).then((messages) => {
-                const voted = messages.find(obj => {
-                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
-                });
-                assert(!voted, 'Abstain removes vote notification');
-            }).then(() => {
-                return inlineUserClient.markets.listUsers([{id: inlineUserId, version: 2}]);
+                return pollFor(
+                    () => inlineUserClient.markets.listUsers([{id: inlineUserId, version: 2}]),
+                    (users) => {
+                        const inlineUser = users.find((user) => user.id === inlineUserId);
+                        return Boolean(inlineUser && inlineUser.abstain);
+                    });
             }).then((users) => {
                 const myInlineUser = users.find(obj => {
                     return obj.id === inlineUserId;
                 });
                 assert(myInlineUser.abstain, 'Abstain marks the user so');
-                return getMessages(userConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`));
+            }).then((messages) => {
+                const voted = messages.find(obj => {
+                    return obj.type_object_id === `UNREAD_VOTE_${marketInvestibleId}_${userId}`;
+                });
+                assert(!voted, 'Abstain removes vote notification');
+                return pollFor(
+                    () => getMessages(userConfiguration),
+                    (fetched) => !fetched.some((message) =>
+                        message.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId));
             }).then((messages) => {
                 const vote = messages.find(obj => {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
@@ -254,10 +282,12 @@ export default function (adminConfiguration, userConfiguration) {
                 return inlineUserClient.markets.updateInvestment(inlineInvestibleId, 100,
                     0);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'notification',
-                    object_id: adminExternalId}, {event_type: 'market_capability', object_id: inlineMarketId}]);
-            }).then(() => {
-                return inlineUserClient.markets.listUsers([{id: inlineUserId, version: 3}]);
+                return pollFor(
+                    () => inlineUserClient.markets.listUsers([{id: inlineUserId, version: 3}]),
+                    (users) => {
+                        const inlineUser = users.find((user) => user.id === inlineUserId);
+                        return Boolean(inlineUser && !inlineUser.abstain);
+                    });
             }).then((users) => {
                 const myInlineUser = users.find(obj => {
                     return obj.id === inlineUserId;
@@ -270,5 +300,3 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(480000);
     });
 };
-
-
