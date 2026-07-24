@@ -7,6 +7,7 @@ import {
   getWebSocketRunner,
   loginUserToMarketInvite, loginUserToIdentity
 } from '../src/utils.js';
+import { markIntegrationTestMarketCreates } from '../src/integrationMarketUtils.js';
 
 /*
 Admin Configuration and User Configuration are used as in/out params here,
@@ -23,6 +24,9 @@ export default function (adminConfiguration, userConfiguration) {
       let adminId;
       let placeholderId;
       let createdMarketInvite;
+      adminConfiguration.idToken = await loginUserToIdentity(
+          adminConfiguration
+      );
       await getSSOInfo(adminConfiguration).then(ssoInfo => {
         ssoClient = ssoInfo.ssoClient;
         return getWebSocketRunner(adminConfiguration);
@@ -50,7 +54,7 @@ export default function (adminConfiguration, userConfiguration) {
         const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient,
             adminConfiguration.idToken);
         const config = { ...adminConfiguration, tokenManager };
-        return uclusion.constructClient(config);
+        return uclusion.constructClient(config).then(markIntegrationTestMarketCreates);
       }).then((client) => {
         adminAccountClient = client;
         return adminAccountClient.users.update({'name': 'Daniel', 'uiPreferences': '{ "code": "red" }',

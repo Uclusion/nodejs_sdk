@@ -1,7 +1,6 @@
 import fetch from 'node-fetch';
 import AbortController from 'abort-controller';
 import awsAmplify from 'aws-amplify';
-import identityTests from '../tests/identityTests.js';
 import usersTest from '../tests/usersTest.js';
 import billingTest from '../tests/billingTest.js';
 import ssoTest from '../tests/ssoTest.js';
@@ -20,6 +19,7 @@ import aiPokeTest from '../tests/aiPokeTest.js';
 import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
 import listsTest from '../tests/listsTest.js';
+import marketsDeleteTest from '../tests/marketsDeleteTest.js';
 
 const Amplify = awsAmplify.default;
 
@@ -54,7 +54,6 @@ const userConfiguration = {
 
 
 describe('uclusion', () => {
-  identityTests(adminConfiguration);
   usersTest(adminConfiguration, userConfiguration);
   billingTest(adminConfiguration, userConfiguration, stripeConfig);
   ssoTest(adminConfiguration, userConfiguration);
@@ -73,4 +72,5 @@ describe('uclusion', () => {
   marketInvestiblesTest(adminConfiguration, userConfiguration);
   investmentsTest(adminConfiguration, userConfiguration, 2);
   listsTest(adminConfiguration, userConfiguration);
+  marketsDeleteTest(adminConfiguration);
 });

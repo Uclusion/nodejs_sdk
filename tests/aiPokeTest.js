@@ -27,7 +27,7 @@ export default function (adminConfiguration) {
 
     before(async function () {
       this.timeout(300000);
-      // Normally identityTests seeds the idToken - do it here so this file can run by itself
+      // The full suite bootstraps this in usersTest; keep this file standalone.
       if (!adminConfiguration.idToken) {
         adminConfiguration.idToken = await loginUserToIdentity(adminConfiguration);
       }
@@ -158,7 +158,7 @@ export default function (adminConfiguration) {
       assertPokeEnvelope(received);
     }).timeout(180000);
 
-    it('should emit exactly one Responded. poke when the last Unresponded item is cleared', async () => {
+    it('should emit exactly one correlated Responded poke when the last Unresponded item is cleared', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -190,7 +190,10 @@ export default function (adminConfiguration) {
       assert.deepStrictEqual(openAssistance.map((comment) => comment.id), [question.id],
         'Fresh job should contain exactly one Unresponded assistance item before the reply');
 
-      const respondedSignature = { event_type: 'poke_ai', message: 'Responded.' };
+      const respondedSignature = {
+        event_type: 'poke_ai',
+        message: `Responded ${jobTicketCode}`
+      };
       const respondedPromise = aiWebSocketRunner.waitForReceivedMessage(
         respondedSignature, MESSAGE_TIMEOUT_MS);
       await adminClient.investibles.createComment(
@@ -206,7 +209,7 @@ export default function (adminConfiguration) {
         aiWebSocketRunner.waitForReceivedMessage(
           respondedSignature, DUPLICATE_QUIET_WINDOW_MS),
         (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
-        `Responded. should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
+        `Correlated Responded should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
       );
     }).timeout(240000);
   });

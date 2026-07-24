@@ -3,6 +3,7 @@ import uclusion from 'uclusion_sdk';
 import TestTokenManager, {TOKEN_TYPE_ACCOUNT, TOKEN_TYPE_MARKET, TOKEN_TYPE_MARKET_INVITE} from './TestTokenManager.js';
 import {getIdentity} from './amplifyAuth.js';
 import {WebSocketRunner} from './WebSocketRunner.js';
+import {markIntegrationTestMarketCreates} from './integrationMarketUtils.js';
 
 
 export function getSSOInfo(configuration) {
@@ -36,7 +37,8 @@ export function loginUserToAccount(configuration) {
       const { ssoClient, idToken } = info;
       const tokenManager = new TestTokenManager(TOKEN_TYPE_ACCOUNT, null, ssoClient, idToken);
       return tokenManager.getToken()
-        .then(() => uclusion.constructClient({ ...configuration, tokenManager }));
+        .then(() => uclusion.constructClient({ ...configuration, tokenManager }))
+        .then(markIntegrationTestMarketCreates);
     });
 }
 
@@ -50,7 +52,10 @@ export function loginUserToAccountAndGetToken(configuration) {
                 .then((accountToken) => {
                     return uclusion.constructClient({ ...configuration, tokenManager })
                         .then((client) => {
-                            return {accountToken, client};
+                            return {
+                                accountToken,
+                                client: markIntegrationTestMarketCreates(client)
+                            };
                         })
                 });
         });

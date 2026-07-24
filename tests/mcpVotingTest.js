@@ -21,7 +21,7 @@ export default function (adminConfiguration, userConfiguration) {
 
     before(async function () {
       this.timeout(300000);
-      // Normally identityTests and usersTest seed the idTokens - do it here so this file can run by itself
+      // The full suite bootstraps these in usersTest; keep this file standalone.
       if (!adminConfiguration.idToken) {
         adminConfiguration.idToken = await loginUserToIdentity(adminConfiguration);
       }

@@ -1,6 +1,5 @@
 import fetch from 'node-fetch';
 import awsAmplify from 'aws-amplify';
-import identityTests from '../tests/identityTests.js';
 import usersTest from '../tests/usersTest.js';
 import ssoTest from '../tests/ssoTest.js';
 import groupTest from '../tests/groupTest.js';
@@ -43,7 +42,6 @@ const userConfiguration = {
 };
 
 describe('uclusion', () => {
-  identityTests(adminConfiguration);
   usersTest(adminConfiguration, userConfiguration);
   ssoTest(adminConfiguration, userConfiguration);
   groupTest(adminConfiguration, userConfiguration);
