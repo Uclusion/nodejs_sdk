@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {getMessages, loginUserToAccount, loginUserToMarketInvite} from "../src/utils.js";
+import {pollFor} from "./commonTestFunctions.js";
 
 export default function (adminConfiguration, userConfiguration) {
   describe('#test plan specific actions', () => {
@@ -8,7 +9,6 @@ export default function (adminConfiguration, userConfiguration) {
       let userClient;
       let adminUserId;
       let userId;
-      let externalId;
       let adminExternalId;
       let marketId;
       let storyId;
@@ -33,7 +33,6 @@ export default function (adminConfiguration, userConfiguration) {
         return client.users.get();
       }).then((me) => {
         userId = me.id;
-        externalId = me.external_id;
         return userClient.markets.listUsers([{id: adminUserId, version: 1}, {id: userId, version: 1}]);
       }).then((users) => {
         const marketPresence = users.find((user) => user.id === userId);
@@ -74,11 +73,9 @@ export default function (adminConfiguration, userConfiguration) {
       }).then(() => {
         return adminClient.investibles.updateAssignments(storyId, [userId]);
       }).then(() => {
-        // wait for the investment deletion event
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage(
-            {event_type: 'investment', object_id: marketId});
-      }).then(() => {
-        return getMessages(userConfiguration);
+        return pollFor(() => getMessages(userConfiguration), (messages) =>
+          messages.some((obj) =>
+            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId));
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
           return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
@@ -93,10 +90,9 @@ export default function (adminConfiguration, userConfiguration) {
         return userClient.markets.updateInvestment(storyId, 100, 0);
       }).then(() => {
         // Delete of unaccepted notification now that approving has accepted
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-          object_id: externalId});
-      }).then(() => {
-        return getMessages(userConfiguration);
+        return pollFor(() => getMessages(userConfiguration), (messages) =>
+          !messages.some((obj) =>
+            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId));
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
           return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
@@ -109,4 +105,3 @@ export default function (adminConfiguration, userConfiguration) {
     }).timeout(1200000);
   });
 };
-

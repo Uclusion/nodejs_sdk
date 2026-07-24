@@ -1,5 +1,6 @@
 import assert from 'assert';
 import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils.js";
+import {pollFor} from "./commonTestFunctions.js";
 
 export default function (adminConfiguration, userConfiguration) {
     describe('#doInitiativeNotifications', () => {
@@ -101,10 +102,10 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(vote, 'Not fully voted remains if leave comment');
                 return inlineAdminClient.investibles.updateComment(createdCommentId, undefined, true);
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment',
-                    object_id: inlineCreatedMarketId});
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'UNREAD_COMMENT_' + createdCommentId));
             }).then((messages) => {
                 const openComment = messages.find(obj => {
                     return obj.type_object_id === 'UNREAD_COMMENT_' + createdCommentId;
@@ -174,5 +175,4 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(480000);
     });
 };
-
 

@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { arrayEquals } from './commonTestFunctions.js';
+import { arrayEquals, pollFor } from './commonTestFunctions.js';
 import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils.js";
 
 export default function (adminConfiguration, userConfiguration) {
@@ -85,9 +85,10 @@ export default function (adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification'});
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`));
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
                     return obj.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`;
@@ -219,5 +220,4 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(240000);
     });
 };
-
 
