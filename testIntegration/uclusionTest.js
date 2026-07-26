@@ -16,6 +16,7 @@ import conversionsTest from '../tests/conversionsTest.js';
 import resolveNotificationsTest from '../tests/resolveNotificationsTest.js';
 import mcpVotingTest from '../tests/mcpVotingTest.js';
 import aiPokeTest from '../tests/aiPokeTest.js';
+import notificationsMcpTest from '../tests/notificationsMcpTest.js';
 import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
 import listsTest from '../tests/listsTest.js';
@@ -69,6 +70,7 @@ describe('uclusion', () => {
   resolveNotificationsTest(adminConfiguration, userConfiguration);
   mcpVotingTest(adminConfiguration, userConfiguration);
   aiPokeTest(adminConfiguration);
+  notificationsMcpTest(adminConfiguration);
   marketInvestiblesTest(adminConfiguration, userConfiguration);
   investmentsTest(adminConfiguration, userConfiguration, 2);
   listsTest(adminConfiguration, userConfiguration);
