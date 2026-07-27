@@ -11,7 +11,6 @@ import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 export default function (adminConfiguration) {
   describe('#test notifications MCP integration', () => {
     let accountClient;
-    let accountToken;
     let adminClient;
     let marketId;
     let uclusionToken;
@@ -24,7 +23,6 @@ export default function (adminConfiguration) {
       }
       const accountLogin = await loginUserToAccountAndGetToken(adminConfiguration);
       accountClient = accountLogin.client;
-      accountToken = accountLogin.accountToken;
       const result = await accountClient.markets.createMarket({
         name: 'Notifications MCP integration',
         market_type: 'PLANNING'
@@ -77,24 +75,6 @@ export default function (adminConfiguration) {
       return ticketCode;
     }
 
-    async function listPlanningComments() {
-      const versions = await accountClient.summaries.versions(accountToken, [marketId]);
-      const marketEntry = (versions.signatures || []).find((entry) => entry.market_id === marketId);
-      const commentVersions = new Map();
-      (marketEntry?.signatures || [])
-        .filter((signature) => signature.type === 'comment')
-        .flatMap((signature) => signature.object_versions || [])
-        .forEach((version) => {
-          const currentVersion = commentVersions.get(version.object_id_one) || 0;
-          commentVersions.set(version.object_id_one, Math.max(currentVersion, version.version));
-        });
-      if (commentVersions.size === 0) {
-        return [];
-      }
-      return adminClient.investibles.getMarketComments(
-        [...commentVersions].map(([id, version]) => ({ id, version })));
-    }
-
     function getNotifications() {
       return mcpCall(adminConfiguration, uclusionToken, 'get_notifications', {});
     }
@@ -110,35 +90,37 @@ export default function (adminConfiguration) {
       return linesAbout(stringifiedResult, ticketCodes).some((line) => !line.includes(', read**'));
     }
 
-    it('lists an AI question notification and clears it by job short code', async () => {
+    it('lists an AI reply notification and clears it by job short code', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
         name: `Notifications inbox ${marker}`,
-        description: 'Job whose AI-authored question generates an inbox notification.'
+        description: 'Job whose question thread collects the tracked AI reply notification.'
       });
       const jobTicketCode = await getTicketCode(job);
-      const questionMarker = `Does this land in the human inbox ${marker}?`;
-      const asked = await pollMcp('ask_question', {
-        job_id: jobTicketCode,
-        question: questionMarker
+      // First-level AI comments are deliberately silent in the inbox — the AI reports its own
+      // comments in the client window. The one notification generated for AI activity is a
+      // deeper AI reply to a human-authored comment, which could get buried in that window.
+      const question = await adminClient.investibles.createComment(job.investible.id, marketId,
+        `Does this land in the human inbox ${marker}?`, null, 'QUESTION');
+      assert(question.ticket_code, `Question ticket code missing: ${JSON.stringify(question)}`);
+      const replied = await pollMcp('add_info', {
+        short_code_id: question.ticket_code,
+        info: `AI reply that must generate a tracked notification ${marker}.`
       });
-      assert(asked.includes('Added question with id'), `MCP ask_question response wrong: ${asked}`);
-      const comments = await pollFor(listPlanningComments,
-        (fetched) => fetched.some((comment) => comment.body?.includes(questionMarker)));
-      const question = comments.find((comment) => comment.body?.includes(questionMarker));
-      assert(question, 'AI-authored question should be discoverable');
-      // The notification's link may resolve to the question or the job depending on type.
-      const ticketCodes = [jobTicketCode, question.ticket_code].filter(Boolean);
+      const replyMatch = replied.match(/Added info with id (\S+) and link/);
+      assert(replyMatch, `MCP add_info response wrong: ${replied}`);
+      const replyTicketCode = replyMatch[1];
+      const ticketCodes = [replyTicketCode];
 
       const inbox = await pollFor(getNotifications,
-        (markdown) => ticketCodes.some((code) => markdown.includes(code)));
-      assert(ticketCodes.some((code) => inbox.includes(code)),
-        `get_notifications should list a notification about ${ticketCodes}: ${inbox}`);
+        (markdown) => markdown.includes(replyTicketCode));
+      assert(inbox.includes(replyTicketCode),
+        `get_notifications should list the AI reply notification ${replyTicketCode}: ${inbox}`);
       assert(!inbox.includes('No notifications.'),
-        `Inbox should not render empty once the question notification exists: ${inbox}`);
+        `Inbox should not render empty once the reply notification exists: ${inbox}`);
 
-      // Clearing by the JOB short code must catch the question's notification through its
+      // Clearing by the JOB short code must catch the reply's notification through its
       // investible id — the object the agent finished, not the individual comment.
       const cleared = await mcpCall(adminConfiguration, uclusionToken, 'clear_notifications', {
         short_code_id: jobTicketCode
@@ -148,7 +130,7 @@ export default function (adminConfiguration) {
         `clear_notifications should match at least one notification: ${cleared}`);
 
       // Cleared means removed (unread types) or marked read (persistent types); either way no
-      // unread line about the job or its question may remain.
+      // unread line about the reply may remain.
       const after = await pollFor(getNotifications,
         (markdown) => !hasUnreadLine(markdown, ticketCodes));
       assert(!hasUnreadLine(after, ticketCodes),
