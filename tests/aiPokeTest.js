@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import {
   loginUserToAccountAndGetToken,
   loginUserToIdentity,
+  loginUserToMarket,
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
@@ -11,6 +12,7 @@ import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 
 const MESSAGE_TIMEOUT_MS = 120000;
 const DUPLICATE_QUIET_WINDOW_MS = 15000;
+const BASELINE_QUIET_WINDOW_MS = 2000;
 const WEBSOCKET_TIMEOUT_CODE = 'WEBSOCKET_MESSAGE_TIMEOUT';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -106,6 +108,18 @@ export default function (adminConfiguration) {
       return mcpCall(adminConfiguration, uclusionToken, toolName, args);
     }
 
+    // Membership in an inline option market is granted async.
+    async function pollLogin(inlineMarketId) {
+      for (let i = 0; i < 19; i += 1) {
+        try {
+          return await loginUserToMarket(adminConfiguration, inlineMarketId);
+        } catch (error) {
+          await sleep(3000);
+        }
+      }
+      return loginUserToMarket(adminConfiguration, inlineMarketId);
+    }
+
     async function getTicketCode(investible) {
       const marketInfo = investible.market_infos[0];
       if (marketInfo.ticket_code) {
@@ -123,9 +137,10 @@ export default function (adminConfiguration) {
       return ticketCode;
     }
 
-    async function listPlanningComments() {
-      const versions = await accountClient.summaries.versions(accountToken, [marketId]);
-      const marketEntry = (versions.signatures || []).find((entry) => entry.market_id === marketId);
+    async function listMarketComments(client, targetMarketId) {
+      const versions = await accountClient.summaries.versions(accountToken, [targetMarketId]);
+      const marketEntry = (versions.signatures || [])
+        .find((entry) => entry.market_id === targetMarketId);
       const commentVersions = new Map();
       (marketEntry?.signatures || [])
         .filter((signature) => signature.type === 'comment')
@@ -137,14 +152,66 @@ export default function (adminConfiguration) {
       if (commentVersions.size === 0) {
         return [];
       }
-      return adminClient.investibles.getMarketComments(
+      return client.investibles.getMarketComments(
         [...commentVersions].map(([id, version]) => ({ id, version })));
+    }
+
+    async function listPlanningComments() {
+      return listMarketComments(adminClient, marketId);
+    }
+
+    async function findCommentByMarker(client, targetMarketId, marker) {
+      const comments = await pollFor(
+        () => listMarketComments(client, targetMarketId),
+        (fetched) => fetched.some((comment) => comment.body?.includes(marker))
+      );
+      return comments.find((comment) => comment.body?.includes(marker));
+    }
+
+    async function listMarketInvestibleIds(targetMarketId) {
+      const versions = await accountClient.summaries.versions(accountToken, [targetMarketId]);
+      const marketEntry = (versions.signatures || [])
+        .find((entry) => entry.market_id === targetMarketId);
+      return [...new Set((marketEntry?.signatures || [])
+        .filter((signature) => signature.type === 'investible')
+        .flatMap((signature) => (signature.object_versions || [])
+          .map((version) => version.object_id_one)))];
+    }
+
+    async function createCollaboratedJob(marker) {
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `AI collaborator event ${marker}`,
+        description: 'Job used to verify response-worthy changes wake an existing AI collaborator.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const collaboratorMarker = `AI collaborator note ${marker}`;
+      const mcpResult = await pollMcp('add_info', {
+        short_code_id: jobTicketCode,
+        info: collaboratorMarker
+      });
+      assert(mcpResult.includes('Added info with id'),
+        `MCP add_info response wrong: ${mcpResult}`);
+      const collaboratorComment = await findCommentByMarker(
+        adminClient, marketId, collaboratorMarker);
+      assert(collaboratorComment, 'AI collaborator comment should be discoverable');
+      assert.notStrictEqual(collaboratorComment.created_by, adminId,
+        'MCP add_info comment should be authored by the market AI user');
+      return { job, jobTicketCode };
     }
 
     function assertPokeEnvelope(message) {
       assert.match(message.message_id || '', UUID_PATTERN, 'Poke should include a UUID message_id');
       assert(!Object.hasOwn(message, 'external_ids'),
         'Public websocket delivery should not expose internal routing ids');
+    }
+
+    async function assertNoPoke(signature, timeoutMilliseconds, message) {
+      await assert.rejects(
+        aiWebSocketRunner.waitForReceivedMessage(signature, timeoutMilliseconds),
+        (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
+        message
+      );
     }
 
     it('should route a direct Poke AI action to an AI market-token subscription', async () => {
@@ -210,6 +277,249 @@ export default function (adminConfiguration) {
           respondedSignature, DUPLICATE_QUIET_WINDOW_MS),
         (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
         `Correlated Responded should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
+      );
+    }).timeout(240000);
+
+    it('should emit one compound Responded poke for a human question inside an AI option', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Nested option response ${marker}`,
+        description: 'Job whose AI-authored question receives a human question inside its option.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const parentMarker = `AI parent question with an option ${marker}?`;
+      const mcpResult = await pollMcp('ask_question', {
+        job_id: jobTicketCode,
+        question: parentMarker,
+        options: [{
+          name: `Option ${marker}`,
+          description: 'Option whose discussion receives the nested human question.'
+        }]
+      });
+      assert(mcpResult.includes('Added question with id'),
+        `MCP ask_question response wrong: ${mcpResult}`);
+
+      const parentQuestion = await findCommentByMarker(adminClient, marketId, parentMarker);
+      assert(parentQuestion, 'AI-authored parent question should be discoverable');
+      assert(parentQuestion.inline_market_id, 'AI-authored question should have an inline market');
+      assert(parentQuestion.ticket_code, 'AI-authored question should have a global ticket code');
+      assert.notStrictEqual(parentQuestion.created_by, adminId,
+        'MCP question should be authored by the market AI user');
+
+      const inlineMarketId = parentQuestion.inline_market_id;
+      const inlineAdminClient = await pollLogin(inlineMarketId);
+      const optionIds = await pollFor(
+        () => listMarketInvestibleIds(inlineMarketId),
+        (ids) => ids.length > 0
+      );
+      assert.strictEqual(optionIds.length, 1,
+        'The parent question should have exactly one option for the nested response');
+
+      const nestedMarker = `Human question inside the AI option ${marker}?`;
+      const nestedQuestion = await inlineAdminClient.investibles.createComment(
+        optionIds[0],
+        inlineMarketId,
+        nestedMarker,
+        null,
+        'QUESTION'
+      );
+      const persistedNestedQuestion = nestedQuestion.ticket_code
+        ? nestedQuestion
+        : await findCommentByMarker(inlineAdminClient, inlineMarketId, nestedMarker);
+      assert(persistedNestedQuestion?.ticket_code,
+        'Nested human question should have a market-local ticket code');
+
+      const respondedSignature = {
+        event_type: 'poke_ai',
+        message: `Responded ${persistedNestedQuestion.ticket_code} of ${parentQuestion.ticket_code}`
+      };
+      const responded = await aiWebSocketRunner.waitForReceivedMessage(
+        respondedSignature, MESSAGE_TIMEOUT_MS);
+      assertPokeEnvelope(responded);
+
+      await assert.rejects(
+        aiWebSocketRunner.waitForReceivedMessage(
+          respondedSignature, DUPLICATE_QUIET_WINDOW_MS),
+        (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
+        `Compound Responded should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
+      );
+    }).timeout(300000);
+
+    it('should emit exactly one Start when an option-bearing draft question is sent', async () => {
+      const marker = randomUUID();
+      const { job } = await createCollaboratedJob(marker);
+      const questionMarker = `Human option-bearing draft question ${marker}?`;
+      // Mirror the UI wizard: create the question and its DECISION market as one draft operation,
+      // add an option in that inline market, then send the parent comment.
+      const draftResponse = await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        questionMarker,
+        null,
+        'QUESTION',
+        undefined,
+        undefined,
+        undefined,
+        'DECISION',
+        undefined,
+        false
+      );
+      const draftQuestion = draftResponse.parent;
+      const inlineMarketId = draftResponse.market?.id;
+      assert(draftQuestion, 'Draft question response should include its parent comment');
+      assert.strictEqual(draftQuestion.is_sent, false, 'Question should remain a draft until finalized');
+      assert(draftQuestion.ticket_code, 'Draft question should already have a ticket code');
+      assert.match(draftQuestion.ticket_code, /^Q-/,
+        'Draft question should use a question short code');
+      assert(inlineMarketId, 'Draft question should create its inline decision market');
+
+      const startSignature = {
+        event_type: 'poke_ai',
+        message: `Start ${draftQuestion.ticket_code}`
+      };
+      await assertNoPoke(
+        startSignature,
+        BASELINE_QUIET_WINDOW_MS,
+        'Creating the draft question should not Start it'
+      );
+
+      const inlineAdminClient = await pollLogin(inlineMarketId);
+      const investmentStage = draftResponse.stages?.find((stage) => stage.allows_investment);
+      assert(investmentStage, 'Inline decision market should include an investment stage');
+      await inlineAdminClient.investibles.create({
+        groupId: inlineMarketId,
+        name: `Human option ${marker}`,
+        description: 'Option created while its parent question is still a draft.',
+        stageId: investmentStage.id
+      });
+      await assertNoPoke(
+        startSignature,
+        BASELINE_QUIET_WINDOW_MS,
+        'Adding an option to an unsent question should not Start the parent'
+      );
+
+      const startedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        startSignature, MESSAGE_TIMEOUT_MS);
+      const sentQuestion = await adminClient.investibles.updateComment(
+        draftQuestion.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        true,
+        undefined,
+        undefined,
+        undefined,
+        'DECISION'
+      );
+      assert.strictEqual(sentQuestion.id, draftQuestion.id,
+        'Finalizing the draft should update the same question');
+      assert.strictEqual(sentQuestion.is_sent, true, 'Finalized question should be sent');
+      const started = await startedPromise;
+      assertPokeEnvelope(started);
+
+      await assertNoPoke(
+        startSignature,
+        DUPLICATE_QUIET_WINDOW_MS,
+        `Sent question Start should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
+      );
+    }).timeout(300000);
+
+    it('should Start a human-created task when the AI already collaborates on the job', async () => {
+      const marker = randomUUID();
+      const { job, jobTicketCode } = await createCollaboratedJob(marker);
+      const taskMarker = `Human task for existing AI collaborator ${marker}`;
+      const task = await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        taskMarker,
+        null,
+        'TODO'
+      );
+      const persistedTask = task.ticket_code
+        ? task
+        : await findCommentByMarker(adminClient, marketId, taskMarker);
+      assert(persistedTask?.ticket_code, 'Human-created task should have a ticket code');
+
+      const started = await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Start ${persistedTask.ticket_code}`
+      }, MESSAGE_TIMEOUT_MS);
+      assertPokeEnvelope(started);
+      assert.notStrictEqual(persistedTask.ticket_code, jobTicketCode,
+        'Task mutation should target the task rather than its enclosing job');
+    }).timeout(240000);
+
+    it('should Start a job when a human edits its description after AI collaboration', async () => {
+      const marker = randomUUID();
+      const { job, jobTicketCode } = await createCollaboratedJob(marker);
+      const startSignature = {
+        event_type: 'poke_ai',
+        message: `Start ${jobTicketCode}`
+      };
+      const locked = await adminClient.investibles.lock(job.investible.id);
+      await assertNoPoke(
+        startSignature,
+        BASELINE_QUIET_WINDOW_MS,
+        'No stale Start should be queued before the description mutation'
+      );
+      const startedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        startSignature, MESSAGE_TIMEOUT_MS);
+      await adminClient.investibles.update(
+        job.investible.id,
+        locked.investible.name,
+        `Human-updated description for existing AI collaborator ${marker}.`,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        locked.investible.version
+      );
+      const started = await startedPromise;
+      assertPokeEnvelope(started);
+    }).timeout(240000);
+
+    it('should not Start a job description edit when the AI is not a collaborator', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `No AI collaborator ${marker}`,
+        description: 'Fresh human-authored job with no AI comments, replies, votes, or approvals.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const startSignature = {
+        event_type: 'poke_ai',
+        message: `Start ${jobTicketCode}`
+      };
+      const locked = await adminClient.investibles.lock(job.investible.id);
+      await assertNoPoke(
+        startSignature,
+        BASELINE_QUIET_WINDOW_MS,
+        'Fresh job creation and locking should not queue Start without AI collaboration'
+      );
+      const noStartPromise = aiWebSocketRunner.waitForReceivedMessage(
+        startSignature, DUPLICATE_QUIET_WINDOW_MS);
+      await adminClient.investibles.update(
+        job.investible.id,
+        locked.investible.name,
+        `Human-updated description without AI collaboration ${marker}.`,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        locked.investible.version
+      );
+      await assert.rejects(
+        noStartPromise,
+        (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
+        `Description edit should not emit Start within ${DUPLICATE_QUIET_WINDOW_MS}ms`
       );
     }).timeout(240000);
   });
