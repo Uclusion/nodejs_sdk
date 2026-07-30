@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
 import {
+  getMessages,
   loginUserToAccountAndGetToken,
   loginUserToIdentity,
   loginUserToMarketAndGetToken,
@@ -112,6 +113,21 @@ export default function (adminConfiguration) {
       assert(replyMatch, `MCP add_info response wrong: ${replied}`);
       const replyTicketCode = replyMatch[1];
       const ticketCodes = [replyTicketCode];
+      const expectedReplyLink = `/${marketId}/${replyTicketCode}`;
+
+      const rawReplyNotification = await pollFor(async () => {
+        const messages = (await getMessages(adminConfiguration)) || [];
+        return messages.find((message) =>
+          message.market_id === marketId &&
+          message.investible_id === job.investible.id &&
+          message.alert_type === 'AI_GENERATED' &&
+          message.type_object_id?.startsWith('UNREAD_REPLY_'));
+      }, (notification) => notification);
+      assert(rawReplyNotification,
+        `Raw AI reply notification missing for ${replyTicketCode}`);
+      assert.strictEqual(rawReplyNotification.link, expectedReplyLink,
+        `AI reply notification should store its canonical short-code link: ${
+          JSON.stringify(rawReplyNotification)}`);
 
       const inbox = await pollFor(getNotifications,
         (markdown) => markdown.includes(replyTicketCode));
@@ -119,6 +135,12 @@ export default function (adminConfiguration) {
         `get_notifications should list the AI reply notification ${replyTicketCode}: ${inbox}`);
       assert(!inbox.includes('No notifications.'),
         `Inbox should not render empty once the reply notification exists: ${inbox}`);
+      const replyLine = linesAbout(inbox, ticketCodes)
+        .find((line) => line.includes(` — ${replyTicketCode}`));
+      assert(replyLine,
+        `get_notifications should render the bare reply code ${replyTicketCode}: ${inbox}`);
+      assert(!replyLine.includes('/dialog/') && !replyLine.includes(marketId),
+        `Reply notification should not fall back to an internal UUID link: ${replyLine}`);
 
       // Clearing by the JOB short code must catch the reply's notification through its
       // investible id — the object the agent finished, not the individual comment.

@@ -17,6 +17,7 @@ export default function (adminConfiguration, userConfiguration) {
             let globalInvestibleId;
             let marketInvestibleId;
             let createdMarketInvite;
+            let globalInvestibleTicketCode;
             let questionCommentId;
             let adminMentionCapabilityVersion;
             let todoCommentId;
@@ -71,6 +72,9 @@ export default function (adminConfiguration, userConfiguration) {
                 const marketInfo = investible.market_infos.find(info => {
                     return info.market_id === createdMarketId;
                 });
+                globalInvestibleTicketCode = marketInfo.ticket_code;
+                assert(globalInvestibleTicketCode,
+                    `Planning job ticket code missing for ${globalInvestibleId}`);
                 assert(marketInfo.accepted, 'Self-assigned automatically accepts');
                 return adminConfiguration.webSocketRunner.waitForReceivedMessage(
                     {event_type: 'market_investible', object_id: createdMarketId});
@@ -196,6 +200,10 @@ export default function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`;
                 });
                 assert(newVoting, 'Assignee should be notified of investment');
+                assert.strictEqual(newVoting.link,
+                    `/${createdMarketId}/${globalInvestibleTicketCode}#cv${userId}`,
+                    `Planning vote notification should store its canonical short-code link: ${
+                        JSON.stringify(newVoting)}`);
                 return pollFor(
                     () => getMessages(userConfiguration),
                     (fetched) => !fetched.some((message) =>
