@@ -24,6 +24,7 @@ export default function (adminConfiguration) {
     let adminId;
     let marketId;
     let marketToken;
+    let planningStages;
     let uclusionToken;
     let aiWebSocketRunner;
 
@@ -41,6 +42,7 @@ export default function (adminConfiguration) {
         market_type: 'PLANNING'
       });
       marketId = result.market.id;
+      planningStages = result.stages;
       await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const marketLogin = await loginUserToMarketAndGetToken(adminConfiguration, marketId);
       adminClient = marketLogin.client;
@@ -182,7 +184,8 @@ export default function (adminConfiguration) {
       const job = await adminClient.investibles.create({
         groupId: marketId,
         name: `AI collaborator event ${marker}`,
-        description: 'Job used to verify response-worthy changes wake an existing AI collaborator.'
+        description: 'Job used to verify response-worthy changes wake an existing AI collaborator.',
+        assignments: [adminId]
       });
       const jobTicketCode = await getTicketCode(job);
       const collaboratorMarker = `AI collaborator note ${marker}`;
@@ -197,7 +200,11 @@ export default function (adminConfiguration) {
       assert(collaboratorComment, 'AI collaborator comment should be discoverable');
       assert.notStrictEqual(collaboratorComment.created_by, adminId,
         'MCP add_info comment should be authored by the market AI user');
-      return { job, jobTicketCode };
+      return {
+        job,
+        jobTicketCode,
+        aiUserId: collaboratorComment.created_by
+      };
     }
 
     function assertPokeEnvelope(message) {
@@ -346,7 +353,7 @@ export default function (adminConfiguration) {
       );
     }).timeout(300000);
 
-    it('should emit exactly one Start when an option-bearing draft question is sent', async () => {
+    it('should emit exactly one Added when an option-bearing draft question is sent', async () => {
       const marker = randomUUID();
       const { job } = await createCollaboratedJob(marker);
       const questionMarker = `Human option-bearing draft question ${marker}?`;
@@ -374,14 +381,14 @@ export default function (adminConfiguration) {
         'Draft question should use a question short code');
       assert(inlineMarketId, 'Draft question should create its inline decision market');
 
-      const startSignature = {
+      const addedSignature = {
         event_type: 'poke_ai',
-        message: `Start ${draftQuestion.ticket_code}`
+        message: `Added ${draftQuestion.ticket_code}`
       };
       await assertNoPoke(
-        startSignature,
+        addedSignature,
         BASELINE_QUIET_WINDOW_MS,
-        'Creating the draft question should not Start it'
+        'Creating the draft question should not publish an Added event'
       );
 
       const inlineAdminClient = await pollLogin(inlineMarketId);
@@ -394,13 +401,13 @@ export default function (adminConfiguration) {
         stageId: investmentStage.id
       });
       await assertNoPoke(
-        startSignature,
+        addedSignature,
         BASELINE_QUIET_WINDOW_MS,
-        'Adding an option to an unsent question should not Start the parent'
+        'Adding an option to an unsent question should not publish the parent'
       );
 
-      const startedPromise = aiWebSocketRunner.waitForReceivedMessage(
-        startSignature, MESSAGE_TIMEOUT_MS);
+      const addedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        addedSignature, MESSAGE_TIMEOUT_MS);
       const sentQuestion = await adminClient.investibles.updateComment(
         draftQuestion.id,
         undefined,
@@ -418,17 +425,17 @@ export default function (adminConfiguration) {
       assert.strictEqual(sentQuestion.id, draftQuestion.id,
         'Finalizing the draft should update the same question');
       assert.strictEqual(sentQuestion.is_sent, true, 'Finalized question should be sent');
-      const started = await startedPromise;
-      assertPokeEnvelope(started);
+      const added = await addedPromise;
+      assertPokeEnvelope(added);
 
       await assertNoPoke(
-        startSignature,
+        addedSignature,
         DUPLICATE_QUIET_WINDOW_MS,
-        `Sent question Start should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
+        `Sent question Added should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
       );
     }).timeout(300000);
 
-    it('should Start a human-created task when the AI already collaborates on the job', async () => {
+    it('should emit Added for a human-created task when AI already collaborates', async () => {
       const marker = randomUUID();
       const { job, jobTicketCode } = await createCollaboratedJob(marker);
       const taskMarker = `Human task for existing AI collaborator ${marker}`;
@@ -444,30 +451,124 @@ export default function (adminConfiguration) {
         : await findCommentByMarker(adminClient, marketId, taskMarker);
       assert(persistedTask?.ticket_code, 'Human-created task should have a ticket code');
 
-      const started = await aiWebSocketRunner.waitForReceivedMessage({
+      const added = await aiWebSocketRunner.waitForReceivedMessage({
         event_type: 'poke_ai',
-        message: `Start ${persistedTask.ticket_code}`
+        message: `Added ${persistedTask.ticket_code}`
       }, MESSAGE_TIMEOUT_MS);
-      assertPokeEnvelope(started);
+      assertPokeEnvelope(added);
       assert.notStrictEqual(persistedTask.ticket_code, jobTicketCode,
         'Task mutation should target the task rather than its enclosing job');
     }).timeout(240000);
 
-    it('should Start a job when a human edits its description after AI collaboration', async () => {
+    it('should defer a blocker Added event until the job is Blocked and causally readable', async () => {
       const marker = randomUUID();
       const { job, jobTicketCode } = await createCollaboratedJob(marker);
-      const startSignature = {
+      const doableStage = planningStages.find((stage) => stage.name === 'Doable');
+      const blockedStage = planningStages.find((stage) => stage.name === 'Blocked');
+      assert(doableStage && blockedStage, 'Planning market should include Doable and Blocked');
+
+      const createdMarketInfo = job.market_infos.find((info) => info.market_id === marketId)
+        || job.market_infos[0];
+      const [currentJob] = await adminClient.markets.getMarketInvestibles([{
+        investible: { id: job.investible.id, version: 1 },
+        market_infos: [{ id: createdMarketInfo.id, version: 1 }]
+      }]);
+      const currentMarketInfo = currentJob.market_infos.find(
+        (info) => info.market_id === marketId
+      ) || currentJob.market_infos[0];
+      if (currentMarketInfo.stage !== doableStage.id) {
+        const updatedPromise = aiWebSocketRunner.waitForReceivedMessage({
+          event_type: 'poke_ai',
+          message: `Updated ${jobTicketCode}`
+        }, MESSAGE_TIMEOUT_MS);
+        await adminClient.investibles.stateChange(job.investible.id, {
+          current_stage_id: currentMarketInfo.stage,
+          stage_id: doableStage.id
+        });
+        const updated = await updatedPromise;
+        assertPokeEnvelope(updated);
+      }
+
+      const blockerMarker = `Human blocker forcing Blocked ${marker}`;
+      const blocker = await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        blockerMarker,
+        null,
+        'ISSUE'
+      );
+      const persistedBlocker = blocker.ticket_code
+        ? blocker
+        : await findCommentByMarker(adminClient, marketId, blockerMarker);
+      assert(persistedBlocker?.ticket_code, 'Blocker should have a short code');
+
+      const addedSignature = {
         event_type: 'poke_ai',
-        message: `Start ${jobTicketCode}`
+        message: `Added ${persistedBlocker.ticket_code}`
+      };
+      const added = await aiWebSocketRunner.waitForReceivedMessage(
+        addedSignature,
+        MESSAGE_TIMEOUT_MS
+      );
+      assertPokeEnvelope(added);
+
+      const jobMarkdown = await mcpCall(
+        adminConfiguration,
+        uclusionToken,
+        'get_job',
+        { short_code_id: persistedBlocker.ticket_code }
+      );
+      assert(jobMarkdown.includes(blockerMarker),
+        'Causal get_job should include the blocker that triggered the event');
+      assert(jobMarkdown.includes('This job is in stage Blocked.'),
+        'Causal get_job should include the current Blocked stage');
+
+      const blockedInvestibles = await pollFor(
+        () => adminClient.markets.getMarketInvestibles([{
+          investible: { id: job.investible.id, version: 1 },
+          market_infos: [{ id: createdMarketInfo.id, version: 1 }]
+        }]),
+        (fetched) => fetched?.[0]?.market_infos?.some(
+          (info) => info.market_id === marketId && info.stage === blockedStage.id
+        )
+      );
+      assert(
+        blockedInvestibles?.[0]?.market_infos?.some(
+          (info) => info.market_id === marketId && info.stage === blockedStage.id
+        ),
+        'Blocker Added should not arrive before the job reaches Blocked'
+      );
+
+      await assertNoPoke(
+        addedSignature,
+        DUPLICATE_QUIET_WINDOW_MS,
+        'Derived stage processing should not deliver the blocker Added twice'
+      );
+      await assertNoPoke(
+        {
+          event_type: 'poke_ai',
+          message: `Updated ${jobTicketCode}`
+        },
+        DUPLICATE_QUIET_WINDOW_MS,
+        'The blocker-derived stage change should not emit a second job event'
+      );
+    }).timeout(360000);
+
+    it('should emit Updated when a human edits a collaborated job description', async () => {
+      const marker = randomUUID();
+      const { job, jobTicketCode } = await createCollaboratedJob(marker);
+      const updatedSignature = {
+        event_type: 'poke_ai',
+        message: `Updated ${jobTicketCode}`
       };
       const locked = await adminClient.investibles.lock(job.investible.id);
       await assertNoPoke(
-        startSignature,
+        updatedSignature,
         BASELINE_QUIET_WINDOW_MS,
-        'No stale Start should be queued before the description mutation'
+        'No stale Updated event should be queued before the description mutation'
       );
-      const startedPromise = aiWebSocketRunner.waitForReceivedMessage(
-        startSignature, MESSAGE_TIMEOUT_MS);
+      const updatedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        updatedSignature, MESSAGE_TIMEOUT_MS);
       await adminClient.investibles.update(
         job.investible.id,
         locked.investible.name,
@@ -480,11 +581,45 @@ export default function (adminConfiguration) {
         undefined,
         locked.investible.version
       );
-      const started = await startedPromise;
-      assertPokeEnvelope(started);
+      const updated = await updatedPromise;
+      assertPokeEnvelope(updated);
     }).timeout(240000);
 
-    it('should not Start a job description edit when the AI is not a collaborator', async () => {
+    it('should emit one Updated for each assignment on a collaborated job', async () => {
+      const marker = randomUUID();
+      const { job, jobTicketCode, aiUserId } = await createCollaboratedJob(marker);
+      const updatedSignature = {
+        event_type: 'poke_ai',
+        message: `Updated ${jobTicketCode}`
+      };
+      await assertNoPoke(
+        updatedSignature,
+        BASELINE_QUIET_WINDOW_MS,
+        'No stale Updated event should be queued before the assignment mutation'
+      );
+      const updatedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        updatedSignature, MESSAGE_TIMEOUT_MS);
+      await adminClient.investibles.updateAssignments(job.investible.id, [aiUserId]);
+      const updated = await updatedPromise;
+      assertPokeEnvelope(updated);
+      await assertNoPoke(
+        updatedSignature,
+        DUPLICATE_QUIET_WINDOW_MS,
+        `Assignment Updated should not be delivered twice within ${DUPLICATE_QUIET_WINDOW_MS}ms`
+      );
+      const reassignedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        updatedSignature, MESSAGE_TIMEOUT_MS);
+      await adminClient.investibles.updateAssignments(job.investible.id, [adminId]);
+      const reassigned = await reassignedPromise;
+      assertPokeEnvelope(reassigned);
+      await assertNoPoke(
+        updatedSignature,
+        DUPLICATE_QUIET_WINDOW_MS,
+        `A later assignment Updated should not be delivered twice`
+      );
+    }).timeout(360000);
+
+    it('should not emit Updated for a job without an AI collaborator', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -492,18 +627,18 @@ export default function (adminConfiguration) {
         description: 'Fresh human-authored job with no AI comments, replies, votes, or approvals.'
       });
       const jobTicketCode = await getTicketCode(job);
-      const startSignature = {
+      const updatedSignature = {
         event_type: 'poke_ai',
-        message: `Start ${jobTicketCode}`
+        message: `Updated ${jobTicketCode}`
       };
       const locked = await adminClient.investibles.lock(job.investible.id);
       await assertNoPoke(
-        startSignature,
+        updatedSignature,
         BASELINE_QUIET_WINDOW_MS,
-        'Fresh job creation and locking should not queue Start without AI collaboration'
+        'Fresh job creation and locking should not queue Updated without AI collaboration'
       );
-      const noStartPromise = aiWebSocketRunner.waitForReceivedMessage(
-        startSignature, DUPLICATE_QUIET_WINDOW_MS);
+      const noUpdatedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        updatedSignature, DUPLICATE_QUIET_WINDOW_MS);
       await adminClient.investibles.update(
         job.investible.id,
         locked.investible.name,
@@ -517,9 +652,9 @@ export default function (adminConfiguration) {
         locked.investible.version
       );
       await assert.rejects(
-        noStartPromise,
+        noUpdatedPromise,
         (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
-        `Description edit should not emit Start within ${DUPLICATE_QUIET_WINDOW_MS}ms`
+        `Description edit should not emit Updated within ${DUPLICATE_QUIET_WINDOW_MS}ms`
       );
     }).timeout(240000);
   });
