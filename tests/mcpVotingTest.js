@@ -157,6 +157,36 @@ export default function (adminConfiguration, userConfiguration) {
         'MCP approval should move the AI vote off the first option instead of duplicating per C-all-1168');
     }).timeout(240000);
 
+    it('should vote against then for a suggestion via MCP', async () => {
+      const suggestion = await adminClient.investibles.createComment(undefined, marketId,
+        'Should we take the other approach instead?', null, 'SUGGEST');
+      // Enabling voting on a suggestion creates an inline INITIATIVE market whose single
+      // option the backend makes at market creation - vote_on_suggestion finds it by listing
+      const inlineMarket = await accountClient.markets.createMarket({ market_type: 'INITIATIVE',
+        parent_comment_id: suggestion.id });
+      const option = { id: inlineMarket.investible.investible.id,
+        marketInfoId: inlineMarket.investible.market_infos[0].id };
+      const inlineAdminClient = await pollLogin(adminConfiguration, inlineMarket.market.id);
+      await pollMcp('vote_on_suggestion',
+        { suggestion_short_code: suggestion.ticket_code, is_for: false, certainty: 2,
+          reason: 'Too risky as described.' });
+      const voteMessage = await pollFor(async () => {
+        const messages = (await getMessages(adminConfiguration)) || [];
+        return messages.find((message) =>
+          message.type_object_id?.startsWith(`UNREAD_VOTE_${option.id}_`));
+      }, (message) => message);
+      assert(voteMessage, 'MCP suggestion vote should notify the suggestion creator of the AI vote');
+      const aiUserId = voteMessage.type_object_id.substring(`UNREAD_VOTE_${option.id}_`.length);
+      const against = await pollFor(() => getInvestment(inlineAdminClient, aiUserId, option),
+        (investment) => !!investment && !investment.deleted && investment.quantity < 0);
+      assert(against?.quantity === -25, 'Against vote should be a negative investment at certainty 2');
+      await pollMcp('vote_on_suggestion',
+        { suggestion_short_code: suggestion.ticket_code, is_for: true, certainty: 4 });
+      const forVote = await pollFor(() => getInvestment(inlineAdminClient, aiUserId, option),
+        (investment) => !!investment && !investment.deleted && investment.quantity > 0);
+      assert(forVote?.quantity === 75, 'For vote should replace the against vote at certainty 4');
+    }).timeout(240000);
+
     it('should move user vote via normal invest on single vote question', async () => {
       const { inlineUserClient, optionA, optionB } = await makeVotingQuestion(
         'Does the normal path move the vote?');
