@@ -287,6 +287,100 @@ export default function (adminConfiguration) {
       );
     }).timeout(240000);
 
+    // Q-all-340 A / S-all-182: reopen and the first reply after it both hand back.
+    it('should emit Responded on reopen and again on the first reply after reopen', async () => {
+      const marker = randomUUID();
+      // Prior AI collaboration makes later human mutations on this market eligible.
+      await createCollaboratedJob(marker);
+
+      const bugMarker = `Standalone bug both-poke ${marker}`;
+      const bug = await adminClient.investibles.createComment(
+        undefined,
+        marketId,
+        bugMarker,
+        null,
+        'TODO'
+      );
+      const persistedBug = bug.ticket_code
+        ? bug
+        : await findCommentByMarker(adminClient, marketId, bugMarker);
+      assert(persistedBug?.ticket_code, 'Standalone bug should have a ticket code');
+      const bugTicketCode = persistedBug.ticket_code;
+
+      const added = await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Added ${bugTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+      assertPokeEnvelope(added);
+
+      const completionMarker = `AI completion note for both-poke ${marker}`;
+      const mcpInfo = await pollMcp('add_info', {
+        short_code_id: bugTicketCode,
+        info: completionMarker
+      });
+      assert(mcpInfo.includes('Added info with id'),
+        `MCP add_info response wrong: ${mcpInfo}`);
+      const completion = await findCommentByMarker(
+        adminClient, marketId, completionMarker);
+      assert(completion, 'AI completion note should be discoverable');
+      assert.notStrictEqual(completion.created_by, adminId,
+        'MCP add_info comment should be authored by the market AI user');
+
+      const mcpResolve = await pollMcp('resolve', {
+        short_code_id: bugTicketCode
+      });
+      assert(mcpResolve.includes('Resolved'),
+        `MCP resolve response wrong: ${mcpResolve}`);
+      const resolvedBug = await pollFor(
+        () => listPlanningComments().then((comments) =>
+          comments.find((comment) => comment.id === persistedBug.id)),
+        (comment) => comment?.resolved === true
+      );
+      assert.strictEqual(resolvedBug?.resolved, true,
+        'Standalone bug should be resolved before the human reopen');
+
+      const respondedSignature = {
+        event_type: 'poke_ai',
+        message: `Responded ${bugTicketCode}`
+      };
+      await assertNoPoke(
+        respondedSignature,
+        BASELINE_QUIET_WINDOW_MS,
+        'AI completion and resolve should not queue Responded before the human reopen'
+      );
+
+      const reopenPromise = aiWebSocketRunner.waitForReceivedMessage(
+        respondedSignature, MESSAGE_TIMEOUT_MS);
+      await adminClient.investibles.updateComment(persistedBug.id, undefined, false);
+      const reopenPoke = await reopenPromise;
+      assertPokeEnvelope(reopenPoke);
+
+      const replyPromise = aiWebSocketRunner.waitForReceivedMessage(
+        respondedSignature, MESSAGE_TIMEOUT_MS);
+      await adminClient.investibles.createComment(
+        undefined,
+        marketId,
+        `Also do X after reopen ${marker}`,
+        persistedBug.id
+      );
+      const replyPoke = await replyPromise;
+      assertPokeEnvelope(replyPoke);
+
+      const secondReplyPromise = aiWebSocketRunner.waitForReceivedMessage(
+        respondedSignature, DUPLICATE_QUIET_WINDOW_MS);
+      await adminClient.investibles.createComment(
+        undefined,
+        marketId,
+        `Even more direction after reopen ${marker}`,
+        persistedBug.id
+      );
+      await assert.rejects(
+        secondReplyPromise,
+        (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
+        'A second consecutive human reply after reopen should stay silent until AI acts'
+      );
+    }).timeout(360000);
+
     it('should emit one compound Responded poke for a human question inside an AI option', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
