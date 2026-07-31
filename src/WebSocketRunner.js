@@ -10,10 +10,12 @@ class WebSocketRunner {
     constructor(config) {
         this.wsUrl = config.wsUrl;
         this.reconnectInterval = config.reconnectInterval;
+        this.keepaliveMilliseconds = config.keepaliveMilliseconds || 60000;
         this.subscribeQueue = [];
         this.messageHanders = [];
         this.previouslyQueued = [];
         this.reconnectTimeout = undefined;
+        this.keepaliveInterval = undefined;
         this.terminated = false;
     }
 
@@ -21,7 +23,7 @@ class WebSocketRunner {
         const handler = (event) => {
             //console.log(event);
             const payload = JSON.parse(event.data);
-            if (this.messageHanders.length === 0) {
+            if (this.messageHanders.length === 0 && payload.event_type !== 'pong') {
                 // console.log("Queuing for later:");
                 // console.log(payload);
                 // No active message handler so try to avoid dropping a message
@@ -65,21 +67,36 @@ class WebSocketRunner {
         const factory = (event) => {
           //  console.debug('Here in open factory with queue:', JSON.stringify(queue));
           //  console.debug('My socket is:', this.socket);
+            console.log(`Websocket open; sending ${queue.length} subscriptions`);
             queue.forEach(action => {
                 const actionString = JSON.stringify(action);
                 //console.debug('Sending to my socket:', actionString);
                 this.socket.send(actionString);
             });
             // we're not emptying the queue because we might need it on reconnect
+            this.startKeepalive();
         };
         return factory.bind(this);
+    }
+
+    startKeepalive() {
+        clearInterval(this.keepaliveInterval);
+        // AWS API Gateway closes websockets with no traffic for ~10 minutes and
+        // events sent while reconnecting are lost, so keep the connection out of
+        // the idle regime. The server answers each ping with a pong event.
+        this.keepaliveInterval = setInterval(() => {
+            if (this.socket && this.socket.readyState === this.socket.OPEN) {
+                this.send('ping');
+            }
+        }, this.keepaliveMilliseconds);
     }
 
     onCloseFactory() {
         const runner = this;
         const connectFunc = function (event) {
-            //console.debug('Web socket closed. Reopening in:', runner.reconnectInterval);
+            clearInterval(runner.keepaliveInterval);
             if (!runner.terminated) {
+                console.log(`Websocket closed; reconnecting in ${runner.reconnectInterval}ms`);
                 runner.reconnectTimeout = setTimeout(runner.connect.bind(runner), runner.reconnectInterval);
             }
         };
@@ -168,11 +185,13 @@ class WebSocketRunner {
     /** Waits for a received messages matching the signature passed in
      *
      * @param signatures an array of object of key/value pairs we'll wait for
-     * @param timeoutMilliseconds optional maximum time to wait
+     * @param timeoutMilliseconds maximum time to wait; defaults to 5 minutes so a
+     * missed event fails fast with its signature instead of consuming the whole
+     * Mocha budget (the slowest legitimate waits are schedule runs under 3 minutes)
      * @return A promise that resolves if the message is received within timeout milliseconds,
      * otherwise rejects
      */
-    waitForReceivedMessages(signatures, timeoutMilliseconds){
+    waitForReceivedMessages(signatures, timeoutMilliseconds = 300000){
         console.log("Waiting on message signatures:");
         console.log(signatures);
         const promises = signatures.map(signature => {
@@ -212,6 +231,7 @@ class WebSocketRunner {
         // kill the reconnect handler and close the socket
         this.terminated = true;
         clearTimeout(this.reconnectTimeout);
+        clearInterval(this.keepaliveInterval);
         if (this.socket) {
             this.socket.onclose = (event) => {};
             this.socket.close();
