@@ -57,6 +57,9 @@ export default function (adminConfiguration, userConfiguration) {
         // not following should be able to vote
         return userClient.markets.updateInvestment(storyId, 100, 0);
       }).then(() => {
+        // Consume this vote's event so the later investment wait cannot stale-match it (B-all-520)
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: marketId});
+      }).then(() => {
         return loginUserToMarketInvite(adminConfiguration, marketCapability);
       }).then((client) => {
         adminClient = client;
@@ -81,13 +84,20 @@ export default function (adminConfiguration, userConfiguration) {
           return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
         });
         assert(newAssignment, 'New assigned gets approve notification');
-        return getMessages(adminConfiguration);
+        // The reassignment's removal of the old assignee's request is a separate async leg
+        // from the user-side generation just confirmed, so poll instead of one-shot (B-all-520)
+        return pollFor(() => getMessages(adminConfiguration), (messages) =>
+          !messages.some((obj) =>
+            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId));
       }).then((messages) => {
         const vote = messages.find(obj => {
           return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
         });
         assert(!vote, 'Updater does not get vote request');
         return userClient.markets.updateInvestment(storyId, 100, 0);
+      }).then(() => {
+        // Prove the accepting vote's pipeline ran before checking its notification removal (B-all-520)
+        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: marketId});
       }).then(() => {
         // Delete of unaccepted notification now that approving has accepted
         return pollFor(() => getMessages(userConfiguration), (messages) =>
