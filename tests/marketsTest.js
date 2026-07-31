@@ -197,12 +197,10 @@ export default function(adminConfiguration, userConfiguration) {
                 return userClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages(
-                    [{event_type: 'notification',
-                        type_object_id: `UNREAD_VOTE_${globalInvestibleId}_${userId}`},
-                        {event_type: 'investment', object_id: createdMarketId}]);
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => messages.some((message) =>
+                        message.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`));
             }).then((messages) => {
                 const newVoting = messages.find(obj => {
                     return obj.type_object_id === `UNREAD_VOTE_${globalInvestibleId}_${userId}`;
