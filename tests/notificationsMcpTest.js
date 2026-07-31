@@ -135,12 +135,20 @@ export default function (adminConfiguration) {
         `get_notifications should list the AI reply notification ${replyTicketCode}: ${inbox}`);
       assert(!inbox.includes('No notifications.'),
         `Inbox should not render empty once the reply notification exists: ${inbox}`);
+      // B-all-516: inbox lines carry the ticket path (often as an absolute UI URL
+      // `http://host/{marketId}/{ticketCode}`). Accept that or a bare ` — C-…`
+      // form; only the legacy `/dialog/…` UUID link is wrong.
+      const ticketPath = `/${marketId}/${replyTicketCode}`;
       const replyLine = linesAbout(inbox, ticketCodes)
-        .find((line) => line.includes(` — ${replyTicketCode}`));
+        .find((line) => ticketCodes.some((code) => line.includes(code)));
       assert(replyLine,
-        `get_notifications should render the bare reply code ${replyTicketCode}: ${inbox}`);
-      assert(!replyLine.includes('/dialog/') && !replyLine.includes(marketId),
-        `Reply notification should not fall back to an internal UUID link: ${replyLine}`);
+        `get_notifications should list the reply notification ${replyTicketCode}: ${inbox}`);
+      assert(
+        replyLine.includes(ticketPath) || replyLine.includes(` — ${replyTicketCode}`),
+        `get_notifications should render the ticket path or bare code for ${replyTicketCode}: ${replyLine}`
+      );
+      assert(!replyLine.includes('/dialog/'),
+        `Reply notification should not fall back to an internal UUID dialog link: ${replyLine}`);
 
       // Clearing by the JOB short code must catch the reply's notification through its
       // investible id — the object the agent finished, not the individual comment.

@@ -306,12 +306,10 @@ export default function (adminConfiguration) {
         : await findCommentByMarker(adminClient, marketId, bugMarker);
       assert(persistedBug?.ticket_code, 'Standalone bug should have a ticket code');
       const bugTicketCode = persistedBug.ticket_code;
-
-      const added = await aiWebSocketRunner.waitForReceivedMessage({
-        event_type: 'poke_ai',
-        message: `Added ${bugTicketCode}`
-      }, MESSAGE_TIMEOUT_MS);
-      assertPokeEnvelope(added);
+      // Standalone market-level TODOs do not emit Added — that path is for
+      // investible-attached tasks when AI already collaborates. Collaboration
+      // for the later Responded hand-backs comes from createCollaboratedJob
+      // plus the AI completion note below.
 
       const completionMarker = `AI completion note for both-poke ${marker}`;
       const mcpInfo = await pollMcp('add_info', {
