@@ -109,8 +109,9 @@ export default function (adminConfiguration) {
       assert(jobMarkdown.includes(noteMarker),
         'get_job should include the Show AI view note body');
 
-      // T-all-2435: a job only gets the notes of the view it is in.
-      const groupResponse = await adminClient.markets.createGroup({ name: `Engineering ${marker}` });
+      // T-all-2435: a job only gets the notes of the view it is in. The group name feeds
+      // the ticket sub code, so keep it short - the market is fresh per run anyway.
+      const groupResponse = await adminClient.markets.createGroup({ name: 'Engineering' });
       const otherGroupId = groupResponse.group.id;
       const otherJob = await adminClient.investibles.create({
         groupId: otherGroupId,
