@@ -447,7 +447,7 @@ export default function (adminConfiguration) {
 
     it('should emit exactly one Added when an option-bearing draft question is sent', async () => {
       const marker = randomUUID();
-      const { job } = await createCollaboratedJob(marker);
+      const { job, jobTicketCode } = await createCollaboratedJob(marker);
       const questionMarker = `Human option-bearing draft question ${marker}?`;
       // Mirror the UI wizard: create the question and its DECISION market as one draft operation,
       // add an option in that inline market, then send the parent comment.
@@ -475,7 +475,8 @@ export default function (adminConfiguration) {
 
       const addedSignature = {
         event_type: 'poke_ai',
-        message: `Added ${draftQuestion.ticket_code}`
+        // J-all-380: a comment on a job pokes with its enclosing job as parent
+        message: `Added ${draftQuestion.ticket_code} of ${jobTicketCode}`
       };
       await assertNoPoke(
         addedSignature,
@@ -545,7 +546,8 @@ export default function (adminConfiguration) {
 
       const added = await aiWebSocketRunner.waitForReceivedMessage({
         event_type: 'poke_ai',
-        message: `Added ${persistedTask.ticket_code}`
+        // J-all-380: a comment on a job pokes with its enclosing job as parent
+        message: `Added ${persistedTask.ticket_code} of ${jobTicketCode}`
       }, MESSAGE_TIMEOUT_MS);
       assertPokeEnvelope(added);
       assert.notStrictEqual(persistedTask.ticket_code, jobTicketCode,
@@ -596,7 +598,8 @@ export default function (adminConfiguration) {
 
       const addedSignature = {
         event_type: 'poke_ai',
-        message: `Added ${persistedBlocker.ticket_code}`
+        // J-all-380: a comment on a job pokes with its enclosing job as parent
+        message: `Added ${persistedBlocker.ticket_code} of ${jobTicketCode}`
       };
       const added = await aiWebSocketRunner.waitForReceivedMessage(
         addedSignature,
