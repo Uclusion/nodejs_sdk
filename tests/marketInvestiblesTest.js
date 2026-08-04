@@ -4,6 +4,7 @@ import {
     loginUserToMarket,
     loginUserToMarketInvite
 } from "../src/utils.js";
+import { pollFor } from './commonTestFunctions.js';
 
 export default function(adminConfiguration, userConfiguration) {
     describe('#do market investible tests', () => {
@@ -43,18 +44,20 @@ export default function(adminConfiguration, userConfiguration) {
                     assignments: [user.id]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
-                // Since admin client created the comment we are not expecting a notification here
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'market_investible', object_id: createdMarketId}]);
-            }).then(() => {
-                return adminClient.summaries.idList(globalAccountToken).then((audits) => {
+                // B-all-533: poll the versions the assertions below read instead of websocket
+                // barriers - a missed event turned into a five minute hang
+                return pollFor(() => adminClient.summaries.idList(globalAccountToken).then((audits) => {
                     const allMarkets = audits.map((audit) => audit.id);
                     return adminClient.summaries.versions(globalAccountToken, allMarkets)
+                }), (versions) => {
+                    const marketEntry = (versions.signatures || []).find((signature) => signature.market_id === createdMarketId);
+                    const hasType = (aType) => (marketEntry?.signatures || []).some((marketSignature) =>
+                        marketSignature.type === aType && marketSignature.object_versions.some(
+                            (objectVersion) => objectVersion.version > 0));
+                    return hasType('comment') && hasType('market_investible');
                 });
             }).then((versions) => {
                 let marketVersion = 0;

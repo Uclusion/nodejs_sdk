@@ -113,9 +113,10 @@ export default function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.createComment(globalInvestibleId, createdMarketId,'a reply comment', parentCommentId);
             }).then((comment) => {
                 assert(comment.reply_id === parentCommentId, 'updated reply_id incorrect');
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                // B-all-533: poll the inbox for the reply's issue removal instead of a websocket
+                // barrier - a missed comment event turned into a five minute hang
+                return pollFor(() => getMessages(adminConfiguration), (messages) =>
+                    !messages.some((obj) => obj.type_object_id === 'ISSUE_' + parentCommentId));
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
                     return obj.type_object_id === 'ISSUE_' + parentCommentId;
@@ -135,11 +136,10 @@ export default function (adminConfiguration, userConfiguration) {
                 assert(comment.resolved, 'updated resolved incorrect');
                 assert(comment.children, 'now parent should have children');
                 assert(comment.version === 4, `update, reply and resolve should each bump version but ${comment.version}`);
-                // Can't do consistent read on GSI so need to wait before do the getMarketComments call
-                return adminConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'comment', object_id: createdMarketId},
-                    {event_type: 'notification'}]);
-            }).then(() => {
-                return getMessages(adminConfiguration);
+                // B-all-533: the admin mention is this update's positive inbox anchor - poll for
+                // it instead of websocket barriers, then check the absences on the same snapshot
+                return pollFor(() => getMessages(adminConfiguration), (messages) =>
+                    messages.some((obj) => obj.type_object_id === 'UNREAD_COMMENT_' + parentCommentId));
             }).then((messages) => {
                 const investibleIssue = messages.find(obj => {
                     return (obj.type_object_id === 'ISSUE_' + parentCommentId)&&(obj.level === 'RED')&&(obj.associated_object_id === globalInvestibleId);
@@ -156,16 +156,14 @@ export default function (adminConfiguration, userConfiguration) {
                 return adminClient.investibles.createComment(null, createdMarketId, 'comment to fetch', null,
                     'QUESTION', null, [mention]);
             }).then((comment) => {
-                // Can't do consistent read on GSI so need to wait before do the getMarketComments call
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId})
-                    .then(() => comment);
-            }).then((comment) => {
                 assert(comment.body === 'comment to fetch', 'comment body incorrect');
                 assert(comment.comment_type === 'QUESTION', 'comment should be question');
                 assert(comment.mentions.length === 1 , 'mentions should include just the one');
                 assert(comment.mentions[0].user_id === userId, 'mention should just be for the user id');
                 assert(!comment.resolved, 'QUESTION resolved incorrect');
-                return userClient.investibles.getMarketComments([{id: comment.id, version: 1}]);
+                // B-all-533: poll the GSI-backed read directly instead of a websocket barrier
+                return pollFor(() => userClient.investibles.getMarketComments([{id: comment.id, version: 1}]),
+                    (comments) => comments && comments[0] && comments[0].body === 'comment to fetch');
             }).then((comments) => {
                 let comment = comments[0];
                 assert(comment.body === 'comment to fetch', 'fetched comment body incorrect');
