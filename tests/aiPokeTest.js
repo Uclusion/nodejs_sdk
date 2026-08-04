@@ -452,26 +452,32 @@ export default function (adminConfiguration) {
       const marker = randomUUID();
       const { job, jobTicketCode } = await createCollaboratedJob(marker);
       await adminClient.investibles.updateIsVisible(job.investible.id, false);
-      const task = await adminClient.investibles.createComment(
-        job.investible.id,
-        marketId,
-        `Human only task ${marker}`,
-        null,
-        'TODO'
-      );
-      assert(task.ticket_code, 'Task should carry a ticket code');
-      await assertNoPoke(
-        { event_type: 'poke_ai', message: `Added ${task.ticket_code} of ${jobTicketCode}` },
-        BASELINE_QUIET_WINDOW_MS,
-        'A task created inside a hidden job must not emit an Added poke'
-      );
-      const updatedPromise = aiWebSocketRunner.waitForReceivedMessage(
-        { event_type: 'poke_ai', message: `Updated ${task.ticket_code} of ${jobTicketCode}` },
-        MESSAGE_TIMEOUT_MS);
-      await adminClient.investibles.updateComment(task.id, `Human only task edited ${marker}`);
-      await updatedPromise;
-      // leave the job visible again so later tests see normal behavior
-      await adminClient.investibles.updateIsVisible(job.investible.id, true);
+      try {
+        const task = await adminClient.investibles.createComment(
+          job.investible.id,
+          marketId,
+          `Human only task ${marker}`,
+          null,
+          'TODO'
+        );
+        assert(task.ticket_code, 'Task should carry a ticket code');
+        await assertNoPoke(
+          { event_type: 'poke_ai', message: `Added ${task.ticket_code} of ${jobTicketCode}` },
+          BASELINE_QUIET_WINDOW_MS,
+          'A task created inside a hidden job must not emit an Added poke'
+        );
+        const updatedPromise = aiWebSocketRunner.waitForReceivedMessage(
+          { event_type: 'poke_ai', message: `Updated ${task.ticket_code} of ${jobTicketCode}` },
+          MESSAGE_TIMEOUT_MS);
+        // Body edits require the comment's version
+        await adminClient.investibles.updateComment(task.id, `Human only task edited ${marker}`,
+          undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+          undefined, undefined, undefined, task.version);
+        await updatedPromise;
+      } finally {
+        // leave the job visible again so later tests see normal behavior
+        await adminClient.investibles.updateIsVisible(job.investible.id, true);
+      }
     }).timeout(300000);
 
     it('should emit exactly one Added when an option-bearing draft question is sent', async () => {
