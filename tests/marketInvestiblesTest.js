@@ -47,17 +47,17 @@ export default function(adminConfiguration, userConfiguration) {
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
-                // B-all-533: poll the versions the assertions below read instead of websocket
-                // barriers - a missed event turned into a five minute hang
+                // B-all-533 / T-all-2442: poll the versions the assertions below read instead
+                // of websocket barriers, including the Requires Input transition to version 2.
                 return pollFor(() => adminClient.summaries.idList(globalAccountToken).then((audits) => {
                     const allMarkets = audits.map((audit) => audit.id);
                     return adminClient.summaries.versions(globalAccountToken, allMarkets)
                 }), (versions) => {
                     const marketEntry = (versions.signatures || []).find((signature) => signature.market_id === createdMarketId);
-                    const hasType = (aType) => (marketEntry?.signatures || []).some((marketSignature) =>
+                    const hasType = (aType, minimumVersion = 1) => (marketEntry?.signatures || []).some((marketSignature) =>
                         marketSignature.type === aType && marketSignature.object_versions.some(
-                            (objectVersion) => objectVersion.version > 0));
-                    return hasType('comment') && hasType('market_investible');
+                            (objectVersion) => objectVersion.version >= minimumVersion));
+                    return hasType('comment') && hasType('market_investible', 2);
                 });
             }).then((versions) => {
                 let marketVersion = 0;
