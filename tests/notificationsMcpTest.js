@@ -80,6 +80,11 @@ export default function (adminConfiguration) {
       return mcpCall(adminConfiguration, uclusionToken, 'get_notifications', {});
     }
 
+    function parseMcpToolResult(stringifiedEnvelope) {
+      const toolResult = JSON.parse(stringifiedEnvelope).result;
+      return toolResult.structuredContent || JSON.parse(toolResult.content[0].text);
+    }
+
     // mcpCall returns the stringified JSON-RPC envelope, so the markdown's newlines
     // arrive as literal backslash-n escapes.
     function linesAbout(stringifiedResult, ticketCodes) {
@@ -99,9 +104,9 @@ export default function (adminConfiguration) {
         description: 'Job whose question thread collects the tracked AI reply notification.'
       });
       const jobTicketCode = await getTicketCode(job);
-      // First-level AI comments are deliberately silent in the inbox — the AI reports its own
-      // comments in the client window. The one notification generated for AI activity is a
-      // deeper AI reply to a human-authored comment, which could get buried in that window.
+      // J-all-385: AI activity notifies like anyone else's, marked AI_GENERATED so email is
+      // withheld. An AI reply to a human-authored comment is the deep case that could get
+      // buried in the agent's chat window.
       const question = await adminClient.investibles.createComment(job.investible.id, marketId,
         `Does this land in the human inbox ${marker}?`, null, 'QUESTION');
       assert(question.ticket_code, `Question ticket code missing: ${JSON.stringify(question)}`);
@@ -165,6 +170,78 @@ export default function (adminConfiguration) {
         (markdown) => !hasUnreadLine(markdown, ticketCodes));
       assert(!hasUnreadLine(after, ticketCodes),
         `No unread notification should remain about ${ticketCodes} after the clear: ${after}`);
+    }).timeout(600000);
+
+    it('notifies the assignee with AI_GENERATED when the AI asks a first-level question', async () => {
+      const marker = randomUUID();
+      const user = await adminClient.users.get();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `AI question inbox ${marker}`,
+        description: 'Job whose AI-authored first-level question must land in the assignee inbox.',
+        assignments: [user.id]
+      });
+      const jobTicketCode = await getTicketCode(job);
+      // J-all-385: first-level AI comments were deliberately silent before multi-agent
+      // support; now they notify the assignee, marked AI_GENERATED so email stays withheld.
+      const asked = await pollMcp('ask_question', {
+        job_id: jobTicketCode,
+        question: `Does this first level AI question land in the inbox ${marker}?`
+      });
+      assert(asked.includes('Added question'), `MCP ask_question response wrong: ${asked}`);
+      const questionNotification = await pollFor(async () => {
+        const messages = (await getMessages(adminConfiguration)) || [];
+        return messages.find((message) =>
+          message.market_id === marketId &&
+          message.investible_id === job.investible.id &&
+          message.alert_type === 'AI_GENERATED' &&
+          message.type_object_id?.startsWith('UNREAD_COMMENT_'));
+      }, (notification) => notification);
+      assert(questionNotification,
+        'AI first-level question should notify the assignee with AI_GENERATED');
+    }).timeout(600000);
+
+    it('marks find_work items auto_take when the view opts in', async () => {
+      const marker = randomUUID();
+      const user = await adminClient.users.get();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Auto take ${marker}`,
+        description: 'Job that find_work must annotate once its view opts in to auto take.',
+        assignments: [user.id]
+      });
+      const jobTicketCode = await getTicketCode(job);
+      // C-all-1373: the view-level opt-in annotates that view's items so agents take the
+      // next available instead of asking.
+      const updated = await adminClient.markets.updateGroup(marketId, { ai_auto_take: true });
+      assert(updated.ai_auto_take === true, 'Group update should persist ai_auto_take');
+      try {
+        const found = await pollFor(
+          () => pollMcp('find_work', {}),
+          (result) => parseMcpToolResult(result).work_list.some((item) =>
+            item.short_code_id === jobTicketCode && item.auto_take === true));
+        const findWork = parseMcpToolResult(found);
+        const target = findWork.work_list.find((item) => item.short_code_id === jobTicketCode);
+        assert(target, `find_work should list ${jobTicketCode}: ${found}`);
+        assert.strictEqual(target.auto_take, true,
+          `find_work should mark ${jobTicketCode} auto_take: ${found}`);
+        assert(findWork.auto_take_directions,
+          `find_work should carry auto_take_directions when auto_take items exist: ${found}`);
+        assert(findWork.auto_take_directions.includes(
+          'same turn that produced this list') && findWork.auto_take_directions.includes(
+          'call get_job for the FIRST auto_take item'),
+          `auto_take_directions should require loading the target in the same turn: ${found}`);
+        assert(findWork.auto_take_directions.includes(
+          'initial auto-take turn or any later turn working that item'),
+          `auto_take_directions should persist the handoff rule across the work lane: ${found}`);
+        assert(findWork.auto_take_directions.includes('otherwise use add_info on the active item'),
+          `auto_take_directions should require a durable fallback handoff: ${found}`);
+        assert(findWork.auto_take_directions.includes(
+          'Chat may mirror that handoff, but must never be its only copy'),
+          `auto_take_directions must forbid chat-only handoffs: ${found}`);
+      } finally {
+        await adminClient.markets.updateGroup(marketId, { ai_auto_take: false });
+      }
     }).timeout(600000);
 
     it('clears nothing for an object without notifications', async () => {

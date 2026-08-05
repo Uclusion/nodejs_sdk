@@ -52,7 +52,9 @@ export default function (adminConfiguration, userConfiguration) {
 
     async function assertNotificationArrives(configuration, typeObjectId, label) {
       const messages = await pollMessages(configuration, (fetched) => findMessage(fetched, typeObjectId));
-      assert(findMessage(messages, typeObjectId), `${label} should send ${typeObjectId}`);
+      const message = findMessage(messages, typeObjectId);
+      assert(message, `${label} should send ${typeObjectId}`);
+      return message;
     }
 
     async function assertNotificationRemoved(configuration, typeObjectId, label) {
@@ -197,7 +199,10 @@ export default function (adminConfiguration, userConfiguration) {
         `MCP resolve response wrong: ${mcpResult}`);
       await assertNotificationRemoved(adminConfiguration, `UNREAD_REPLY_${reply.id}`, 'AI user resolving');
       // The AI user is a different user than the creator so the creator hears about the resolve
-      await assertNotificationArrives(adminConfiguration, `UNREAD_RESOLVED_${question.id}`, 'AI user resolving');
+      const resolvedNotification = await assertNotificationArrives(
+        adminConfiguration, `UNREAD_RESOLVED_${question.id}`, 'AI user resolving');
+      assert.strictEqual(resolvedNotification.alert_type, 'AI_GENERATED',
+        'AI-resolved notification should be structurally guarded from email');
     }).timeout(240000);
   });
 };
