@@ -65,7 +65,18 @@ export default function (adminConfiguration, userConfiguration) {
         adminClient = client;
         return adminClient.investibles.createComment(null, marketId, 'a todo to move', null, 'TODO');
       }).then((comment) => {
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: marketId}).then(() => comment);
+        // B-all-534: poll the versioned comment read used by the next operation rather
+        // than using a websocket event as a proxy for readiness.
+        return pollFor(
+          () => adminClient.investibles.getMarketComments([{id: comment.id, version: comment.version || 1}]),
+          (comments) => comments && comments.some((candidate) =>
+            candidate.id === comment.id && candidate.comment_type === 'TODO')
+        ).then((comments) => {
+          assert(comments && comments.some((candidate) =>
+              candidate.id === comment.id && candidate.comment_type === 'TODO'),
+            'Created TODO was not readable before move');
+          return comment;
+        });
       }).then((comment) => {
         return adminClient.investibles.moveComments(storyId, [comment.id]);
       }).then((comments) => {

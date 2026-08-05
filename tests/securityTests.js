@@ -25,11 +25,8 @@ export default function (adminConfiguration, userConfiguration) {
       }).then((response) => {
         createdMarketId = response.market.id;
         createdMarketInvite = response.market.invite_capability;
-        return adminConfiguration.webSocketRunner.waitForReceivedMessage({
-          event_type: 'market',
-          object_id: createdMarketId
-        }, 30000);
-      }).then(() => {
+        // B-all-534: the invite login below is the actual availability check. Waiting for
+        // the account websocket after createMarket adds an ordering-dependent barrier.
         return loginUserToMarketInvite(adminConfiguration, createdMarketInvite);
       }).then((admin) => {
         adminClient = admin;
@@ -53,4 +50,3 @@ export default function (adminConfiguration, userConfiguration) {
     }).timeout(120000);
   });
 };
-

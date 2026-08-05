@@ -140,12 +140,15 @@ export default function(adminConfiguration, userConfiguration) {
                 return accountClient.markets.createMarket(inlineMarketOptions);
             }).then((response) => {
                 inlineMarketId = response.market.id;
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'comment', object_id: createdMarketId});
-            }).then(() => {
-                return adminClient.investibles.getMarketComments([{id: createdCommentId, version: 1}]);
+                // B-all-534: poll the parent-comment projection that the assertion reads;
+                // its websocket event can be missed when another wait is armed.
+                return pollFor(
+                    () => adminClient.investibles.getMarketComments([{id: createdCommentId, version: 1}]),
+                    (comments) => comments && comments.some((comment) =>
+                        comment.id === createdCommentId && comment.inline_market_id === inlineMarketId));
             }).then((comments) => {
-                const comment = comments[0];
-                assert(comment.inline_market_id === inlineMarketId, 'inline correctly linked');
+                const comment = comments && comments.find((candidate) => candidate.id === createdCommentId);
+                assert(comment && comment.inline_market_id === inlineMarketId, 'inline correctly linked');
                 // Add user to this market and get user_id so can user below to test add user api
                 return loginUserToMarketInvite(userConfiguration, createdMarketInvite);
             }).then((client) => {
@@ -180,7 +183,7 @@ export default function(adminConfiguration, userConfiguration) {
                 assert(todoOne, 'Matching todo missing');
                 // Verify user getting push from admin client creating investible after user added from addUsers api
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
-                    object_id: secondMarketId});
+                    object_id: secondMarketId}, 30000);
             }).catch(function(error) {
                 console.log(error);
                 throw error;

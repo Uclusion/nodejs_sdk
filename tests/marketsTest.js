@@ -67,8 +67,19 @@ export default function(adminConfiguration, userConfiguration) {
                 acceptedStage = globalStages.find(stage => { return stage.name === 'Doable'});
                 return adminClient.markets.updateStage(acceptedStage.id, 1)
             }).then(() => {
-                return adminConfiguration.webSocketRunner.waitForReceivedMessage(({ event_type: 'stage', object_id: createdMarketId}));
-            }).then(() => {
+                // B-all-534: poll the stage state this barrier gates instead of relying on
+                // a websocket event that can arrive before the wait is registered.
+                return pollFor(
+                    () => adminClient.markets.listStages([
+                        {id: acceptedStage.id, version: acceptedStage.version + 1}
+                    ]),
+                    (stages) => stages && stages.some((stage) => stage.id === acceptedStage.id &&
+                        stage.version >= acceptedStage.version + 1 && stage.allowed_investibles === 1));
+            }).then((stages) => {
+                const updatedStage = stages && stages.find((stage) => stage.id === acceptedStage.id);
+                assert(updatedStage && updatedStage.version >= acceptedStage.version + 1 &&
+                    updatedStage.allowed_investibles === 1,
+                    'Doable stage allowed investibles update was not readable');
                 return loginUserToMarketInvite(userConfiguration, marketInviteCapability);
             }).then((client) => {
                 userClient = client;
