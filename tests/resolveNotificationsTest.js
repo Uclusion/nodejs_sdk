@@ -15,6 +15,7 @@ export default function (adminConfiguration, userConfiguration) {
     let userClient;
     let marketId;
     let userId;
+    let planningStages;
 
     before(async function () {
       this.timeout(300000);
@@ -29,6 +30,7 @@ export default function (adminConfiguration, userConfiguration) {
       const result = await accountClient.markets.createMarket({ name: 'Resolve notifications',
         market_type: 'PLANNING' });
       marketId = result.market.id;
+      planningStages = result.stages;
       adminClient = await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       userClient = await loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
       const user = await userClient.users.get();
@@ -60,6 +62,19 @@ export default function (adminConfiguration, userConfiguration) {
     async function assertNotificationRemoved(configuration, typeObjectId, label) {
       const messages = await pollMessages(configuration, (fetched) => !findMessage(fetched, typeObjectId));
       assert(!findMessage(messages, typeObjectId), `${label} should remove ${typeObjectId}`);
+    }
+
+    async function assertNotificationNeverArrives(configuration, typeObjectId, label) {
+      // Negative assertions need the same propagation allowance as positive
+      // notification checks; records for sibling comments may use different
+      // DynamoDB stream shards and therefore have no cross-item ordering.
+      for (let i = 0; i <= 20; i += 1) {
+        const messages = (await getMessages(configuration)) || [];
+        assert(!findMessage(messages, typeObjectId), `${label} should not send ${typeObjectId}`);
+        if (i < 20) {
+          await sleep(3000);
+        }
+      }
     }
 
     // Membership in an inline market is granted async so retry the login until it works
@@ -204,5 +219,53 @@ export default function (adminConfiguration, userConfiguration) {
       assert.strictEqual(resolvedNotification.alert_type, 'AI_GENERATED',
         'AI-resolved notification should be structurally guarded from email');
     }).timeout(240000);
+
+    it('should suppress AI task-resolved notification while preserving human task resolution', async () => {
+      const adminUser = await adminClient.users.get();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: 'Task resolution notification actor guard',
+        description: 'Verifies that only outside-human task resolutions notify the creator.',
+        assignments: [adminUser.id, userId]
+      });
+      const marketInfo = job.market_infos.find((info) => info.market_id === marketId) || job.market_infos[0];
+      const doableStage = planningStages.find((stage) => stage.name === 'Doable');
+      assert(doableStage, 'Planning market should include Doable');
+      if (marketInfo.stage !== doableStage.id) {
+        await adminClient.investibles.stateChange(job.investible.id, {
+          current_stage_id: marketInfo.stage,
+          stage_id: doableStage.id
+        });
+      }
+
+      const aiResolvedTask = await adminClient.investibles.createComment(
+        job.investible.id, marketId, 'AI resolves this assigned task', null, 'TODO');
+      const humanResolvedTask = await adminClient.investibles.createComment(
+        job.investible.id, marketId, 'Outside human resolves this assigned task', null, 'TODO');
+      assert(aiResolvedTask.ticket_code, 'AI-resolved task should have a ticket code');
+      assert(humanResolvedTask.ticket_code, 'Human-resolved task should have a ticket code');
+
+      const uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
+      const mcpResult = await mcpCall(adminConfiguration, uclusionToken, 'resolve', {
+        short_code_id: aiResolvedTask.ticket_code
+      });
+      assert(mcpResult.includes(`Resolved comment ${aiResolvedTask.ticket_code}`),
+        `MCP task resolve response wrong: ${mcpResult}`);
+
+      await userClient.investibles.updateComment(humanResolvedTask.id, undefined, true);
+      const humanNotification = await assertNotificationArrives(
+        adminConfiguration,
+        `UNREAD_RESOLVED_${humanResolvedTask.id}`,
+        'outside human resolving an assigned task'
+      );
+      assert.notStrictEqual(humanNotification.alert_type, 'AI_GENERATED',
+        'Outside-human task resolution must retain its actionable creator notification');
+
+      await assertNotificationNeverArrives(
+        adminConfiguration,
+        `UNREAD_RESOLVED_${aiResolvedTask.id}`,
+        'AI task resolution'
+      );
+    }).timeout(360000);
   });
 };
