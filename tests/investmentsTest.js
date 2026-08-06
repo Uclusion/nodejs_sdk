@@ -23,6 +23,7 @@ export default function (adminConfiguration, userConfiguration) {
             let globalInvestibleId;
             let marketInvestibleId;
             let globalStages;
+            let approvableStage;
             let parentCommentId;
             let createdMarketInvite;
             await promise.then((client) => {
@@ -69,19 +70,56 @@ export default function (adminConfiguration, userConfiguration) {
                 globalInvestibleId = investible.investible.id;
                 marketInvestibleId = investible.market_infos[0].id;
                 console.log('Investible ID is ' + globalInvestibleId);
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: createdMarketId});
-            }).then(() => {
+                // B-all-543: poll the created projection directly. The old five-minute
+                // waiter outlived this test's four-minute Mocha timeout and poisoned the next test.
+                return pollFor(
+                    () => userClient.markets.getMarketInvestibles([{
+                        investible: {id: globalInvestibleId, version: 1},
+                        market_infos: [{id: marketInvestibleId, version: 1}]
+                    }]),
+                    (investibles) => {
+                        const created = investibles && investibles.find((candidate) =>
+                            candidate.investible.id === globalInvestibleId);
+                        return Boolean(created && created.market_infos.some((candidate) =>
+                            candidate.id === marketInvestibleId && candidate.market_id === createdMarketId));
+                    });
+            }).then((investibles) => {
+                const created = investibles && investibles.find((candidate) =>
+                    candidate.investible.id === globalInvestibleId);
+                assert(created && created.market_infos.some((candidate) =>
+                    candidate.id === marketInvestibleId && candidate.market_id === createdMarketId),
+                'Created market investible was not readable');
                 const currentStage = globalStages.find(stage => { return stage.name === 'Proposed'});
-                const stage = globalStages.find(stage => { return stage.name === 'Approvable'});
+                approvableStage = globalStages.find(stage => { return stage.name === 'Approvable'});
                 let stateOptions = {
                     current_stage_id: currentStage.id,
-                    stage_id: stage.id
+                    stage_id: approvableStage.id
                 };
                 return adminClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessages([{event_type: 'market_investible', object_id: createdMarketId},
-                    {event_type: 'notification', object_id: userExternalId}]);
-            }).then(() => {
+                // Confirm the user-visible state that permits the next vote instead of
+                // depending on two generic events arriving after their waiters exist.
+                return pollFor(
+                    () => userClient.markets.getMarketInvestibles([{
+                        investible: {id: globalInvestibleId, version: 1},
+                        market_infos: [{id: marketInvestibleId, version: 2}]
+                    }]),
+                    (investibles) => {
+                        const fullInvestible = investibles && investibles.find((candidate) =>
+                            candidate.investible.id === globalInvestibleId);
+                        const marketInfo = fullInvestible && fullInvestible.market_infos.find((candidate) =>
+                            candidate.id === marketInvestibleId && candidate.market_id === createdMarketId);
+                        return Boolean(marketInfo && marketInfo.stage === approvableStage.id &&
+                            marketInfo.open_for_investment === true);
+                    });
+            }).then((investibles) => {
+                const fullInvestible = investibles && investibles.find((candidate) =>
+                    candidate.investible.id === globalInvestibleId);
+                const marketInfo = fullInvestible && fullInvestible.market_infos.find((candidate) =>
+                    candidate.id === marketInvestibleId && candidate.market_id === createdMarketId);
+                assert(marketInfo && marketInfo.stage === approvableStage.id &&
+                    marketInfo.open_for_investment === true,
+                'Approvable market investible was not readable by voter');
                 return userClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
@@ -177,20 +215,28 @@ export default function (adminConfiguration, userConfiguration) {
                     updateFish.label_list, undefined, undefined, undefined,
                     undefined, undefined, 1);
             }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investible', object_id: createdMarketId})
-                  .then(() => response);
-            }).then((response) => {
                 const { investible } = response;
                 assert(investible.name === 'pufferfish', 'update market investible name not passed on correctly');
                 assert(investible.description === 'possibly poisonous', 'update market investible description not passed on correctly');
                 const { labels: label_list } = investible;
                 const labels = label_list.map(item => item.label );
                 assert(arrayEquals(labels, ['freshwater', 'spawning']), 'update market investible labels not passed on correctly');
-                return userClient.markets.getMarketInvestibles(
-                    [
+                // Poll the user projection whose fields are asserted below. A generic
+                // investible event is only a lossy proxy for this state (B-all-543).
+                return pollFor(
+                    () => userClient.markets.getMarketInvestibles([
                         {investible: {id: globalInvestibleId, version: 1},
                         market_infos: [{id: marketInvestibleId, version: 1}]}
-                    ]);
+                    ]),
+                    (investibles) => {
+                        const fullInvestible = investibles && investibles.find((candidate) =>
+                            candidate.investible.id === globalInvestibleId);
+                        const fetched = fullInvestible && fullInvestible.investible;
+                        const fetchedLabels = (fetched?.labels || []).map((item) => item.label);
+                        return Boolean(fetched && fetched.name === updateFish.name &&
+                            fetched.description === updateFish.description &&
+                            arrayEquals(fetchedLabels, updateFish.label_list));
+                    });
             }).then((investibles) => {
                 const fullInvestible = investibles[0];
                 const investible = fullInvestible.investible;

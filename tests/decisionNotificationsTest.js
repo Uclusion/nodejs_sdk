@@ -107,13 +107,38 @@ export default function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'INVESTIBLE_SUBMITTED_' + marketInvestibleId;
                 });
                 assert(submitted, 'Should receive investible submitted for new investible');
-                return adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
+                // B-all-543: this suite also covers live notification delivery. Arm a broad
+                // user-notification waiter before create because the comment id is assigned by
+                // the server; if another notification wins the race, the exact one remains queued.
+                const pushed = userConfiguration.webSocketRunner.waitForReceivedMessage({
+                    event_type: 'notification',
+                    object_id: userExternalId
+                }, 30000);
+                const created = adminClient.investibles.createComment(marketInvestibleId, createdMarketId,
                     'body of my comment', null, 'QUESTION');
-            }).then((comment) => {
-                createdCommentId = comment.id;
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
-                    object_id: userExternalId, type_object_id: `UNREAD_COMMENT_${createdCommentId}`}, 30000);
-            }).then(() => {
+                return Promise.allSettled([created, pushed]);
+            }).then(([created, pushed]) => {
+                if (created.status === 'rejected') {
+                    throw created.reason;
+                }
+                if (pushed.status === 'rejected') {
+                    throw pushed.reason;
+                }
+                createdCommentId = created.value.id;
+                const expectedType = `UNREAD_COMMENT_${createdCommentId}`;
+                if (pushed.value.type_object_id === expectedType) {
+                    return pushed.value;
+                }
+                return userConfiguration.webSocketRunner.waitForReceivedMessage({
+                    event_type: 'notification',
+                    object_id: userExternalId,
+                    type_object_id: expectedType
+                }, 30000);
+            }).then((pushed) => {
+                assert(pushed.type_object_id === `UNREAD_COMMENT_${createdCommentId}`,
+                    'User should receive unread-comment push');
+                // The inbox entry is independently durable state; poll it directly rather
+                // than treating push delivery as a persistence barrier.
                 return pollFor(
                     () => getMessages(userConfiguration),
                     (messages) => messages.some((message) =>

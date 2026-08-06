@@ -14,7 +14,6 @@ export default function(adminConfiguration, userConfiguration) {
             let accountClient;
             let createdMarketId;
             let userId;
-            let adminExternalId;
             let adminId;
             let globalInvestibleId;
             let marketInvestibleId;
@@ -53,7 +52,6 @@ export default function(adminConfiguration, userConfiguration) {
                 return adminClient.users.get();
             }).then((user) => {
                 adminId = user.id;
-                adminExternalId = user.external_id;
                 return adminClient.markets.get();
             }).then((market) => {
                 assert(market.id === createdMarketId, 'ID is incorrect');
@@ -107,14 +105,23 @@ export default function(adminConfiguration, userConfiguration) {
                 assert(marketInfo.stage === inDialogStage.id, 'Instead of ' + marketInfo.stage + ' which is ' + marketInfo.stage_name);
                 archivedStage = globalStages.find(stage => { return !stage.allows_tasks });
                 return adminClient.markets.updateInvestment(globalInvestibleId, 50, 0);
-            }).then(() => {
-                console.log(`waiting for created investment on ${globalInvestibleId}`);
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
-            }).then(() => {
-                console.log('waiting for that investment expired');
-                // Now a second one since investment expiration is 1 minute
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
-            }).then(() => {
+            }).then((investment) => {
+                assert(investment.quantity === 50, 'investment quantity should be 50');
+                // B-all-543: expiration is the state under test. Poll its versioned record
+                // instead of waiting for two indistinguishable events after they were sent.
+                return pollFor(
+                    () => adminClient.markets.listInvestments(adminId, [{
+                        type_object_id: `investible_${marketInvestibleId}`,
+                        version: 2
+                    }]),
+                    (investments) => investments && investments.some((candidate) =>
+                        candidate.investible_id === globalInvestibleId && candidate.deleted === true),
+                    101,
+                    3000);
+            }).then((investments) => {
+                const expiredInvestment = investments && investments.find((candidate) =>
+                    candidate.investible_id === globalInvestibleId && candidate.deleted === true);
+                assert(expiredInvestment, 'investment should expire and be marked deleted');
                 acceptedStage = globalStages.find(stage => stage.assignee_enter_only);
                 stateOptions = {
                     current_stage_id: inDialogStage.id,
@@ -203,8 +210,16 @@ export default function(adminConfiguration, userConfiguration) {
                 return adminClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'accepting investment quantity should be 100');
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: createdMarketId});
-            }).then(() => {
+                // This request was observed above, so its removal proves the accepting
+                // investment pipeline completed without stale-matching a generic event (B-all-543).
+                return pollFor(
+                    () => getMessages(adminConfiguration),
+                    (messages) => !messages.some((message) =>
+                        message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId));
+            }).then((messages) => {
+                const approvalRequest = messages.find((message) =>
+                    message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId);
+                assert(!approvalRequest, 'accepting investment should clear approval request');
                 return userClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');

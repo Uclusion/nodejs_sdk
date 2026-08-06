@@ -173,17 +173,30 @@ export default function(adminConfiguration, userConfiguration) {
             }).then((presences) => {
                 const { id } = presences[0];
                 assert(id, 'Add not successful');
-                return adminClient.investibles.create({groupId: secondMarketId, name: 'A job',
+                // B-all-543: this is intentionally a push-delivery assertion. Arm it
+                // before create so a fast push cannot beat waiter registration.
+                const pushed = userConfiguration.webSocketRunner.waitForReceivedMessage({
+                    event_type: 'market_investible',
+                    object_id: secondMarketId
+                }, 30000);
+                const created = adminClient.investibles.create({groupId: secondMarketId, name: 'A job',
                     description: 'To verify push.', todos: ['<p>My thing one.</p>','<p>My thing two.</p>']});
-            }).then((result) => {
+                // Always let the bounded push waiter retire, even when create fails, so it
+                // cannot intercept unrelated events in a later test.
+                return Promise.allSettled([created, pushed]);
+            }).then(([created, pushed]) => {
+                if (created.status === 'rejected') {
+                    throw created.reason;
+                }
+                if (pushed.status === 'rejected') {
+                    throw pushed.reason;
+                }
+                const result = created.value;
                 const { investible, todos } = result;
                 assert(investible, 'Investible missing');
                 assert(todos.length === 2, 'Todos wrong size');
                 const todoOne = todos.find((todo) => todo.body === '<p>My thing one.</p>');
                 assert(todoOne, 'Matching todo missing');
-                // Verify user getting push from admin client creating investible after user added from addUsers api
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible',
-                    object_id: secondMarketId}, 30000);
             }).catch(function(error) {
                 console.log(error);
                 throw error;

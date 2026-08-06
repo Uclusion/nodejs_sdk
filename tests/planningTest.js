@@ -12,6 +12,7 @@ export default function (adminConfiguration, userConfiguration) {
       let adminExternalId;
       let marketId;
       let storyId;
+      let storyMarketInfoId;
       let marketCapability;
       const promise = loginUserToAccount(adminConfiguration);
       await promise.then((client) => {
@@ -52,14 +53,46 @@ export default function (adminConfiguration, userConfiguration) {
         return userClient.investibles.create(storyOptions);
       }).then((story) => {
         storyId = story.investible.id;
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'market_investible', object_id: marketId});
-      }).then(() => {
+        storyMarketInfoId = story.market_infos[0].id;
+        // B-all-543: poll the versioned projection used by the next operation rather
+        // than registering a websocket waiter after creation has already returned.
+        return pollFor(
+          () => userClient.markets.getMarketInvestibles([{
+            investible: {id: storyId, version: 1},
+            market_infos: [{id: storyMarketInfoId, version: 1}]
+          }]),
+          (stories) => {
+            const createdStory = stories && stories.find((candidate) =>
+              candidate.investible.id === storyId);
+            const marketInfo = createdStory && createdStory.market_infos.find((candidate) =>
+              candidate.id === storyMarketInfoId && candidate.market_id === marketId);
+            return Boolean(createdStory && marketInfo);
+          });
+      }).then((stories) => {
+        const createdStory = stories && stories.find((candidate) =>
+          candidate.investible.id === storyId);
+        const marketInfo = createdStory && createdStory.market_infos.find((candidate) =>
+          candidate.id === storyMarketInfoId && candidate.market_id === marketId);
+        assert(createdStory && marketInfo, 'Created planning story was not readable');
         // not following should be able to vote
         return userClient.markets.updateInvestment(storyId, 100, 0);
-      }).then(() => {
-        // Consume this vote's event so the later investment wait cannot stale-match it (B-all-520)
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: marketId});
-      }).then(() => {
+      }).then((investment) => {
+        assert(investment.quantity === 100, 'Initial planning investment should be 100');
+        // B-all-543: confirm the first vote through its authoritative capability row,
+        // which also avoids leaving a five-minute waiter armed across later tests.
+        return pollFor(
+          () => userClient.markets.listInvestments(userId, [{
+            type_object_id: `investible_${storyMarketInfoId}`,
+            version: 1
+          }]),
+          (investments) => investments && investments.some((candidate) =>
+            candidate.investible_id === storyId && candidate.quantity === 100 &&
+              candidate.deleted === false));
+      }).then((investments) => {
+        const initialInvestment = investments && investments.find((candidate) =>
+          candidate.investible_id === storyId && candidate.quantity === 100 &&
+            candidate.deleted === false);
+        assert(initialInvestment, 'Initial planning investment was not readable');
         return loginUserToMarketInvite(adminConfiguration, marketCapability);
       }).then((client) => {
         adminClient = client;
@@ -106,11 +139,10 @@ export default function (adminConfiguration, userConfiguration) {
         });
         assert(!vote, 'Updater does not get vote request');
         return userClient.markets.updateInvestment(storyId, 100, 0);
-      }).then(() => {
-        // Prove the accepting vote's pipeline ran before checking its notification removal (B-all-520)
-        return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'investment', object_id: marketId});
-      }).then(() => {
-        // Delete of unaccepted notification now that approving has accepted
+      }).then((investment) => {
+        assert(investment.quantity === 100, 'Accepting planning investment should be 100');
+        // The notification was observed above, so its removal is an exact positive
+        // completion check for the accepting vote (B-all-520, B-all-543).
         return pollFor(() => getMessages(userConfiguration), (messages) =>
           !messages.some((obj) =>
             obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId));

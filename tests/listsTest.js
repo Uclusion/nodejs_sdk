@@ -1,5 +1,5 @@
 import assert from 'assert'
-import {checkStages} from './commonTestFunctions.js';
+import {checkStages, pollFor} from './commonTestFunctions.js';
 import {loginUserToAccount, loginUserToMarket, loginUserToMarketInvite} from "../src/utils.js";
 
 export default function(adminConfiguration, userConfiguration) {
@@ -11,12 +11,12 @@ export default function(adminConfiguration, userConfiguration) {
             let userClient;
             let adminId;
             let userId;
-            let userExternalId;
             let globalCSMInvestibleId;
             let csmMarketInvestibleId;
             let globalInvestibleId;
             let marketInvestibleId;
             let globalStages;
+            let approvableStage;
             let createdMarketId;
             let createdMarketInvite;
             await promise.then((client) => {
@@ -51,7 +51,6 @@ export default function(adminConfiguration, userConfiguration) {
                 return userClient.users.get();
             }).then((user) => {
                 userId = user.id;
-                userExternalId = user.external_id;
                 checkStages(adminExpectedStageNames, globalStages);
                 return userClient.investibles.create({groupId: createdMarketId, name: 'butter',
                     description: 'good on bagels'});
@@ -59,10 +58,10 @@ export default function(adminConfiguration, userConfiguration) {
                 globalInvestibleId = investible.investible.id;
                 marketInvestibleId = investible.market_infos[0].id;
                 const currentStage = globalStages.find(stage => { return stage.name === 'Proposed'});
-                const nextStage = globalStages.find(stage => { return stage.name === 'Approvable'});
+                approvableStage = globalStages.find(stage => { return stage.name === 'Approvable'});
                 let stateOptions = {
                     current_stage_id: currentStage.id,
-                    stage_id: nextStage.id
+                    stage_id: approvableStage.id
                 };
                 return adminClient.investibles.stateChange(globalInvestibleId, stateOptions);
             }).then(() => {
@@ -71,23 +70,41 @@ export default function(adminConfiguration, userConfiguration) {
                 globalCSMInvestibleId = investible.investible.id;
                 csmMarketInvestibleId = investible.market_infos[0].id;
                 return userClient.markets.updateInvestment(globalInvestibleId, 5, 0);
-            }).then((response) => {
-                return userConfiguration.webSocketRunner.waitForReceivedMessage({
-                    event_type: 'investment',
-                    object_id: createdMarketId,
-                    object_id_one_two: `${marketInvestibleId}_${userId}`
-                }, 30000)
-                    .then(() => response);
             }).then((investment) => {
                 assert(investment.quantity === 5, 'investment quantity should be 5 instead of ' + investment.quantity);
-                return userClient.markets.getMarketInvestibles(
-                    [
+                // B-all-543: read the investment row this test created instead of waiting
+                // for a post-operation event that an earlier stale handler could discard.
+                return pollFor(
+                    () => userClient.markets.listInvestments(userId, [{
+                        type_object_id: `investible_${marketInvestibleId}`,
+                        version: 1
+                    }]),
+                    (investments) => investments && investments.some((candidate) =>
+                        candidate.investible_id === globalInvestibleId &&
+                        candidate.quantity === 5 && candidate.deleted === false));
+            }).then((investments) => {
+                const investment = investments && investments.find((candidate) =>
+                    candidate.investible_id === globalInvestibleId &&
+                    candidate.quantity === 5 && candidate.deleted === false);
+                assert(investment, 'created investment should be readable by listInvestments');
+                // B-all-543: poll the exact Approvable projection asserted below. Asking
+                // for version 1 could legally return the stale Proposed market info.
+                return pollFor(
+                    () => userClient.markets.getMarketInvestibles([
                         {investible: {id: globalInvestibleId, version: 1},
-                            market_infos: [{id: marketInvestibleId, version: 1}]},
+                            market_infos: [{id: marketInvestibleId, version: 2}]},
                         {investible: {id: globalCSMInvestibleId, version: 1},
                             market_infos: [{id: csmMarketInvestibleId, version: 1}]}
-                    ]);
-                return userClient.markets.getMarketInvestibles([globalInvestibleId, globalCSMInvestibleId]);
+                    ]),
+                    (investibles) => {
+                        const updated = investibles && investibles.find((candidate) =>
+                            candidate.investible.id === globalInvestibleId);
+                        const marketInfo = updated && updated.market_infos.find((candidate) =>
+                            candidate.id === marketInvestibleId && candidate.market_id === createdMarketId);
+                        const other = investibles && investibles.find((candidate) =>
+                            candidate.investible.id === globalCSMInvestibleId);
+                        return Boolean(marketInfo && marketInfo.stage === approvableStage.id && other);
+                    });
             }).then((investibles) => {
                 let investible = investibles.find(obj => {
                     return obj.investible.id === globalInvestibleId;
@@ -95,8 +112,7 @@ export default function(adminConfiguration, userConfiguration) {
                 const marketInfo = investible.market_infos.find(info => {
                     return info.market_id === createdMarketId;
                 });
-                const stage = globalStages.find(stage => { return stage.id === marketInfo.stage});
-                assert(stage.name === 'Approvable', 'investible stage name incorrect');
+                assert(marketInfo.stage === approvableStage.id, 'investible stage name incorrect');
                 investible = investibles.find(obj => {
                     return obj.investible.id === globalCSMInvestibleId;
                 });
