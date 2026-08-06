@@ -184,7 +184,21 @@ export default function (adminConfiguration) {
         [...commentVersions].map(([id, version]) => ({ id, version })));
     }
 
-    function finalization(total, phaseTotals, startedAt) {
+    function finalization(total, bucketItems, startedAt, overrides = {}) {
+      const status = overrides.status || 'exact';
+      const measurement = {
+        status,
+        normalized_total_tokens: total,
+        normalization: 'openai_input_includes_cache_v1',
+        raw_counts: [
+          { field: 'fresh_input_tokens', value: total - 30, semantics: 'fresh_input' },
+          { field: 'cached_input_tokens', value: 10, semantics: 'cached_input_subset' },
+          { field: 'output_tokens', value: 30, semantics: 'generated_output' }
+        ]
+      };
+      if (overrides.reasonCode) {
+        measurement.reason_code = overrides.reasonCode;
+      }
       return {
         schema_version: 1,
         source: {
@@ -201,19 +215,10 @@ export default function (adminConfiguration) {
           ended_at: '2026-08-05T10:02:00Z',
           elapsed_ms: 120000
         },
-        measurement: {
-          status: 'exact',
-          normalized_total_tokens: total,
-          normalization: 'openai_input_includes_cache_v1',
-          raw_counts: [
-            { field: 'fresh_input_tokens', value: total - 40, semantics: 'fresh_input' },
-            { field: 'cached_input_tokens', value: 10, semantics: 'cached_input_subset' },
-            { field: 'output_tokens', value: 30, semantics: 'generated_output' }
-          ]
-        },
-        phases: {
+        measurement,
+        buckets: {
           method: 'next_request_marker_v1',
-          ...phaseTotals
+          items: bucketItems
         },
         activity: {
           model_requests: 4,
@@ -222,20 +227,20 @@ export default function (adminConfiguration) {
           test_commands: 2
         },
         coverage: {
-          main_session: 'complete',
-          descendants: 'complete',
+          main_session: overrides.mainSession || 'complete',
+          descendants: overrides.descendants || 'complete',
           descendants_discovered: 1,
           descendants_included: 1
         }
       };
     }
 
-    it('canonicalizes child targets, persists one note per run, and accumulates totals', async () => {
+    it('canonicalizes child targets and publishes one export-readable note per run', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
         name: `Audited job ${marker}`,
-        description: 'Job used to verify structured agent token usage notes.'
+        description: 'Job used to verify ordinary export-readable agent token usage notes.'
       });
       const jobTicketCode = await getTicketCode(job);
       const task = await adminClient.investibles.createComment(
@@ -259,11 +264,12 @@ export default function (adminConfiguration) {
       const marked = parseMcpToolResult(await pollMcp('set_job_audit_phase', {
         job_id: task.ticket_code,
         audit_run_id: firstRunId,
-        phase: 'testing',
+        bucket: 'web searches',
         marker_sequence: 3
       }));
       assert.strictEqual(marked.state, 'marked');
       assert.strictEqual(marked.effective, 'next_model_request');
+      assert.strictEqual(marked.bucket, 'web searches');
       assert.strictEqual(marked.marker_sequence, 3);
       assert.strictEqual(marked.canonical_job_id, jobTicketCode);
 
@@ -274,12 +280,11 @@ export default function (adminConfiguration) {
       }));
       assert.strictEqual(pending.state, 'pending_finalization');
 
-      const firstFinalization = finalization(160, {
-        planning: 30,
-        implementation: 80,
-        testing: 40,
-        other: 10
-      }, '2026-08-05T10:00:00Z');
+      const firstFinalization = finalization(160, [
+        { label: 'planning', tokens: 30 },
+        { label: 'web searches', tokens: 90 },
+        { label: 'testing', tokens: 40 }
+      ], '2026-08-05T10:00:00Z');
       const first = parseMcpToolResult(await pollMcp('end_job_audit', {
         job_id: task.ticket_code,
         audit_run_id: firstRunId,
@@ -290,26 +295,25 @@ export default function (adminConfiguration) {
       assert.strictEqual(first.idempotent, false);
       assert.strictEqual(first.canonical_job_id, jobTicketCode);
       assert.strictEqual(first.run_normalized_total_tokens, 160);
-      assert.strictEqual(first.cumulative.audited_runs, 1);
-      assert.strictEqual(first.cumulative.measured_runs, 1);
-      assert.strictEqual(first.cumulative.normalized_total_tokens, 160);
+      assert.strictEqual(first.cumulative, undefined);
       assert(first.note_short_code_id.startsWith('R-'), JSON.stringify(first));
 
       const commentsAfterFirst = await pollFor(listMarketComments,
         (comments) => comments.some((comment) =>
-          comment.job_audit?.audit_run_id === firstRunId));
+          comment.body?.includes(firstRunId)));
       const firstNote = commentsAfterFirst.find((comment) =>
-        comment.job_audit?.audit_run_id === firstRunId);
-      assert(firstNote, `Structured audit note missing: ${JSON.stringify(commentsAfterFirst)}`);
+        comment.body?.includes(firstRunId));
+      assert(firstNote, `Export-readable audit note missing: ${JSON.stringify(commentsAfterFirst)}`);
       assert.strictEqual(firstNote.investible_id, job.investible.id);
       assert.strictEqual(firstNote.comment_type, 'REPORT');
       assert.strictEqual(firstNote.notification_type, 'BLUE');
-      assert.strictEqual(firstNote.job_audit.schema_version, 1);
-      assert.strictEqual(firstNote.job_audit.canonical_job_id, jobTicketCode);
-      assert.strictEqual(firstNote.job_audit.handoff_type, 'review_requested');
-      assert.deepStrictEqual(firstNote.job_audit.run, firstFinalization);
-      assert(firstNote.body.includes('### Agent token usage'), firstNote.body);
+      assert.strictEqual(firstNote.job_audit, undefined);
+      assert(firstNote.body.includes('Agent token usage'), firstNote.body);
       assert(firstNote.body.includes(firstRunId), firstNote.body);
+      assert(firstNote.body.includes('web searches'), firstNote.body);
+      assert(firstNote.body.includes('90'), firstNote.body);
+      assert(firstNote.body.includes('Source: codex'), firstNote.body);
+      assert(firstNote.body.includes('Coverage: main complete'), firstNote.body);
 
       const jobMarkdown = await pollFor(
         () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
@@ -330,42 +334,47 @@ export default function (adminConfiguration) {
       assert.strictEqual(replay.state, 'completed');
       assert.strictEqual(replay.idempotent, true);
       assert.strictEqual(replay.note_short_code_id, first.note_short_code_id);
-      assert.strictEqual(replay.cumulative.audited_runs, 1);
-      assert.strictEqual(replay.cumulative.normalized_total_tokens, 160);
+      const auditNotes = (await listMarketComments()).filter((comment) =>
+        comment.body?.includes(firstRunId));
+      assert.strictEqual(auditNotes.length, 1,
+        `Retry should preserve one note for the run: ${JSON.stringify(auditNotes)}`);
 
-      const secondRunId = randomUUID();
-      const secondFinalization = finalization(40, {
-        planning: 5,
-        implementation: 20,
-        testing: 10,
-        other: 5
-      }, '2026-08-05T10:01:00Z');
-      const second = parseMcpToolResult(await pollMcp('end_job_audit', {
+      const partialRunId = randomUUID();
+      const partialStarted = parseMcpToolResult(await pollMcp('start_job_audit', {
         job_id: jobTicketCode,
-        audit_run_id: secondRunId,
-        handoff_type: 'progress',
-        finalization: secondFinalization
+        audit_run_id: partialRunId
       }));
-      assert.strictEqual(second.state, 'completed');
-      assert.strictEqual(second.cumulative.audited_runs, 2);
-      assert.strictEqual(second.cumulative.measured_runs, 2);
-      assert.strictEqual(second.cumulative.exact_runs, 2);
-      assert.strictEqual(second.cumulative.normalized_total_tokens, 200);
-      assert.strictEqual(second.cumulative.planning, 35);
-      assert.strictEqual(second.cumulative.implementation, 100);
-      assert.strictEqual(second.cumulative.testing, 50);
-      assert.strictEqual(second.cumulative.other, 15);
+      assert.strictEqual(partialStarted.state, 'active');
+      const partialFinalization = finalization(80, [
+        { label: 'planning', tokens: 20 },
+        { label: 'source review', tokens: 30 }
+      ], '2026-08-05T10:00:30Z', {
+        status: 'partial',
+        reasonCode: 'session_interrupted',
+        mainSession: 'partial'
+      });
+      const partial = parseMcpToolResult(await pollMcp('end_job_audit', {
+        job_id: jobTicketCode,
+        audit_run_id: partialRunId,
+        handoff_type: 'interrupted',
+        finalization: partialFinalization
+      }));
+      assert.strictEqual(partial.state, 'completed');
+      assert.strictEqual(partial.run_normalized_total_tokens, 80);
+      assert.strictEqual(partial.cumulative, undefined);
 
-      const commentsAfterSecond = await pollFor(listMarketComments,
-        (comments) => comments.filter((comment) =>
-          [firstRunId, secondRunId].includes(comment.job_audit?.audit_run_id)).length === 2);
-      const auditNotes = commentsAfterSecond.filter((comment) =>
-        [firstRunId, secondRunId].includes(comment.job_audit?.audit_run_id));
-      assert.strictEqual(auditNotes.length, 2,
-        `Each audit run should persist exactly one note: ${JSON.stringify(auditNotes)}`);
-      const secondNote = auditNotes.find((comment) =>
-        comment.job_audit.audit_run_id === secondRunId);
-      assert.strictEqual(secondNote.job_audit.cumulative.normalized_total_tokens, 200);
+      const commentsAfterPartial = await pollFor(listMarketComments,
+        (comments) => comments.some((comment) =>
+          comment.body?.includes(partialRunId)));
+      const partialNote = commentsAfterPartial.find((comment) =>
+        comment.body?.includes(partialRunId));
+      assert(partialNote, `Partial audit note missing: ${JSON.stringify(commentsAfterPartial)}`);
+      assert(partialNote.body.includes('Source: codex'), partialNote.body);
+      assert(partialNote.body.includes('Coverage: main partial'), partialNote.body);
+      assert(partialNote.body.includes('Measurement limitation'), partialNote.body);
+      assert(partialNote.body.includes('session_interrupted'), partialNote.body);
+      assert.strictEqual(commentsAfterPartial.filter((comment) =>
+        comment.body?.includes(partialRunId)).length, 1);
     }).timeout(600000);
   });
 }
