@@ -230,6 +230,19 @@ export default function (adminConfiguration, userConfiguration) {
                     return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
                 });
                 assert(vote && vote.is_highlighted === false, 'Snoozed is not highlighted');
+                // B-all-544: a remove of a persistent (non UNREAD) notification succeeds as an
+                // unhighlight without deleting the row, and removing a row that does not exist is
+                // still success - the web client's background clear outbox treats 2xx as delivered
+                return inlineUserClient.users.removeNotifications(['NOT_FULLY_VOTED_' + inlineMarketId,
+                    'UNREAD_NONEXISTENT_ROW']);
+            }).then(() => {
+                return getMessages(userConfiguration);
+            }).then((messages) => {
+                const vote = messages.find(obj => {
+                    return obj.type_object_id === 'NOT_FULLY_VOTED_' + inlineMarketId;
+                });
+                assert(vote && vote.is_highlighted === false,
+                    'Persistent notification survives remove as unhighlighted');
                 return adminClient.users.pokeComment(createdCommentId);
             }).then(() => {
                 return userConfiguration.webSocketRunner.waitForReceivedMessage({event_type: 'notification',
