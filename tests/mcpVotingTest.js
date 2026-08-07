@@ -203,6 +203,27 @@ export default function (adminConfiguration, userConfiguration) {
       assert(!isLiveInvestment(moved.a), 'Normal path should move the vote off the first option');
     }).timeout(240000);
 
+    it('should hide a deleted vote reason from get_job markdown', async () => {
+      const { question, inlineMarketId, inlineUserClient, optionA } = await makeVotingQuestion(
+        'Does a deleted reason stay out of the markdown?');
+      const reasonMarker = 'Reason destined for deletion in markdown test.';
+      const reason = await inlineUserClient.investibles.createComment(optionA.id, inlineMarketId,
+        reasonMarker, null, 'JUSTIFY');
+      await inlineUserClient.markets.updateInvestment(optionA.id, 100, 0, reason.id);
+      const withReason = await pollFor(
+        () => pollMcp('get_job', { short_code_id: question.ticket_code }),
+        (markdown) => typeof markdown === 'string' && markdown.includes(reasonMarker));
+      assert(withReason.includes(reasonMarker), 'Live vote reason should render in get_job markdown');
+      await inlineUserClient.investibles.deleteComment(reason.id);
+      // B-all-547: the reason guard checked the export wrapper instead of the comment, so a
+      // deleted justification kept rendering unmarked
+      const withoutReason = await pollFor(
+        () => pollMcp('get_job', { short_code_id: question.ticket_code }),
+        (markdown) => typeof markdown === 'string' && !markdown.includes(reasonMarker));
+      assert(!withoutReason.includes(reasonMarker),
+        'A deleted vote reason must not leak into get_job markdown');
+    }).timeout(240000);
+
     it('should give anyone author rights on an AI authored question', async () => {
       const job = await adminClient.investibles.create({ groupId: marketId, name: 'Author rights job',
         description: 'Job to hang the AI authored question on.' });
