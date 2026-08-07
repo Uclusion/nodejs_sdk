@@ -1,5 +1,6 @@
 import assert from 'assert';
-import { loginUserToAccount, loginUserToIdentity, loginUserToMarketInvite } from '../src/utils.js';
+import { loginUserToAccountAndGetToken, loginUserToIdentity, loginUserToMarketInvite } from '../src/utils.js';
+import { mcpCall, mcpLogin } from './commonTestFunctions.js';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -7,8 +8,11 @@ function sleep(ms) {
 
 export default function (adminConfiguration) {
   describe('#test comment conversions', () => {
+    let accountClient;
+    let accountToken;
     let adminClient;
     let marketId;
+    let planningStages;
     let jobAId;
     let jobBId;
 
@@ -18,9 +22,12 @@ export default function (adminConfiguration) {
         // The full suite bootstraps this in usersTest; keep this file standalone.
         adminConfiguration.idToken = await loginUserToIdentity(adminConfiguration);
       }
-      const accountClient = await loginUserToAccount(adminConfiguration);
+      const response = await loginUserToAccountAndGetToken(adminConfiguration);
+      accountClient = response.client;
+      accountToken = response.accountToken;
       const result = await accountClient.markets.createMarket({ name: 'Conversions', market_type: 'PLANNING' });
       marketId = result.market.id;
+      planningStages = result.stages;
       adminClient = await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const jobA = await adminClient.investibles.create({ name: 'Conversions job A',
         description: 'First job for conversion tests', groupId: marketId });
@@ -224,5 +231,113 @@ export default function (adminConfiguration) {
       assert(root.investible_id === jobBId, `task investible_id should be ${jobBId} but is ${root.investible_id}`);
       checkThreadReplies(comments, thread, thread.root.id, jobBId);
     }).timeout(240000);
+
+    // T-all-2444: the task stage move keys on the acting user, so an assigned human converting
+    // an AI-authored suggestion sends a Reviewable job to Doable - the regression sent it to
+    // Approvable because the AI author is not assigned. The AI suggestion itself must leave
+    // the Reviewable job's stage alone.
+    it('should move Reviewable job to Doable when assigned human converts AI suggestion to task', async () => {
+      const adminUser = await adminClient.users.get();
+      const job = await adminClient.investibles.create({ groupId: marketId,
+        name: 'Reviewable conversion stage job',
+        description: 'Verifies the stage a converted AI suggestion moves this job to.',
+        assignments: [adminUser.id] });
+      const jobId = job.investible.id;
+      const marketInfo = job.market_infos.find((info) => info.market_id === marketId) || job.market_infos[0];
+      const doableStage = planningStages.find((stage) => stage.name === 'Doable');
+      const reviewableStage = planningStages.find((stage) => stage.name === 'Reviewable');
+      assert(doableStage && reviewableStage, 'Planning market should include Doable and Reviewable');
+      const stageName = (stageId) => (planningStages.find((stage) => stage.id === stageId) || {}).name || stageId;
+
+      async function fetchStageId() {
+        const investibles = await adminClient.markets.getMarketInvestibles(
+          [{ investible: { id: jobId, version: 1 }, market_infos: [{ id: marketInfo.id, version: 1 }] }]);
+        const info = investibles?.[0]?.market_infos?.find((fetched) => fetched.market_id === marketId) ||
+          investibles?.[0]?.market_infos?.[0];
+        return info?.stage;
+      }
+
+      async function pollStage(expectedStageId) {
+        let stageId = await fetchStageId();
+        for (let i = 0; i < 20 && stageId !== expectedStageId; i += 1) {
+          await sleep(3000);
+          stageId = await fetchStageId();
+        }
+        return stageId;
+      }
+
+      if (marketInfo.stage !== doableStage.id) {
+        await adminClient.investibles.stateChange(jobId,
+          { current_stage_id: marketInfo.stage, stage_id: doableStage.id });
+      }
+      await adminClient.investibles.stateChange(jobId,
+        { current_stage_id: doableStage.id, stage_id: reviewableStage.id });
+      const reviewableId = await pollStage(reviewableStage.id);
+      assert(reviewableId === reviewableStage.id,
+        `Job should reach Reviewable but is ${stageName(reviewableId)}`);
+
+      const jobTicket = marketInfo.ticket_code || await (async () => {
+        let code;
+        for (let i = 0; i < 20 && !code; i += 1) {
+          const investibles = await adminClient.markets.getMarketInvestibles(
+            [{ investible: { id: jobId, version: 1 }, market_infos: [{ id: marketInfo.id, version: 1 }] }]);
+          code = investibles?.[0]?.market_infos?.[0]?.ticket_code;
+          if (!code) {
+            await sleep(3000);
+          }
+        }
+        assert(code, `Ticket code missing for ${jobId}`);
+        return code;
+      })();
+      const uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
+      const marker = 'Persist usage at every bucket boundary';
+      // The AI user is created async on market creation so retry the MCP call until it works
+      let mcpResult;
+      for (let i = 0; i < 10 && !mcpResult; i += 1) {
+        try {
+          mcpResult = await mcpCall(adminConfiguration, uclusionToken, 'make_suggestion',
+            { job_id: jobTicket, suggestion: marker });
+        } catch (error) {
+          await sleep(3000);
+        }
+      }
+      assert(mcpResult && mcpResult.includes('Added suggestion with id'),
+        `MCP make_suggestion response wrong: ${mcpResult}`);
+
+      // Discover the created comment through versions since MCP only returns short codes
+      let suggestion;
+      for (let i = 0; i < 20 && !suggestion; i += 1) {
+        const versions = await accountClient.summaries.versions(accountToken, [marketId]);
+        const marketEntry = (versions.signatures || []).find((entry) => entry.market_id === marketId);
+        const commentIds = (marketEntry?.signatures || [])
+          .filter((signature) => signature.type === 'comment')
+          .flatMap((signature) => (signature.object_versions || []).map((version) => version.object_id_one));
+        if (commentIds.length > 0) {
+          const comments = await adminClient.investibles.getMarketComments(
+            [...new Set(commentIds)].map((id) => ({ id, version: 1 })));
+          suggestion = (comments || []).find((comment) => comment.body?.includes(marker));
+        }
+        if (!suggestion) {
+          await sleep(3000);
+        }
+      }
+      assert(suggestion, 'AI authored suggestion should be discoverable');
+      assert(suggestion.created_by !== adminUser.id, 'Suggestion should be authored by the AI user');
+
+      // Entry half: the unassigned AI's suggestion must not move the Reviewable job
+      for (let i = 0; i < 3; i += 1) {
+        const stageId = await fetchStageId();
+        assert(stageId === reviewableStage.id,
+          `AI suggestion entry should leave the job Reviewable but it is ${stageName(stageId)}`);
+        await sleep(3000);
+      }
+
+      // Conversion half: the assigned admin converts the suggestion to a task
+      await adminClient.investibles.updateComment(suggestion.id, undefined, undefined, undefined,
+        undefined, 'TODO');
+      const finalStageId = await pollStage(doableStage.id);
+      assert(finalStageId === doableStage.id,
+        `Converting the suggestion should move the job to Doable but it is ${stageName(finalStageId)}`);
+    }).timeout(360000);
   });
 };
