@@ -287,6 +287,68 @@ export default function (adminConfiguration) {
       );
     }).timeout(240000);
 
+    // S-all-228: with several questions open, every response hands back, not
+    // just the job-unblocking one - the job-wide gate used to swallow the rest.
+    it('should emit a compound Responded poke for each of two open questions', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Multi question responses ${marker}`,
+        description: 'Job with two open AI questions answered in one sitting.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const firstMarker = `First AI question of a pair ${marker}?`;
+      const secondMarker = `Second AI question of a pair ${marker}?`;
+      const firstResult = await pollMcp('ask_question', {
+        job_id: jobTicketCode,
+        question: firstMarker
+      });
+      assert(firstResult.includes('Added question with id'),
+        `MCP ask_question response wrong: ${firstResult}`);
+      const secondResult = await pollMcp('ask_question', {
+        job_id: jobTicketCode,
+        question: secondMarker
+      });
+      assert(secondResult.includes('Added question with id'),
+        `MCP ask_question response wrong: ${secondResult}`);
+      const firstQuestion = await findCommentByMarker(adminClient, marketId, firstMarker);
+      const secondQuestion = await findCommentByMarker(adminClient, marketId, secondMarker);
+      assert(firstQuestion?.ticket_code && secondQuestion?.ticket_code,
+        'Both AI questions should be discoverable with ticket codes');
+
+      const firstReplyMarker = `Answer to the first question ${marker}.`;
+      await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        firstReplyMarker,
+        firstQuestion.id
+      );
+      const firstReply = await findCommentByMarker(adminClient, marketId, firstReplyMarker);
+      assert(firstReply?.ticket_code, 'First answer should have a ticket code');
+      // The 2 -> 1 response the job-wide gate used to swallow must hand back.
+      const firstResponded = await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Responded ${firstReply.ticket_code} of ${jobTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+      assertPokeEnvelope(firstResponded);
+      await assertNoPoke(
+        { event_type: 'poke_ai', message: `Responded ${jobTicketCode}` },
+        BASELINE_QUIET_WINDOW_MS,
+        'The job-unblocking target must wait for the second answer'
+      );
+
+      const jobRespondedPromise = aiWebSocketRunner.waitForReceivedMessage(
+        { event_type: 'poke_ai', message: `Responded ${jobTicketCode}` },
+        MESSAGE_TIMEOUT_MS);
+      await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        `Answer to the second question ${marker}.`,
+        secondQuestion.id
+      );
+      assertPokeEnvelope(await jobRespondedPromise);
+    }).timeout(300000);
+
     // Q-all-340 A / S-all-182: reopen and the first reply after it both hand back.
     it('should emit Responded on reopen and again on the first reply after reopen', async () => {
       const marker = randomUUID();
