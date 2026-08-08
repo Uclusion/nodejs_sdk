@@ -12,9 +12,11 @@ import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 const REGION = 'us-west-2';
 const INTEGRATION_TEST_SUB_TYPE = 'INTEGRATION_TEST';
 const LAMBDA_HTTP_TIMEOUT_MS = 210000;
+// Both AWS accounts deploy the serverless stack named "dev"; environments
+// differ by account credentials, so the function name is the same on stage.
 const DELETE_FUNCTION_BY_BASE_URL = new Map([
   ['https://dev.api.uclusion.com/v1', 'uclusion-markets-dev-markets_delete'],
-  ['https://stage.api.uclusion.com/v1', 'uclusion-markets-stage-markets_delete']
+  ['https://stage.api.uclusion.com/v1', 'uclusion-markets-dev-markets_delete']
 ]);
 
 function machineCapability(marketId) {
