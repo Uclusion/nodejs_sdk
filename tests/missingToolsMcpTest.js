@@ -140,9 +140,18 @@ export default function (adminConfiguration) {
       const contentLength = Buffer.byteLength(fileContent);
       const uploadResponse = await pollMcp('get_upload',
         { content_type: 'text/plain', content_length: contentLength, original_name: 'evidence.txt' });
-      const upload = JSON.parse(uploadResponse);
-      assert(upload.file_url?.includes('imagecdn.uclusion.com'),
-        `get_upload should return an imagecdn file_url: ${uploadResponse}`);
+      // mcpCall returns the whole JSON-RPC envelope as a string - the tool payload is the text content
+      const envelope = JSON.parse(uploadResponse);
+      const upload = JSON.parse(envelope.result.content[0].text);
+      // Dev's UI origin (localhost) has no .uclusion.com to swap for the CDN host, so the
+      // imagecdn form and the authorization src-rewrite only exist on deployed environments
+      const expectCdn = !adminConfiguration.baseURL.includes('//dev.');
+      assert(upload.file_url?.endsWith(upload.metadata.path),
+        `get_upload file_url should reference the upload path: ${uploadResponse}`);
+      if (expectCdn) {
+        assert(upload.file_url.includes('imagecdn.uclusion.com'),
+          `get_upload should return an imagecdn file_url: ${uploadResponse}`);
+      }
       // The agent does the multipart S3 POST itself - fields first, file last (Q-all-394 O-4)
       const boundary = `----uclusion${randomUUID()}`;
       let body = '';
@@ -162,8 +171,12 @@ export default function (adminConfiguration) {
       const jobMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: jobCode }),
         (markdown) => typeof markdown === 'string' && markdown.includes(fileName));
-      assert(jobMarkdown.includes('authorization='),
-        'get_job should authorize the attached image URL');
+      assert(jobMarkdown.includes(fileName),
+        'get_job should render the attached file reference');
+      if (expectCdn) {
+        assert(jobMarkdown.includes('authorization='),
+          'get_job should authorize the attached image URL');
+      }
     }).timeout(240000);
 
     it('requests work and notifies the workspace humans', async () => {
