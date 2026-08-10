@@ -188,14 +188,17 @@ export default function (adminConfiguration) {
 
     function finalization(total, bucketItems, startedAt, overrides = {}) {
       const status = overrides.status || 'exact';
+      const outputTokens = Math.min(30, total);
+      const cachedInputTokens = Math.min(10, total - outputTokens);
+      const freshInputTokens = total - outputTokens - cachedInputTokens;
       const measurement = {
         status,
         normalized_total_tokens: total,
         normalization: 'openai_input_includes_cache_v1',
         raw_counts: [
-          { field: 'fresh_input_tokens', value: total - 30, semantics: 'fresh_input' },
-          { field: 'cached_input_tokens', value: 10, semantics: 'cached_input_subset' },
-          { field: 'output_tokens', value: 30, semantics: 'generated_output' }
+          { field: 'fresh_input_tokens', value: freshInputTokens, semantics: 'fresh_input' },
+          { field: 'cached_input_tokens', value: cachedInputTokens, semantics: 'cached_input_subset' },
+          { field: 'output_tokens', value: outputTokens, semantics: 'generated_output' }
         ]
       };
       if (overrides.reasonCode) {
@@ -237,7 +240,7 @@ export default function (adminConfiguration) {
       };
     }
 
-    it('canonicalizes child targets and publishes one export-readable note per run', async () => {
+    it('publishes ordered bucket checkpoints before the terminal audit note', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -267,13 +270,125 @@ export default function (adminConfiguration) {
         job_id: task.ticket_code,
         audit_run_id: firstRunId,
         bucket: 'web searches',
-        marker_sequence: 3
+        marker_sequence: 1
       }));
       assert.strictEqual(marked.state, 'marked');
       assert.strictEqual(marked.effective, 'next_model_request');
       assert.strictEqual(marked.bucket, 'web searches');
-      assert.strictEqual(marked.marker_sequence, 3);
+      assert.strictEqual(marked.marker_sequence, 1);
       assert.strictEqual(marked.canonical_job_id, jobTicketCode);
+
+      const firstCheckpointFinalization = finalization(30, [
+        { label: 'planning', tokens: 30 }
+      ], '2026-08-05T10:00:00Z');
+      const firstCheckpoint = parseMcpToolResult(await pollMcp('set_job_audit_phase', {
+        job_id: task.ticket_code,
+        audit_run_id: firstRunId,
+        bucket: 'web searches',
+        marker_sequence: 1,
+        finalization: firstCheckpointFinalization
+      }));
+      assert.strictEqual(firstCheckpoint.state, 'checkpointed');
+      assert.strictEqual(firstCheckpoint.publication, 'checkpoint');
+      assert.strictEqual(firstCheckpoint.idempotent, false);
+      assert.strictEqual(firstCheckpoint.superseded, false);
+      assert.strictEqual(firstCheckpoint.identity_verified, true);
+      assert.match(firstCheckpoint.checkpoint_identity_fingerprint,
+        /^sha256-v1:[0-9a-f]{64}$/);
+      assert.strictEqual(firstCheckpoint.marker_sequence, 1);
+      assert.strictEqual(firstCheckpoint.bucket, 'web searches');
+      assert.strictEqual(firstCheckpoint.checkpoint_normalized_total_tokens, 30);
+
+      const commentsAfterFirstCheckpoint = await pollFor(listMarketComments,
+        (comments) => comments.some((comment) =>
+          comment.body?.includes(firstRunId)
+          && comment.body?.includes('checkpoint:1')));
+      const firstCheckpointNote = commentsAfterFirstCheckpoint.find((comment) =>
+        comment.body?.includes(firstRunId) && comment.body?.includes('checkpoint:1'));
+      assert(firstCheckpointNote,
+        `First audit checkpoint missing before end: ${JSON.stringify(commentsAfterFirstCheckpoint)}`);
+      assert(firstCheckpointNote.body.includes('Closed-bucket snapshot'), firstCheckpointNote.body);
+      assert(firstCheckpointNote.body.includes('planning'), firstCheckpointNote.body);
+      assert(firstCheckpointNote.body.includes('Current bucket: web searches'),
+        firstCheckpointNote.body);
+      assert(firstCheckpointNote.body.includes('Audit checkpoint run:'),
+        firstCheckpointNote.body);
+      assert(firstCheckpointNote.body.includes(
+        `Audit checkpoint identity: <code>${firstCheckpoint.checkpoint_identity_fingerprint}</code>`),
+        firstCheckpointNote.body);
+
+      const firstCheckpointReplay = parseMcpToolResult(await pollMcp(
+        'set_job_audit_phase', {
+          job_id: task.ticket_code,
+          audit_run_id: firstRunId,
+          bucket: 'web searches',
+          marker_sequence: 1,
+          finalization: firstCheckpointFinalization
+        }));
+      assert.strictEqual(firstCheckpointReplay.idempotent, true);
+      assert.strictEqual(firstCheckpointReplay.superseded, false);
+      assert.strictEqual(firstCheckpointReplay.identity_verified, true);
+      assert.strictEqual(firstCheckpointReplay.checkpoint_identity_fingerprint,
+        firstCheckpoint.checkpoint_identity_fingerprint);
+      assert.strictEqual(firstCheckpointReplay.note_short_code_id,
+        firstCheckpoint.note_short_code_id);
+
+      const testingMarker = parseMcpToolResult(await pollMcp('set_job_audit_phase', {
+        job_id: task.ticket_code,
+        audit_run_id: firstRunId,
+        bucket: 'testing',
+        marker_sequence: 2
+      }));
+      assert.strictEqual(testingMarker.state, 'marked');
+      assert.strictEqual(testingMarker.marker_sequence, 2);
+
+      const secondCheckpointFinalization = finalization(120, [
+        { label: 'planning', tokens: 30 },
+        { label: 'web searches', tokens: 90 }
+      ], '2026-08-05T10:00:00Z');
+      const secondCheckpoint = parseMcpToolResult(await pollMcp('set_job_audit_phase', {
+        job_id: task.ticket_code,
+        audit_run_id: firstRunId,
+        bucket: 'testing',
+        marker_sequence: 2,
+        finalization: secondCheckpointFinalization
+      }));
+      assert.strictEqual(secondCheckpoint.state, 'checkpointed');
+      assert.strictEqual(secondCheckpoint.publication, 'checkpoint');
+      assert.strictEqual(secondCheckpoint.idempotent, false);
+      assert.strictEqual(secondCheckpoint.superseded, false);
+      assert.strictEqual(secondCheckpoint.identity_verified, true);
+      assert.match(secondCheckpoint.checkpoint_identity_fingerprint,
+        /^sha256-v1:[0-9a-f]{64}$/);
+      assert.strictEqual(secondCheckpoint.checkpoint_normalized_total_tokens, 120);
+
+      const commentsAfterSecondCheckpoint = await pollFor(listMarketComments,
+        (comments) => comments.some((comment) =>
+          comment.body?.includes(firstRunId)
+          && comment.body?.includes('checkpoint:2')));
+      const secondCheckpointNote = commentsAfterSecondCheckpoint.find((comment) =>
+        comment.body?.includes(firstRunId) && comment.body?.includes('checkpoint:2'));
+      assert(secondCheckpointNote,
+        `Second audit checkpoint missing before end: ${JSON.stringify(commentsAfterSecondCheckpoint)}`);
+      assert(secondCheckpointNote.body.includes('planning'), secondCheckpointNote.body);
+      assert(secondCheckpointNote.body.includes('web searches'), secondCheckpointNote.body);
+      assert(secondCheckpointNote.body.includes('Current bucket: testing'),
+        secondCheckpointNote.body);
+
+      const staleCheckpoint = parseMcpToolResult(await pollMcp('set_job_audit_phase', {
+        job_id: task.ticket_code,
+        audit_run_id: firstRunId,
+        bucket: 'web searches',
+        marker_sequence: 1,
+        finalization: firstCheckpointFinalization
+      }));
+      assert.strictEqual(staleCheckpoint.state, 'checkpointed');
+      assert.strictEqual(staleCheckpoint.publication, 'checkpoint');
+      assert.strictEqual(staleCheckpoint.idempotent, false);
+      assert.strictEqual(staleCheckpoint.superseded, true);
+      assert.strictEqual(staleCheckpoint.identity_verified, false);
+      assert.strictEqual(staleCheckpoint.note_short_code_id,
+        secondCheckpoint.note_short_code_id);
 
       const pending = parseMcpToolResult(await pollMcp('end_job_audit', {
         job_id: task.ticket_code,
@@ -294,6 +409,7 @@ export default function (adminConfiguration) {
         finalization: firstFinalization
       }));
       assert.strictEqual(first.state, 'completed');
+      assert.strictEqual(first.publication, 'final');
       assert.strictEqual(first.idempotent, false);
       assert.strictEqual(first.canonical_job_id, jobTicketCode);
       assert.strictEqual(first.run_normalized_total_tokens, 160);
@@ -302,9 +418,11 @@ export default function (adminConfiguration) {
 
       const commentsAfterFirst = await pollFor(listMarketComments,
         (comments) => comments.some((comment) =>
-          comment.body?.includes(firstRunId)));
+          comment.body?.includes(firstRunId)
+          && comment.body?.includes('Audit publication: <code>final</code>')));
       const firstNote = commentsAfterFirst.find((comment) =>
-        comment.body?.includes(firstRunId));
+        comment.body?.includes(firstRunId)
+        && comment.body?.includes('Audit publication: <code>final</code>'));
       assert(firstNote, `Export-readable audit note missing: ${JSON.stringify(commentsAfterFirst)}`);
       assert.strictEqual(firstNote.investible_id, job.investible.id);
       assert.strictEqual(firstNote.comment_type, 'REPORT');
@@ -316,6 +434,8 @@ export default function (adminConfiguration) {
       assert(firstNote.body.includes('90'), firstNote.body);
       assert(firstNote.body.includes('Source: codex'), firstNote.body);
       assert(firstNote.body.includes('Coverage: main complete'), firstNote.body);
+      assert(firstNote.body.includes('Audit publication: <code>final</code>'),
+        firstNote.body);
 
       const jobMarkdown = await pollFor(
         () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
@@ -323,6 +443,7 @@ export default function (adminConfiguration) {
           include_all_resolved: true
         }),
         (markdown) => markdown.includes(firstRunId)
+          && markdown.includes('160 normalized tokens')
       );
       assert(jobMarkdown.includes('Agent token usage'), jobMarkdown);
       assert(jobMarkdown.includes('160 normalized tokens'), jobMarkdown);
@@ -334,12 +455,17 @@ export default function (adminConfiguration) {
         finalization: firstFinalization
       }));
       assert.strictEqual(replay.state, 'completed');
+      assert.strictEqual(replay.publication, 'final');
       assert.strictEqual(replay.idempotent, true);
       assert.strictEqual(replay.note_short_code_id, first.note_short_code_id);
       const auditNotes = (await listMarketComments()).filter((comment) =>
         comment.body?.includes(firstRunId));
-      assert.strictEqual(auditNotes.length, 1,
-        `Retry should preserve one note for the run: ${JSON.stringify(auditNotes)}`);
+      const finalAuditNotes = auditNotes.filter((comment) =>
+        comment.body?.includes('Audit publication: <code>final</code>'));
+      assert.strictEqual(finalAuditNotes.length, 1,
+        `Retry should preserve one final note for the run: ${JSON.stringify(auditNotes)}`);
+      assert(auditNotes.length >= 3,
+        `Run should retain its ordered checkpoints plus final: ${JSON.stringify(auditNotes)}`);
 
       const partialRunId = randomUUID();
       const partialStarted = parseMcpToolResult(await pollMcp('start_job_audit', {
@@ -362,6 +488,7 @@ export default function (adminConfiguration) {
         finalization: partialFinalization
       }));
       assert.strictEqual(partial.state, 'completed');
+      assert.strictEqual(partial.publication, 'final');
       assert.strictEqual(partial.run_normalized_total_tokens, 80);
       assert.strictEqual(partial.cumulative, undefined);
 
@@ -377,6 +504,47 @@ export default function (adminConfiguration) {
       assert(partialNote.body.includes('session_interrupted'), partialNote.body);
       assert.strictEqual(commentsAfterPartial.filter((comment) =>
         comment.body?.includes(partialRunId)).length, 1);
+
+      const interruptedRunId = randomUUID();
+      const interruptedStarted = parseMcpToolResult(await pollMcp('start_job_audit', {
+        job_id: jobTicketCode,
+        audit_run_id: interruptedRunId
+      }));
+      assert.strictEqual(interruptedStarted.state, 'active');
+      const interruptedMarker = parseMcpToolResult(await pollMcp('set_job_audit_phase', {
+        job_id: jobTicketCode,
+        audit_run_id: interruptedRunId,
+        bucket: 'implementation',
+        marker_sequence: 1
+      }));
+      assert.strictEqual(interruptedMarker.state, 'marked');
+      const interruptedCheckpoint = parseMcpToolResult(await pollMcp('set_job_audit_phase', {
+        job_id: jobTicketCode,
+        audit_run_id: interruptedRunId,
+        bucket: 'implementation',
+        marker_sequence: 1,
+        finalization: finalization(40, [
+          { label: 'planning', tokens: 40 }
+        ], '2026-08-05T10:01:00Z')
+      }));
+      assert.strictEqual(interruptedCheckpoint.state, 'checkpointed');
+      assert.strictEqual(interruptedCheckpoint.publication, 'checkpoint');
+      assert.strictEqual(interruptedCheckpoint.identity_verified, true);
+      assert.match(interruptedCheckpoint.checkpoint_identity_fingerprint,
+        /^sha256-v1:[0-9a-f]{64}$/);
+      const interruptedComments = await pollFor(listMarketComments,
+        (comments) => comments.some((comment) =>
+          comment.body?.includes(interruptedRunId)
+          && comment.body?.includes('checkpoint:1')));
+      const durableBeforeEnd = interruptedComments.find((comment) =>
+        comment.body?.includes(interruptedRunId)
+        && comment.body?.includes('checkpoint:1'));
+      assert(durableBeforeEnd,
+        `Interrupted run checkpoint was not durable before end: ${JSON.stringify(interruptedComments)}`);
+      assert(!interruptedComments.some((comment) =>
+        comment.body?.includes(interruptedRunId)
+        && comment.body?.includes('Audit publication: <code>final</code>')),
+      'A run that was never ended must not invent a terminal snapshot');
     }).timeout(600000);
   });
 }
