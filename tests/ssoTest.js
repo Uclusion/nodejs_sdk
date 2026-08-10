@@ -24,7 +24,10 @@ export default function(adminConfiguration, userConfiguration) {
             await authPromise.then((response) => {
                 const { client, accountToken } = response;
                 return client.summaries.idList(accountToken).then((audits) => {
-                    const allMarkets = audits.map((audit) => audit.id);
+                    // Banned audits are delivered so clients purge those markets from local
+                    // storage (see doVersionRefresh in uclusion_web_ui) - stage demo market
+                    // activity can create them for this identity at any time
+                    const allMarkets = audits.filter((audit) => !audit.banned).map((audit) => audit.id);
                     return client.summaries.versions(accountToken, allMarkets);
                 }).then((versions) => {
                         const { signatures } = versions;
@@ -41,7 +44,7 @@ export default function(adminConfiguration, userConfiguration) {
                     })
                     .then(() => {
                         return client.summaries.idList(accountToken).then((audits) => {
-                            const allMarkets = audits.map((audit) => audit.id);
+                            const allMarkets = audits.filter((audit) => !audit.banned).map((audit) => audit.id);
                             return client.summaries.versions(accountToken, allMarkets);
                         });
                     }).then((versions) => {
