@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
 import {
+  getMessages,
   loginUserToAccountAndGetToken,
   loginUserToIdentity,
   loginUserToMarketAndGetToken,
@@ -122,6 +123,79 @@ export default function (adminConfiguration) {
       const otherMarkdown = await pollMcp('get_job', { short_code_id: otherTicketCode });
       assert(!otherMarkdown.includes(noteMarker),
         'A job in another view must not receive notes from the first view');
+    }).timeout(600000);
+
+    it('creates and updates an AI view note with add_view_note and notifies the view (T-all-2459)', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `AI note job ${marker}`,
+        description: 'Job whose short code targets the AI view note.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+
+      // S-1 on Q-all-404: exactly one targeting code - both is rejected before any write
+      const rejected = await pollMcp('add_view_note', {
+        view_short_code_id: jobTicketCode,
+        update_note_short_code_id: 'R-fake-1',
+        note: `Never lands ${marker}`
+      });
+      assert(rejected.includes('not both'), `Expected XOR rejection: ${rejected}`);
+
+      const lessonMarker = `Do not fix the back end for a test-only race ${marker}`;
+      const created = await pollMcp('add_view_note', {
+        view_short_code_id: jobTicketCode,
+        note: lessonMarker
+      });
+      assert(created.includes('Added view note'), `Expected view note creation: ${created}`);
+      const noteTicketCode = created.match(/Added view note (\S+) and link/)?.[1];
+      assert(noteTicketCode && noteTicketCode.startsWith('R-'),
+        `Expected an R- ticket code in: ${created}`);
+
+      // Born Show AI: the AI note rides along in get_job with no is_visible flip
+      let jobMarkdown = await pollFor(
+        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
+        (markdown) => markdown.includes(lessonMarker)
+      );
+      assert(jobMarkdown.includes(lessonMarker),
+        'get_job should include the AI view note without a Show AI flip');
+
+      // Q-all-406: unlike the human note above, the AI note notifies the view humans
+      const messages = await pollFor(
+        () => getMessages(adminConfiguration),
+        (candidates) => candidates.some((message) =>
+          message.type_object_id.startsWith('UNREAD_COMMENT_') &&
+          message.market_id_user_id.startsWith(marketId))
+      );
+      assert(messages.some((message) => message.type_object_id.startsWith('UNREAD_COMMENT_') &&
+          message.market_id_user_id.startsWith(marketId)),
+        'AI view note creation should notify the view humans');
+
+      // C-1 on Q-all-405: an update folds the lesson into the existing note, never a second note
+      const revisedMarker = `Fix the test barrier instead ${marker}`;
+      const updated = await pollMcp('add_view_note', {
+        update_note_short_code_id: noteTicketCode,
+        note: revisedMarker
+      });
+      assert(updated.includes('Updated view note'), `Expected view note update: ${updated}`);
+      jobMarkdown = await pollFor(
+        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
+        (markdown) => markdown.includes(revisedMarker)
+      );
+      assert(jobMarkdown.includes(revisedMarker), 'get_job should carry the revised note text');
+      assert(!jobMarkdown.includes(lessonMarker),
+        'The update must revise the existing note, not add a second one');
+
+      // C-all-1458: no targeting code at all lands the note in the default view
+      const defaultMarker = `Default view lesson ${marker}`;
+      const defaulted = await pollMcp('add_view_note', { note: defaultMarker });
+      assert(defaulted.includes('Added view note'), `Expected default view creation: ${defaulted}`);
+      jobMarkdown = await pollFor(
+        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
+        (markdown) => markdown.includes(defaultMarker)
+      );
+      assert(jobMarkdown.includes(defaultMarker),
+        'A note created with no code should land in the default view');
     }).timeout(600000);
   });
 }
