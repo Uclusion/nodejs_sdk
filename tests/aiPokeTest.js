@@ -289,6 +289,8 @@ export default function (adminConfiguration) {
 
     // S-all-228: with several questions open, every response hands back, not
     // just the job-unblocking one - the job-wide gate used to swallow the rest.
+    // B-all-554: a response landing after its question already sat Responded
+    // hands back too - the per-question flip gate used to swallow those.
     it('should emit a compound Responded poke for each of two open questions', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
@@ -347,6 +349,23 @@ export default function (adminConfiguration) {
         secondQuestion.id
       );
       assertPokeEnvelope(await jobRespondedPromise);
+
+      // B-all-554: the first question already sits Responded, so the old flip
+      // gate would swallow this follow-up answer entirely.
+      const lateReplyMarker = `Follow-up answer after the hand-back ${marker}.`;
+      await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        lateReplyMarker,
+        firstQuestion.id
+      );
+      const lateReply = await findCommentByMarker(adminClient, marketId, lateReplyMarker);
+      assert(lateReply?.ticket_code, 'Follow-up answer should have a ticket code');
+      const lateResponded = await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Responded ${lateReply.ticket_code} of ${jobTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+      assertPokeEnvelope(lateResponded);
     }).timeout(300000);
 
     // Q-all-340 A / S-all-182: reopen and the first reply after it both hand back.
