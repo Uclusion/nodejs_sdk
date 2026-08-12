@@ -220,6 +220,21 @@ export default function(adminConfiguration, userConfiguration) {
                 const approvalRequest = messages.find((message) =>
                     message.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + globalInvestibleId);
                 assert(!approvalRequest, 'accepting investment should clear approval request');
+                // B-all-558: the approval request clears before investibles_accept commits, so
+                // wait on accepted itself or the next vote's pipeline can read it stale and
+                // skip the assignee's UNREAD_VOTE.
+                return pollFor(
+                    () => userClient.markets.getMarketInvestibles([
+                        {investible: {id: globalInvestibleId, version: 2},
+                            market_infos: [{id: marketInvestibleId, version: 3}]}
+                    ]),
+                    (investibles) => {
+                        const fullInvestible = investibles[0];
+                        const currentMarketInfo = fullInvestible && fullInvestible.market_infos.find((info) =>
+                            info.market_id === createdMarketId);
+                        return Boolean(currentMarketInfo && (currentMarketInfo.accepted || []).includes(adminId));
+                    });
+            }).then(() => {
                 return userClient.markets.updateInvestment(globalInvestibleId, 100, 0);
             }).then((investment) => {
                 assert(investment.quantity === 100, 'investment quantity should be 100');
