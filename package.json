@@ -30,6 +30,8 @@
     "testIntegration": "mocha --recursive test testIntegration",
     "testStage": "mocha --recursive testStage",
     "testProduction": "mocha --recursive testProduction",
+    "testAgentDev": "node testAgentDev/run.js",
+    "testAgentDevUnit": "mocha --recursive testAgentDev/unit",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }
 }
