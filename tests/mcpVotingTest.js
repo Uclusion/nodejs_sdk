@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { randomUUID } from 'crypto';
 import {
   getMessages,
   loginUserToAccountAndGetToken,
@@ -18,6 +19,7 @@ export default function (adminConfiguration, userConfiguration) {
     let adminId;
     let userId;
     let uclusionToken;
+    let planningStages;
 
     before(async function () {
       this.timeout(300000);
@@ -34,6 +36,7 @@ export default function (adminConfiguration, userConfiguration) {
       const result = await accountClient.markets.createMarket({ name: 'MCP voting',
         market_type: 'PLANNING' });
       marketId = result.market.id;
+      planningStages = result.stages;
       adminClient = await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const adminUser = await adminClient.users.get();
       adminId = adminUser.id;
@@ -127,6 +130,168 @@ export default function (adminConfiguration, userConfiguration) {
       return !!investment && !investment.deleted &&
         (investment.quantity === undefined || investment.quantity > 0);
     }
+
+    async function listMarketComments(targetMarketId, client = adminClient) {
+      const versions = await accountClient.summaries.versions(accountToken, [targetMarketId]);
+      const marketEntry = (versions.signatures || [])
+        .find((entry) => entry.market_id === targetMarketId);
+      const commentVersions = new Map();
+      (marketEntry?.signatures || [])
+        .filter((signature) => signature.type === 'comment')
+        .flatMap((signature) => signature.object_versions || [])
+        .forEach((version) => {
+          const current = commentVersions.get(version.object_id_one) || 0;
+          commentVersions.set(version.object_id_one, Math.max(current, version.version));
+        });
+      if (commentVersions.size === 0) {
+        return [];
+      }
+      return client.investibles.getMarketComments(
+        [...commentVersions].map(([id, version]) => ({ id, version })));
+    }
+
+    async function findCommentByMarker(marker) {
+      const comments = await pollFor(
+        () => listMarketComments(marketId),
+        (fetched) => fetched.some((comment) => comment.body?.includes(marker)));
+      return comments.find((comment) => comment.body?.includes(marker));
+    }
+
+    async function listInlineInvestibleIds(inlineMarketId) {
+      const versions = await accountClient.summaries.versions(accountToken, [inlineMarketId]);
+      const marketEntry = (versions.signatures || [])
+        .find((entry) => entry.market_id === inlineMarketId);
+      return [...new Set((marketEntry?.signatures || [])
+        .filter((signature) => signature.type === 'investible')
+        .flatMap((signature) => (signature.object_versions || [])
+          .map((version) => version.object_id_one)))];
+    }
+
+    async function getJobStage(job) {
+      const marketInfo = job.market_infos.find((info) => info.market_id === marketId) ||
+        job.market_infos[0];
+      const fetched = await adminClient.markets.getMarketInvestibles([{
+        investible: { id: job.investible.id, version: 1 },
+        market_infos: [{ id: marketInfo.id, version: 1 }]
+      }]);
+      const currentInfo = fetched?.[0]?.market_infos?.find((info) => info.market_id === marketId) ||
+        fetched?.[0]?.market_infos?.[0];
+      return currentInfo?.stage;
+    }
+
+    it('should mark non-primary question input advisory and keep the job blocked until resolve', async () => {
+      const marker = randomUUID();
+      const doableStage = planningStages.find((stage) => stage.name === 'Doable');
+      const requiresInputStage = planningStages.find((stage) => stage.name === 'Requires Input');
+      assert(doableStage && requiresInputStage,
+        'Planning market should include Doable and Requires Input');
+
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Primary responder integration ${marker}`,
+        description: 'AI-authored questions use current human assignees as primary responders.',
+        assignments: [adminId]
+      });
+      const jobTicket = job.market_infos[0].ticket_code ||
+        await getTicketCode(adminClient, job.investible.id, job.market_infos[0].id);
+      const initialStage = await getJobStage(job);
+      if (initialStage !== doableStage.id) {
+        await adminClient.investibles.stateChange(job.investible.id, {
+          current_stage_id: initialStage,
+          stage_id: doableStage.id
+        });
+      }
+      const reachedDoable = await pollFor(() => getJobStage(job),
+        (stageId) => stageId === doableStage.id);
+      assert.strictEqual(reachedDoable, doableStage.id, 'Job should be Doable before the AI asks');
+
+      const questionMarker = `Which primary-responder path ${marker}?`;
+      const asked = await pollMcp('ask_question', {
+        job_id: jobTicket,
+        question: questionMarker,
+        options: [
+          { name: `First path ${marker}`, description: 'The first integration-test direction.' },
+          { name: `Second path ${marker}`, description: 'The second integration-test direction.' }
+        ]
+      });
+      const questionCodeMatch = asked.match(/\bQ-[A-Za-z0-9-]+\b/);
+      assert(questionCodeMatch, `ask_question should return a question code: ${asked}`);
+      const questionCode = questionCodeMatch[0];
+      const question = await findCommentByMarker(questionMarker);
+      assert(question?.inline_market_id, 'AI question should have an inline decision market');
+
+      const blockedStage = await pollFor(() => getJobStage(job),
+        (stageId) => stageId === requiresInputStage.id);
+      assert.strictEqual(blockedStage, requiresInputStage.id,
+        'An open AI-authored question should move a Doable job to Requires Input');
+
+      const optionIds = await pollFor(
+        () => listInlineInvestibleIds(question.inline_market_id),
+        (ids) => ids.length >= 2);
+      assert(optionIds.length >= 2, 'AI question should create two option investibles');
+      const inlineUserClient = await pollLogin(userConfiguration, question.inline_market_id);
+      const inlineAdminClient = await pollLogin(adminConfiguration, question.inline_market_id);
+
+      const userReplyMarker = `Advisory user reply ${marker}`;
+      await userClient.investibles.createComment(job.investible.id, marketId,
+        userReplyMarker, question.id);
+      await inlineUserClient.markets.updateInvestment(optionIds[0], 100, 0);
+
+      const advisoryReply =
+        '##### Advisory response from non-primary human: does not answer this question.';
+      const advisoryVote =
+        '#### Advisory vote from non-primary human: does not answer this question.';
+      const advisoryMarkdown = await pollFor(
+        () => pollMcp('get_job', { short_code_id: questionCode }),
+        (markdown) => markdown.includes(userReplyMarker) &&
+          markdown.includes(advisoryReply) && markdown.includes(advisoryVote));
+      assert(advisoryMarkdown.includes(advisoryReply),
+        'A non-assignee reply should be explicitly marked advisory');
+      assert(advisoryMarkdown.includes(advisoryVote),
+        'A non-assignee option vote should be explicitly marked advisory');
+      const advisoryThread = await pollFor(
+        () => pollMcp('get_job', { short_code_id: questionCode, thread_only: true }),
+        (markdown) => markdown.includes(userReplyMarker) &&
+          markdown.includes(advisoryReply) && markdown.includes(advisoryVote));
+      assert(advisoryThread.includes(advisoryReply) && advisoryThread.includes(advisoryVote),
+        'A targeted thread reload must preserve advisory reply and vote labels');
+      assert.strictEqual(await getJobStage(job), requiresInputStage.id,
+        'Advisory replies and votes must not unblock the job');
+
+      await adminClient.investibles.updateAssignments(job.investible.id, [userId]);
+      const primaryMarkdown = await pollFor(
+        () => pollMcp('get_job', { short_code_id: questionCode }),
+        (markdown) => markdown.includes(userReplyMarker) &&
+          !markdown.includes(advisoryReply) && !markdown.includes(advisoryVote));
+      assert(!primaryMarkdown.includes(advisoryReply) && !primaryMarkdown.includes(advisoryVote),
+        'Reassignment should immediately make the new assignee\'s existing input primary');
+      assert.strictEqual(await getJobStage(job), requiresInputStage.id,
+        'The open question should remain blocking across assignment changes');
+
+      const adminReplyMarker = `Former assignee advisory reply ${marker}`;
+      await adminClient.investibles.createComment(job.investible.id, marketId,
+        adminReplyMarker, question.id);
+      await inlineAdminClient.markets.updateInvestment(optionIds[1], 100, 0);
+      const reassignedMarkdown = await pollFor(
+        () => pollMcp('get_job', { short_code_id: questionCode }),
+        (markdown) => markdown.includes(adminReplyMarker) &&
+          markdown.includes(advisoryReply) && markdown.includes(advisoryVote));
+      assert(reassignedMarkdown.includes(advisoryReply) && reassignedMarkdown.includes(advisoryVote),
+        'The former assignee\'s new reply and vote should render as advisory');
+
+      // Resolve is intentionally performed by the now non-primary admin: any human may delegate
+      // an AI-authored question back to the AI, and that closes the stage lock without choosing.
+      await adminClient.investibles.updateComment(question.id, undefined, true);
+      const restoredStage = await pollFor(() => getJobStage(job),
+        (stageId) => stageId === doableStage.id);
+      assert.strictEqual(restoredStage, doableStage.id,
+        'Human Resolve should delegate the answer and restore the prior Doable stage');
+      const restoredMarkdown = await pollFor(
+        () => pollMcp('get_job', { short_code_id: jobTicket }),
+        (markdown) => markdown.includes('This job is in stage Doable.'));
+      assert(restoredMarkdown.includes('This job is in stage Doable.'),
+        'get_job should report the restored executable stage after Resolve');
+    }).timeout(600000);
 
     it('should move AI vote via MCP approval on single vote question', async () => {
       const { question, inlineAdminClient, optionA, optionB } = await makeVotingQuestion(
