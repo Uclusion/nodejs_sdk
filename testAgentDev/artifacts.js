@@ -5,6 +5,15 @@ import { buildSessionMatrix } from './matrix.js';
 
 const REDACTED = '[REDACTED]';
 
+function makePrivateDirectory(directory) {
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.chmodSync(directory, 0o700);
+}
+
+function makePrivateFile(filePath) {
+  fs.chmodSync(filePath, 0o600);
+}
+
 function sensitiveStrings(values) {
   return [...new Set((values || [])
     .filter((value) => typeof value === 'string' && value.length >= 4))]
@@ -48,20 +57,33 @@ function assertNoSecret(bytes, secrets, label) {
 }
 
 export class ArtifactStore {
-  constructor({ artifactDir, seedPinsPath, runId }) {
+  constructor({
+    artifactDir,
+    seedPinsPath,
+    runId,
+    sessions = buildSessionMatrix(),
+    catalog = 'triggers'
+  }) {
     this.artifactDir = artifactDir;
     this.runId = runId;
+    this.sessions = [...sessions];
+    if (new Set(this.sessions.map((session) => session.key)).size !== this.sessions.length) {
+      throw new Error('Artifact session keys must be unique');
+    }
+    if (new Set(this.sessions.map((session) => session.traceName)).size !== this.sessions.length) {
+      throw new Error('Artifact trace names must be unique');
+    }
     this.traceDir = path.join(artifactDir, 'traces');
     this.manifestPath = path.join(artifactDir, 'manifest.json');
     this.modelsPath = path.join(artifactDir, 'resolved-models.json');
     this.pinsPath = path.join(artifactDir, 'last-known-good.json');
-    fs.mkdirSync(this.artifactDir, { recursive: true });
+    makePrivateDirectory(this.artifactDir);
     const relativeTraceDir = path.relative(path.resolve(this.artifactDir), path.resolve(this.traceDir));
     if (!relativeTraceDir || relativeTraceDir.startsWith('..') || path.isAbsolute(relativeTraceDir)) {
       throw new Error(`Refusing unsafe trace cleanup target ${this.traceDir}`);
     }
     fs.rmSync(this.traceDir, { recursive: true, force: true });
-    fs.mkdirSync(this.traceDir, { recursive: true });
+    makePrivateDirectory(this.traceDir);
     if (!fs.existsSync(this.pinsPath)) {
       fs.copyFileSync(seedPinsPath, this.pinsPath, fs.constants.COPYFILE_EXCL);
     }
@@ -70,6 +92,7 @@ export class ArtifactStore {
       schema_version: 1,
       run_id: runId,
       environment: 'dev',
+      catalog,
       started_at: new Date().toISOString(),
       status: 'running',
       source_package: null,
@@ -84,8 +107,10 @@ export class ArtifactStore {
       sessions: {}
     };
     this.secrets = [];
-    for (const session of buildSessionMatrix()) {
-      fs.writeFileSync(path.join(this.traceDir, session.traceName), '', { flag: 'w' });
+    for (const session of this.sessions) {
+      const tracePath = path.join(this.traceDir, session.traceName);
+      fs.writeFileSync(tracePath, '', { flag: 'w', mode: 0o600 });
+      makePrivateFile(tracePath);
       this.manifest.sessions[session.key] = {
         client: session.client,
         scenario: session.scenario,
@@ -106,9 +131,11 @@ export class ArtifactStore {
     this.assertNoSecrets();
   }
 
-  registerSensitiveValues(values) {
+  registerSensitiveValues(values, { flush = true } = {}) {
     this.secrets = sensitiveStrings([...this.secrets, ...(values || [])]);
-    this.flush();
+    if (flush) {
+      this.flush();
+    }
   }
 
   sanitizeTrace(tracePath) {
@@ -134,11 +161,11 @@ export class ArtifactStore {
   }
 
   validateTraces() {
-    const expected = buildSessionMatrix().map((session) => session.traceName).sort();
+    const expected = this.sessions.map((session) => session.traceName).sort();
     const actual = fs.readdirSync(this.traceDir).sort();
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
       throw new Error(
-        `Trace directory must contain exactly the 9 matrix traces; found ${JSON.stringify(actual)}`
+        `Trace directory must contain exactly the planned traces; found ${JSON.stringify(actual)}`
       );
     }
     for (const name of actual) {

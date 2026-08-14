@@ -54,13 +54,17 @@ export function atomicWriteJson(targetPath, value) {
 
 export function ratchetIfAllPassed({
   results,
+  expectedCount,
   targetPath,
   pins,
   baselineBytes = fs.readFileSync(targetPath),
   writeJson = atomicWriteJson,
   writeBytes = atomicWriteBytes
 }) {
-  if (results.length !== 9 || results.some((result) => result.status !== 'passed')) {
+  if (!Number.isSafeInteger(expectedCount) || expectedCount < 1) {
+    throw new Error('expectedCount must be a positive safe integer');
+  }
+  if (results.length !== expectedCount || results.some((result) => result.status !== 'passed')) {
     return false;
   }
   try {

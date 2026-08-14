@@ -192,6 +192,11 @@ export function isolatedSessionEnvironment(env, client, fixture) {
   result.CODEX_HOME = path.join(fixture.sessionHome, '.codex');
   result.CLAUDE_CONFIG_DIR = path.join(fixture.sessionHome, '.claude');
   result.CI = '1';
+  if (client === 'codex' && fixture.bridgeActive === true) {
+    // Presence alone tells the shipped workflow that the harness has already
+    // established delivery; never copy a parent bridge value into the child.
+    result.UCLUSION_CODEX_BRIDGE_ACTIVE = '1';
+  }
   return result;
 }
 
@@ -214,6 +219,34 @@ function codexMcpOverride(fixture) {
     'default_tools_approval_mode = "approve" }';
 }
 
+export function buildCodexLaunch({
+  fixture,
+  prompt,
+  codexOtelEndpoint,
+  sandbox = 'workspace-write'
+}) {
+  assert(codexOtelEndpoint, 'Codex requires a run-scoped OTel model receiver');
+  assert(['read-only', 'workspace-write'].includes(sandbox),
+    `Unsupported Codex sandbox policy ${sandbox}`);
+  return {
+    command: EXECUTABLES.codex,
+    args: [
+      'exec',
+      '--json',
+      '--ephemeral',
+      '--ignore-user-config',
+      '--skip-git-repo-check',
+      '--sandbox', sandbox,
+      '-C', fixture.workspace,
+      '-c', codexMcpOverride(fixture),
+      '-c', 'otel.exporter={ otlp-http={ endpoint=' +
+        `${tomlString(codexOtelEndpoint)}, protocol="binary" } }`,
+      '-c', 'otel.log_user_prompt=false',
+      prompt
+    ]
+  };
+}
+
 function writeMcpConfigs(fixture) {
   const server = {
     command: 'python3',
@@ -228,7 +261,14 @@ function writeMcpConfigs(fixture) {
   return { claudePath, cursorPath };
 }
 
-function commandFor(client, fixture, prompt, configs, codexOtelEndpoint = null) {
+function commandFor(
+  client,
+  fixture,
+  prompt,
+  configs,
+  codexOtelEndpoint = null,
+  codexSandbox = 'workspace-write'
+) {
   const executable = EXECUTABLES[client];
   if (client === 'claude') {
     const sessionId = randomUUID();
@@ -252,24 +292,12 @@ function commandFor(client, fixture, prompt, configs, codexOtelEndpoint = null) 
     };
   }
   if (client === 'codex') {
-    assert(codexOtelEndpoint, 'Codex requires a run-scoped OTel model receiver');
-    return {
-      command: executable,
-      args: [
-        'exec',
-        '--json',
-        '--ephemeral',
-        '--ignore-user-config',
-        '--skip-git-repo-check',
-        '--sandbox', 'workspace-write',
-        '-C', fixture.workspace,
-        '-c', codexMcpOverride(fixture),
-        '-c', 'otel.exporter={ otlp-http={ endpoint=' +
-          `${tomlString(codexOtelEndpoint)}, protocol="binary" } }`,
-        '-c', 'otel.log_user_prompt=false',
-        prompt
-      ]
-    };
+    return buildCodexLaunch({
+      fixture,
+      prompt,
+      codexOtelEndpoint,
+      sandbox: codexSandbox
+    });
   }
   return {
     command: executable,
@@ -305,6 +333,61 @@ function flattenEventsFromTrace(tracePath) {
   return { events, invalid };
 }
 
+function boundedProcessResult(processResult) {
+  if (!processResult) {
+    return undefined;
+  }
+  return {
+    ...processResult,
+    // Raw stdout already lives byte-for-byte in the trace and would only
+    // bloat manifest.json. Keep exact bounded stderr because it has no other
+    // artifact.
+    stdout: undefined,
+    events: undefined
+  };
+}
+
+function agentResultRecord({
+  session,
+  clientVersion,
+  launch,
+  processResult,
+  raw,
+  parsed,
+  model
+}) {
+  const structured = parsed || {
+    toolCalls: [],
+    sessionIds: [],
+    modelCallIds: [],
+    reportedUsage: null
+  };
+  return {
+    processResult: boundedProcessResult(processResult),
+    parsed: structured,
+    invalidJsonLines: [
+      ...(raw?.invalid || []),
+      ...(processResult?.invalidJsonLines || [])
+    ],
+    modelRecord: {
+      client: session.client,
+      scenario: session.scenario,
+      client_version: clientVersion,
+      resolved_model: model || null,
+      primary_session_id: launch.expectedSessionId || structured.sessionIds?.[0] || null,
+      session_ids: structured.sessionIds || [],
+      model_call_ids: structured.modelCallIds || [],
+      model_selection: session.client === 'cursor' ? model || null : undefined,
+      reported_usage: structured.reportedUsage || null,
+      source: session.client === 'codex'
+        ? 'codex-otel-conversation-start'
+        : session.client === 'cursor'
+          ? 'cursor-system-init-routing-identity'
+          : 'claude-assistant-model-no-override'
+    }
+  };
+}
+
 export async function runAgentSession({
   session,
   fixture,
@@ -323,7 +406,8 @@ export async function runAgentSession({
     fixture,
     session.prompt,
     configs,
-    telemetry?.endpoint
+    telemetry?.endpoint,
+    session.codexSandbox || 'workspace-write'
   );
   const env = isolatedSessionEnvironment(sourceEnv, session.client, fixture);
   env.TEST_AGENT_DEV_RUN_ID = fixture.runId;
@@ -366,6 +450,15 @@ export async function runAgentSession({
   let telemetryModel;
   let raw;
   let parsed;
+  let model;
+  let telemetryClosed = false;
+  const closeTelemetry = async () => {
+    if (telemetryClosed) {
+      return;
+    }
+    telemetryClosed = true;
+    await telemetry?.close();
+  };
   try {
     processResult = await processRunner({
       ...launch,
@@ -392,57 +485,60 @@ export async function runAgentSession({
     if (telemetry) {
       telemetryModel = await telemetry.resolvedModel(parsed.sessionIds[0]);
     }
-  } finally {
-    await telemetry?.close();
-  }
-  if (pokePromise) {
-    const outcome = await pokePromise;
-    if (outcome.status === 'rejected') {
-      throw outcome.reason;
+    await closeTelemetry();
+    if (pokePromise) {
+      const outcome = await pokePromise;
+      if (outcome.status === 'rejected') {
+        throw outcome.reason;
+      }
     }
-  }
-  if (session.scenario === 'first-poke' && !pokeTriggered) {
-    throw new Error(
-      `${session.client} never established the delivery call needed to inject a real Poke`
-    );
-  }
-  const model = session.client === 'codex'
-    ? telemetryModel
-    : singleResolvedModel(parsed);
-  assert(parsed.sessionIds.length > 0,
-    `${session.client} stream-json trace did not expose a session/thread/chat id`);
-  if (launch.expectedSessionId) {
-    assert(parsed.sessionIds.includes(launch.expectedSessionId),
-      `${session.client} trace did not preserve requested fresh session id ` +
-      launch.expectedSessionId);
-  }
-  return {
-    processResult: {
-      ...processResult,
-      // Raw stdout already lives byte-for-byte in the trace and would only
-      // bloat manifest.json. Keep exact stderr here because it has no other file.
-      stdout: undefined,
-      events: undefined
-    },
-    parsed,
-    invalidJsonLines: [...raw.invalid, ...processResult.invalidJsonLines],
-    modelRecord: {
-      client: session.client,
-      scenario: session.scenario,
-      client_version: clientVersion,
-      resolved_model: model,
-      primary_session_id: launch.expectedSessionId || parsed.sessionIds[0],
-      session_ids: parsed.sessionIds,
-      model_call_ids: parsed.modelCallIds,
-      model_selection: session.client === 'cursor' ? model : undefined,
-      reported_usage: parsed.reportedUsage,
-      source: session.client === 'codex'
-        ? 'codex-otel-conversation-start'
-        : session.client === 'cursor'
-          ? 'cursor-system-init-routing-identity'
-          : 'claude-assistant-model-no-override'
+    if (session.scenario === 'first-poke' && !pokeTriggered) {
+      throw new Error(
+        `${session.client} never established the delivery call needed to inject a real Poke`
+      );
     }
-  };
+    model = session.client === 'codex'
+      ? telemetryModel
+      : singleResolvedModel(parsed);
+    assert(parsed.sessionIds.length > 0,
+      `${session.client} stream-json trace did not expose a session/thread/chat id`);
+    if (launch.expectedSessionId) {
+      assert(parsed.sessionIds.includes(launch.expectedSessionId),
+        `${session.client} trace did not preserve requested fresh session id ` +
+        launch.expectedSessionId);
+    }
+    return agentResultRecord({
+      session,
+      clientVersion,
+      launch,
+      processResult,
+      raw,
+      parsed,
+      model
+    });
+  } catch (error) {
+    let failure = error && typeof error === 'object'
+      ? error
+      : new Error(String(error));
+    try {
+      await closeTelemetry();
+    } catch (closeError) {
+      failure = new AggregateError(
+        [failure, closeError],
+        `${session.key} and its Codex telemetry cleanup both failed`
+      );
+    }
+    failure.agentResult = agentResultRecord({
+      session,
+      clientVersion,
+      launch,
+      processResult,
+      raw,
+      parsed,
+      model: model || telemetryModel
+    });
+    throw failure;
+  }
 }
 
 export function executableFor(client) {

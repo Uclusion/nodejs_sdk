@@ -103,7 +103,11 @@ export async function runCapturedProcess({
   }
   const startedAt = new Date();
   if (tracePath) {
-    fs.writeFileSync(tracePath, '', { flag: appendTrace ? 'a' : 'w' });
+    fs.writeFileSync(tracePath, '', {
+      flag: appendTrace ? 'a' : 'w',
+      mode: 0o600
+    });
+    fs.chmodSync(tracePath, 0o600);
   }
   const child = spawnImpl(command, args, {
     cwd,

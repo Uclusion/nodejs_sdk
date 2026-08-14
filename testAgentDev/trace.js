@@ -479,6 +479,33 @@ function publicToolCall(call) {
   };
 }
 
+function successfulReadEvidence(structuredCalls) {
+  const readLikeNames = new Set([
+    'read',
+    'read_file',
+    'shell',
+    'bash',
+    'exec_command',
+    'command_execution'
+  ]);
+  return structuredCalls
+    .filter((call) => call.success === true &&
+      readLikeNames.has(String(call.name || '').toLowerCase()) &&
+      call.evidence.some((evidence) => typeof evidence.text === 'string'))
+    .map((call) => ({
+      name: call.name,
+      input: call.input,
+      eventIndex: call.eventIndex,
+      resultEventIndex: call.resultEventIndex,
+      fragments: call.evidence
+        .filter((evidence) => typeof evidence.text === 'string')
+        .map((evidence) => ({
+          eventIndex: evidence.eventIndex,
+          text: evidence.text
+        }))
+    }));
+}
+
 function extractReportedUsage(events, client) {
   if (client === 'claude') {
     const results = events.filter((event) =>
@@ -545,6 +572,10 @@ export function parseAgentTrace(events, expectedPoke = null, client) {
   return {
     events,
     toolCalls: structuredCalls.map(publicToolCall),
+    // Keep successful read output associated with its structural call only in
+    // memory. Artifact tool-call summaries intentionally remain compact; the
+    // raw JSONL trace already owns the byte transcript.
+    successfulReadEvidence: successfulReadEvidence(structuredCalls),
     models: metadata.models,
     sessionIds: metadata.sessionIds,
     modelCallIds: metadata.modelCallIds || [],

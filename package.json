@@ -31,6 +31,8 @@
     "testStage": "mocha --recursive testStage",
     "testProduction": "mocha --recursive testProduction",
     "testAgentDev": "node testAgentDev/run.js",
+    "testAgentDevSemantic": "node testAgentDev/run.js --catalog semantic",
+    "testAgentDevSemanticStandaloneBugConversion": "node testAgentDev/run.js --catalog semantic-standalone-bug-conversion",
     "testAgentDevUnit": "mocha --recursive testAgentDev/unit",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }

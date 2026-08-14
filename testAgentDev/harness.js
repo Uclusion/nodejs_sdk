@@ -216,7 +216,8 @@ export async function executeHarness({
     await fixtureFactory.close?.();
     fixtureFactory = null;
 
-    const allPassed = results.length === 9 && results.every((result) => result.status === 'passed');
+    const allPassed = results.length === matrix.length &&
+      results.every((result) => result.status === 'passed');
     if (allPassed) {
       const pins = pinDocument(runId, sourcePackage, preflightResults, results);
       store.validateTraces?.();
@@ -224,11 +225,12 @@ export async function executeHarness({
       store.assertNoSecrets?.();
       const ratcheted = ratchetIfAllPassed({
         results,
+        expectedCount: matrix.length,
         targetPath: store.pinsPath,
         pins,
         baselineBytes: store.baselinePinBytes
       });
-      assert.strictEqual(ratcheted, true, 'Nine passing sessions did not ratchet pins');
+      assert.strictEqual(ratcheted, true, 'Every planned passing session must ratchet pins');
       return { status: 'passed', results, preflight: preflightResults, store };
     }
 

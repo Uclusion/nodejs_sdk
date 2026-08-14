@@ -15,6 +15,7 @@ describe('agent dev last-known-good ratchet', () => {
     }));
     assert.strictEqual(ratchetIfAllPassed({
       results,
+      expectedCount: results.length,
       targetPath: target,
       pins: { baseline: false }
     }), false);
@@ -28,6 +29,7 @@ describe('agent dev last-known-good ratchet', () => {
     const pins = { schema_version: 1, source_run_id: 'successful-run' };
     assert.strictEqual(ratchetIfAllPassed({
       results: Array.from({ length: 9 }, () => ({ status: 'passed' })),
+      expectedCount: 9,
       targetPath: target,
       pins
     }), true);
@@ -53,6 +55,7 @@ describe('agent dev last-known-good ratchet', () => {
     fs.writeFileSync(target, baseline);
     assert.throws(() => ratchetIfAllPassed({
       results: Array.from({ length: 9 }, () => ({ status: 'passed' })),
+      expectedCount: 9,
       targetPath: target,
       pins: { baseline: false },
       baselineBytes: baseline,
