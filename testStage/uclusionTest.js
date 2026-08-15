@@ -66,7 +66,7 @@ describe('uclusion', () => {
   resolveNotificationsTest(adminConfiguration, userConfiguration);
   mcpVotingTest(adminConfiguration, userConfiguration);
   aiPokeTest(adminConfiguration);
-  notificationsMcpTest(adminConfiguration);
+  notificationsMcpTest(adminConfiguration, userConfiguration);
   viewNotesMcpTest(adminConfiguration);
   missingToolsMcpTest(adminConfiguration);
   shortCodeLinkTest(adminConfiguration);

@@ -9,7 +9,7 @@ import {
 } from '../src/utils.js';
 import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 
-export default function (adminConfiguration) {
+export default function (adminConfiguration, userConfiguration) {
   describe('#test notifications MCP integration', () => {
     let accountClient;
     let adminClient;
@@ -242,6 +242,89 @@ export default function (adminConfiguration) {
       } finally {
         await adminClient.markets.updateGroup(marketId, { ai_auto_take: false });
       }
+    }).timeout(600000);
+
+    it('serves view setup guidance once for a wizard-fresh workspace', async () => {
+      // T-all-2468: find_work tells the agent about connect-AI onboarding state instead of
+      // shipping the setup guidance statically and letting the agent guess. A fresh market
+      // keeps the work list empty so the directions path is exercised deterministically.
+      const result = await accountClient.markets.createMarket({
+        name: 'Find work directions',
+        market_type: 'PLANNING'
+      });
+      const freshMarketId = result.market.id;
+      await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
+      const freshLogin = await loginUserToMarketAndGetToken(adminConfiguration, freshMarketId);
+      const freshToken = await mcpLogin(adminConfiguration, freshLogin.client, freshMarketId);
+      // Reset the served marker so this test passes on reruns with the same user
+      const user = await accountClient.users.get();
+      const priorPreferences = user.ui_preferences ? JSON.parse(user.ui_preferences) : {};
+      delete priorPreferences.aiViewSetupGuidanceShown;
+      await accountClient.users.update({ uiPreferences: JSON.stringify(priorPreferences) });
+      // The AI user is created async on market creation, so retry until MCP works.
+      const pollFreshMcp = async (toolName, args) => {
+        for (let i = 0; i < 10; i += 1) {
+          try {
+            return await mcpCall(adminConfiguration, freshToken, toolName, args);
+          } catch (error) {
+            await sleep(3000);
+          }
+        }
+        return mcpCall(adminConfiguration, freshToken, toolName, args);
+      };
+      const first = parseMcpToolResult(await pollFreshMcp('find_work', {}));
+      assert(first.work_list.length === 0,
+        `Fresh market should have no work: ${JSON.stringify(first)}`);
+      assert(first.directions && first.directions.includes('Offer view and collaborator setup first'),
+        `First empty find_work should serve setup guidance: ${JSON.stringify(first.directions)}`);
+      const second = parseMcpToolResult(await pollFreshMcp('find_work', {}));
+      assert(second.directions, `Second find_work should still serve the tutorial: ${JSON.stringify(second)}`);
+      assert(!second.directions.includes('Offer view and collaborator setup first'),
+        `Second find_work should not repeat setup guidance: ${JSON.stringify(second.directions)}`);
+      // T-all-2469: the guidance promises agents can do the setup, so the tools must deliver
+      const viewAdded = await pollFreshMcp('add_view', { name: 'Engineering', group_type: 'TEAM' });
+      assert(viewAdded.includes('Added view Engineering'),
+        `add_view should create and confirm the view: ${viewAdded}`);
+      // T-all-2470: a later invited human can ask for their own single person view, so
+      // AUTONOMOUS must work and default the name to the requesting human's
+      const myViewAdded = await pollFreshMcp('add_view', { group_type: 'AUTONOMOUS' });
+      assert(myViewAdded.includes(`Added view ${user.name}`),
+        `add_view AUTONOMOUS should default to the user's name: ${myViewAdded}`);
+      const inviteLink = await pollFreshMcp('get_invite_link', {});
+      assert(inviteLink.includes('/invite/'),
+        `get_invite_link should return a shareable invite link: ${inviteLink}`);
+
+      // T-all-2470: a later invited human's first MCP contact gets the joined-workspace
+      // guidance offering their own single person view, also exactly once
+      if (!userConfiguration.idToken) {
+        userConfiguration.idToken = await loginUserToIdentity(userConfiguration);
+      }
+      await loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
+      const invitedMarketLogin = await loginUserToMarketAndGetToken(userConfiguration, freshMarketId);
+      const invitedAccountLogin = await loginUserToAccountAndGetToken(userConfiguration);
+      const invitedUser = await invitedAccountLogin.client.users.get();
+      const invitedPreferences = invitedUser.ui_preferences ? JSON.parse(invitedUser.ui_preferences) : {};
+      delete invitedPreferences.aiViewSetupGuidanceShown;
+      await invitedAccountLogin.client.users.update({ uiPreferences: JSON.stringify(invitedPreferences) });
+      const invitedToken = await mcpLogin(userConfiguration, invitedMarketLogin.client, freshMarketId);
+      const pollInvitedMcp = async (toolName, args) => {
+        for (let i = 0; i < 10; i += 1) {
+          try {
+            return await mcpCall(userConfiguration, invitedToken, toolName, args);
+          } catch (error) {
+            await sleep(3000);
+          }
+        }
+        return mcpCall(userConfiguration, invitedToken, toolName, args);
+      };
+      const joined = parseMcpToolResult(await pollInvitedMcp('find_work', {}));
+      assert(joined.directions && joined.directions.includes('Offer their own view first'),
+        `Invited user's first empty find_work should serve joined guidance: ${JSON.stringify(joined.directions)}`);
+      assert(!joined.directions.includes('Offer view and collaborator setup first'),
+        `Invited user should not get the creator guidance: ${JSON.stringify(joined.directions)}`);
+      const joinedAgain = parseMcpToolResult(await pollInvitedMcp('find_work', {}));
+      assert(joinedAgain.directions && !joinedAgain.directions.includes('Offer their own view first'),
+        `Second invited find_work should not repeat joined guidance: ${JSON.stringify(joinedAgain.directions)}`);
     }).timeout(600000);
 
     it('clears nothing for an object without notifications', async () => {
