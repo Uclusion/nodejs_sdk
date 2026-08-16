@@ -8,7 +8,9 @@ and `testProduction` and is not part of the backend blessing gate.
 
 `npm run testAgentDev` preserves the original behavior: it runs the nine live
 delivery/skill-trigger sessions (three scenarios across Claude, Codex, and
-Cursor).
+Cursor). The idle-find-work sessions also grade presentation: the agent's
+user-visible reply must pair the work item's short code with its description
+in one message, not show the short code alone.
 
 `npm run testAgentDevSemantic` runs only the Codex semantic catalog. It creates
 one UUID-marked `INTEGRATION_TEST` planning market and executes exactly three
@@ -31,6 +33,16 @@ input and without launching either authority phase. It retains the same source
 staging, credential isolation, strict transcript/state grading, artifact
 redaction, and guarded exact-market cleanup as the full semantic catalog.
 
+`npm run testAgentDevOnboarding` runs the codex onboarding catalog. It creates
+one UUID-marked `INTEGRATION_TEST` planning market that stays wizard-fresh,
+resets the one-time served-guidance marker on the primary identity, and
+executes exactly one `codex exec --ephemeral --json` process. That process
+must receive the served view and collaborator setup guidance from
+`find_work`, create the requested `Engineering` TEAM view exactly once, fetch
+an invite link, and hand that link to the human in its user-visible reply.
+The durable market state must show the created view afterward. The executable
+catalog is `onboardingScenarios.js` and its fixture is `onboardingFixture.js`.
+
 The executable catalog is `semanticScenarios.js`. There is deliberately no
 implicit `all` mode: choosing the semantic script does not rerun the nine
 transport sessions.
@@ -39,11 +51,15 @@ transport sessions.
 
 - `TEST_AGENT_DEV_WEB_UI_ROOT` points at the `uclusion_web_ui` checkout whose
   shipped resident stub, Uclusion skill, and references will be staged.
-- `UCLUSION_DEV_CREDENTIALS` supplies the primary DEV test identity as JSON
-  with `username` and `password` fields.
-- `UCLUSION_DEV_ADVISORY_CREDENTIALS` supplies a distinct non-primary DEV test
-  identity in the same JSON shape. Both humans join the one semantic market;
-  the job assignment remains owned by the primary identity.
+- The DEV Uclusion identities default to the checked-in test users in
+  `devIdentities.js`, the same plain-text identities the deterministic
+  suites commit in `testIntegration/uclusionTest.js`, so no Uclusion
+  credential input is required to run against dev. `UCLUSION_DEV_CREDENTIALS`
+  and `UCLUSION_DEV_ADVISORY_CREDENTIALS` remain optional JSON overrides with
+  `username` and `password` fields. Both humans join the one semantic market;
+  the job assignment remains owned by the primary identity. Only the semantic
+  catalogs use the advisory identity; the onboarding catalog needs just the
+  primary identity, Codex auth, and the AWS deletion permission.
 - `CODEX_API_KEY`/`OPENAI_API_KEY` must be available to the harness unless
   `TEST_AGENT_DEV_USE_LOCAL_AUTH=1` explicitly enables copying the current
   Codex `auth.json` into each isolated child HOME. Provider variables are
@@ -82,6 +98,11 @@ trace must prove that the Uclusion skill EOF sentinel loaded before its first
 Uclusion MCP call. No compact test-only workflow or instruction-size override
 is used.
 
+Every graded live phase, onboarding included, also enforces load economy: a
+short code's first `get_job` may take its whole scope, and any repeat load of
+the same code in one process must be scoped with `thread_only` or nonempty
+`sections` instead of pulling the whole job again.
+
 The trace contract follows the shipped compound-event routing. The
 advisory-only authority check and primary-answer continuation must first load
 the exact parent `Q-` from their `Responded O-… of Q-…` lines. The standalone-
@@ -98,7 +119,8 @@ vote before the primary-answer phase resolves the exact question and task.
 
 Trigger artifacts default to `testAgentDev/artifacts/`. Full semantic artifacts
 default to `testAgentDev/artifacts/semantic/`; targeted standalone-bug artifacts
-default to `testAgentDev/artifacts/semantic-standalone-bug-conversion/`. Each
+default to `testAgentDev/artifacts/semantic-standalone-bug-conversion/`;
+onboarding artifacts default to `testAgentDev/artifacts/onboarding/`. Each
 catalog records:
 
 - one raw JSONL event/tool transcript per process;

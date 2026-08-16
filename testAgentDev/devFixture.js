@@ -15,6 +15,7 @@ import {
 } from '../src/utils.js';
 import { WebSocketRunner } from '../src/WebSocketRunner.js';
 import { mcpCall, mcpLogin, pollFor } from '../tests/commonTestFunctions.js';
+import { DEV_PRIMARY_IDENTITY } from './devIdentities.js';
 import { stageSourcePackage } from './sourcePackage.js';
 
 const Amplify = awsAmplify.default;
@@ -94,8 +95,16 @@ function seedLocalClientAuth({ client, env, sessionHome, registerSensitiveValues
 
 export function parseDevCredentials(env = process.env) {
   const raw = env.UCLUSION_DEV_CREDENTIALS;
-  assert(raw?.trim(),
-    'UCLUSION_DEV_CREDENTIALS must be JSON with nonempty username and password fields');
+  if (!raw?.trim()) {
+    // The DEV-only Uclusion identity ships in the repo exactly like the
+    // deterministic suites' checked-in users; the environment variable is
+    // only an explicit override.
+    return {
+      raw: JSON.stringify(DEV_PRIMARY_IDENTITY),
+      username: DEV_PRIMARY_IDENTITY.username,
+      password: DEV_PRIMARY_IDENTITY.password
+    };
+  }
   let parsed;
   try {
     parsed = JSON.parse(raw);
@@ -599,6 +608,7 @@ export class DevFixtureFactory {
       job,
       reference,
       targetShortCode,
+      targetName: job.investible.name,
       fixtureRoot,
       workspace,
       sessionHome,

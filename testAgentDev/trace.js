@@ -150,7 +150,7 @@ function cursorCall(node) {
   };
 }
 
-function mcpResultTexts(content) {
+export function mcpResultTexts(content) {
   if (!Array.isArray(content)) {
     return [];
   }
@@ -553,6 +553,18 @@ export function parseAgentTrace(events, expectedPoke = null, client) {
       // and notification envelope. The initial prompt is deliberately
       // unrelated; the fixture has already observed both the dev send receipt
       // and proxy persistence, and the later exact get_job binds the target.
+      pokeEventIndexes.push(call.eventIndex);
+    }
+    if (
+      expectedPoke && ['read', 'read_file'].includes(String(call.name || '').toLowerCase()) &&
+      /(?:^|\/)skills\/uclusion\/SKILL\.md$/.test(
+        String(call.input?.file_path || call.input?.path || '')
+      )
+    ) {
+      // Project-scoped stubs direct a poke-triggered agent to Read the staged
+      // SKILL.md instead of invoking the native skill, and newer Claude
+      // streams hide the notification turn's prompt entirely. The same
+      // correlation rationale as the Skill mitigation above applies.
       pokeEventIndexes.push(call.eventIndex);
     }
     if (call.completeSkillRead) {

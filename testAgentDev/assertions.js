@@ -98,9 +98,13 @@ function assertDelivery(parsed, client, expectedCommand) {
   if (client === 'claude') {
     assert.strictEqual(delivery.input.persistent, true,
       'Claude Monitor must be persistent');
+    // TaskList, pgrep, and ps pipelines are all real listener prechecks;
+    // newer Claude builds defer TaskList, making shell process checks common.
+    // The uclusion pattern tolerates the grep self-exclusion idiom [u]clusion.
     const prechecks = parsed.toolCalls.filter((call) =>
       normalizedName(call) === 'tasklist' ||
-      (/pgrep/.test(commandOf(call)) && /uclusion/.test(commandOf(call))));
+      (/(?:pgrep|\bps\b)/.test(commandOf(call)) &&
+        /\[?u\]?clusion/i.test(commandOf(call))));
     assert(prechecks.length > 0, 'Claude must check for an existing listener before arming');
     assert(prechecks[0].eventIndex < delivery.eventIndex,
       'Claude listener precheck must happen before Monitor arming');
@@ -127,8 +131,37 @@ function uclusionToolName(call) {
   return null;
 }
 
+// Status probes answer through their exit codes: a bridge-presence check
+// exits nonzero when the bridge is absent, an ls of a possibly-missing
+// skills directory exits nonzero when it does not exist. Exempt failed calls
+// only when every command part is a pure existence/metadata probe.
+const PROBE_EXECUTABLES = new Set([
+  'ls', 'stat', 'wc', 'test', '[', '[[', 'exit', 'echo', 'printf',
+  'true', 'false', ':'
+]);
+
+function isReadOnlyStatusProbe(command) {
+  const body = command
+    .replace(/^\/bin\/(?:bash|sh|dash|zsh)\s+-l?c\s+/, '')
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\s\d?>>?\s*&?\S+/g, ' ');
+  const parts = body.split(/;|\n|&&|\|\|/).map((part) => part.trim()).filter(Boolean);
+  return parts.length > 0 && parts.every((part) => {
+    let stripped = part;
+    for (let pass = 0; pass < 3; pass += 1) {
+      stripped = stripped.replace(/^(?:if|then|else|elif|do)\s+/, '').trim();
+    }
+    if (['fi', 'done', 'if', 'then', 'else', ''].includes(stripped)) {
+      return true;
+    }
+    return PROBE_EXECUTABLES.has(stripped.split(/\s+/)[0]);
+  });
+}
+
 function assertReadOnlyTools(parsed) {
-  const unsuccessful = parsed.toolCalls.filter((call) => call.success !== true);
+  const unsuccessful = parsed.toolCalls.filter((call) => call.success !== true &&
+    !(['shell', 'bash', 'exec_command', 'command_execution'].includes(normalizedName(call)) &&
+      isReadOnlyStatusProbe(commandOf(call))));
   assert.deepStrictEqual(unsuccessful, [],
     `Trace contains failed or started-only tool calls: ${JSON.stringify(unsuccessful)}`);
   const mutating = parsed.toolCalls.filter((call) => {
@@ -149,10 +182,9 @@ function assertSkillBefore(parsed, beforeEventIndex, afterEventIndex = -1, clien
   const invocations = parsed.toolCalls.filter(skillCall);
   assert(invocations.length > 0, 'Trace must structurally show invocation/read of uclusion skill');
   const invocationIndex = Math.min(...invocations.map((call) => call.eventIndex));
-  const sameClaudeNativeEvent = client === 'claude' && invocationIndex === afterEventIndex &&
-    invocations.some((call) => call.eventIndex === invocationIndex &&
-      normalizedName(call) === 'skill' && call.success === true);
-  assert(invocationIndex > afterEventIndex || sameClaudeNativeEvent,
+  // The Poke marker may be the skill invocation itself when the stream hides
+  // the notification prompt, so equality counts as triggered-by.
+  assert(invocationIndex >= afterEventIndex,
     'Uclusion skill invocation must be triggered by or after the correlated Poke');
   assert(invocationIndex < beforeEventIndex,
     'Uclusion skill invocation must precede the Uclusion MCP operation');
@@ -182,12 +214,44 @@ function assertUnchangedState(before, after) {
     'Read/triage scenario changed the durable dev fixture unexpectedly');
 }
 
+// Text every client renders to the human: Claude and Cursor stream assistant
+// text blocks; Codex completes agent_message items.
+function userVisibleTexts(parsed) {
+  const texts = [];
+  for (const event of parsed.events || []) {
+    if (event?.type === 'assistant' && Array.isArray(event.message?.content)) {
+      for (const block of event.message.content) {
+        if (block?.type === 'text' && typeof block.text === 'string') {
+          texts.push(block.text);
+        }
+      }
+    }
+    if (event?.type === 'item.completed' && event.item?.type === 'agent_message' &&
+        typeof event.item.text === 'string') {
+      texts.push(event.item.text);
+    }
+  }
+  return texts;
+}
+
+function assertWorkPresentedWithNameAndCode(parsed, targetShortCode, targetName) {
+  assert(typeof targetName === 'string' && targetName.trim(),
+    'Idle find_work grading requires the exact fixture job name');
+  const texts = userVisibleTexts(parsed);
+  const paired = texts.filter((text) =>
+    text.includes(targetShortCode) && text.includes(targetName));
+  assert(paired.length > 0,
+    'The agent must present the find_work item to the human with both its short code ' +
+      `${targetShortCode} and its description in one message; saw ${JSON.stringify(texts)}`);
+}
+
 export function assertScenario({
   client,
   scenario,
   parsed,
   expectedCommand,
   targetShortCode,
+  targetName,
   stateBefore,
   stateAfter
 }) {
@@ -207,6 +271,7 @@ export function assertScenario({
     assert(delivery.eventIndex < calls[0].eventIndex,
       'Delivery setup must precede find_work');
     assertSkillBefore(parsed, calls[0].eventIndex, -1, client);
+    assertWorkPresentedWithNameAndCode(parsed, targetShortCode, targetName);
     assertUnchangedState(stateBefore, stateAfter);
     return;
   }

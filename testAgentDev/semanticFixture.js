@@ -19,25 +19,26 @@ import {
   deleteIntegrationTestMarket,
   parseDevCredentials
 } from './devFixture.js';
+import { DEV_ADVISORY_IDENTITY } from './devIdentities.js';
 import { stageSourcePackage } from './sourcePackage.js';
 
 const Amplify = awsAmplify.default;
-const DEV_ENDPOINTS = Object.freeze({
+export const DEV_ENDPOINTS = Object.freeze({
   baseURL: 'https://dev.api.uclusion.com/v1',
   websocketURL: 'wss://dev.ws.uclusion.com/v1'
 });
-const COGNITO = Object.freeze({
+export const COGNITO = Object.freeze({
   userPoolId: 'us-west-2_DF7pMdI6r',
   userPoolWebClientId: '375e3ronmppclr3onap4ndguvi',
   region: 'us-west-2'
 });
-const INTEGRATION_TEST_SUB_TYPE = 'INTEGRATION_TEST';
+export const INTEGRATION_TEST_SUB_TYPE = 'INTEGRATION_TEST';
 const ADVISORY_REPLY =
   '##### Advisory response from non-primary human: does not answer this question.';
 const ADVISORY_VOTE =
   '#### Advisory vote from non-primary human: does not answer this question.';
 
-function seedCodexAuth({ env, sessionHome, registerSensitiveValues }) {
+export function seedCodexAuth({ env, sessionHome, registerSensitiveValues }) {
   if (env.TEST_AGENT_DEV_USE_LOCAL_AUTH !== '1') {
     return;
   }
@@ -66,7 +67,7 @@ function seedCodexAuth({ env, sessionHome, registerSensitiveValues }) {
   registerSensitiveValues([authBytes, auth]);
 }
 
-async function pollMcp(configuration, token, name, args) {
+export async function pollMcp(configuration, token, name, args) {
   let lastError;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
@@ -141,7 +142,7 @@ function investibleReferences(versions, marketId) {
   });
 }
 
-function writeSessionState({ workspace, sessionHome, marketId, secret }) {
+export function writeSessionState({ workspace, sessionHome, marketId, secret }) {
   const uclusionHome = path.join(sessionHome, '.uclusion');
   fs.mkdirSync(uclusionHome, { recursive: true });
   fs.writeFileSync(path.join(uclusionHome, 'dev_credentials'),
@@ -161,8 +162,15 @@ function writeSessionState({ workspace, sessionHome, marketId, secret }) {
 
 export function parseAdvisoryDevCredentials(env = process.env) {
   const raw = env.UCLUSION_DEV_ADVISORY_CREDENTIALS;
-  assert(raw?.trim(),
-    'UCLUSION_DEV_ADVISORY_CREDENTIALS must be JSON with nonempty username and password fields');
+  if (!raw?.trim()) {
+    // The non-primary DEV identity ships in the repo like the deterministic
+    // suites' checked-in users; the environment variable is only an override.
+    return {
+      raw: JSON.stringify(DEV_ADVISORY_IDENTITY),
+      username: DEV_ADVISORY_IDENTITY.username,
+      password: DEV_ADVISORY_IDENTITY.password
+    };
+  }
   let parsed;
   try {
     parsed = JSON.parse(raw);

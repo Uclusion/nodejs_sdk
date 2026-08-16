@@ -7,10 +7,12 @@ import {
   buildSemanticPlan,
   buildStandaloneBugConversionPlan
 } from './semanticScenarios.js';
+import { buildOnboardingPlan } from './onboardingScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
-  'semantic-standalone-bug-conversion': buildStandaloneBugConversionPlan
+  'semantic-standalone-bug-conversion': buildStandaloneBugConversionPlan,
+  onboarding: buildOnboardingPlan
 });
 
 function selectedCatalog(argv) {
@@ -50,6 +52,12 @@ if (semanticCatalog) {
   options.catalog = catalog;
   options.sessions = plan;
   options.reportProgress = (message) => process.stdout.write(`${message}\n`);
+  if (catalog === 'onboarding') {
+    const { OnboardingDevFixture } = await import('./onboardingFixture.js');
+    options.dependencies = {
+      createFixture: (fixtureOptions) => new OnboardingDevFixture(fixtureOptions)
+    };
+  }
 }
 const result = semanticCatalog
   ? await (await import('./semanticHarness.js')).executeSemanticHarness(options)

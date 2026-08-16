@@ -1,6 +1,30 @@
 import assert from 'assert';
+import { ONBOARDING_VIEW_NAME } from './onboardingScenarios.js';
+import { mcpResultTexts } from './trace.js';
 
 export const MAX_CODEX_REPORTED_TOKENS = 500000;
+
+const ONBOARDING_GUIDANCE_MARKER = 'Offer view and collaborator setup first';
+
+function completedCodexItems(events) {
+  return (events || [])
+    .filter((event) => event?.type === 'item.completed' && event.item)
+    .map((event) => event.item);
+}
+
+function codexMcpResultTexts(events, tool) {
+  return completedCodexItems(events)
+    .filter((item) => ['mcp_tool_call', 'mcp_call'].includes(item.type))
+    .filter((item) =>
+      String(item.tool || item.tool_name || item.name || '').toLowerCase() === tool)
+    .flatMap((item) => mcpResultTexts(item.result?.content));
+}
+
+function codexUserVisibleTexts(events) {
+  return completedCodexItems(events)
+    .filter((item) => item.type === 'agent_message' && typeof item.text === 'string')
+    .map((item) => item.text);
+}
 
 function requiredTokenCount(usage, name) {
   const value = usage?.[name];
@@ -128,6 +152,14 @@ function splitUnquotedReadCommands(command) {
   let quote = null;
   let escaped = false;
   const text = String(command || '');
+  const pushPart = () => {
+    if (!part.trim()) {
+      return false;
+    }
+    parts.push(part.trim());
+    part = '';
+    return true;
+  };
   for (let index = 0; index < text.length; index += 1) {
     const character = text[index];
     if (escaped) {
@@ -145,13 +177,25 @@ function splitUnquotedReadCommands(command) {
       part += character;
       quote = character;
     } else if (character === '&' && text[index + 1] === '&') {
-      if (!part.trim()) {
+      if (!pushPart()) {
         return null;
       }
-      parts.push(part.trim());
-      part = '';
       index += 1;
-    } else if (/[;&|()<>\n]/.test(character)) {
+    } else if (character === ';') {
+      // Live agents chain read-only probes with ';' as readily as '&&';
+      // both separate whole commands. Reject ';;' and empty segments.
+      if (text[index + 1] === ';' || !pushPart()) {
+        return null;
+      }
+    } else if (character === '\n') {
+      // A newline separates commands like ';' but may also be blank.
+      if (part.trim()) {
+        parts.push(part.trim());
+        part = '';
+      } else {
+        part = '';
+      }
+    } else if (/[&|()<>]/.test(character)) {
       return null;
     } else if (character === '#' && (index === 0 || /\s/.test(text[index - 1]))) {
       return null;
@@ -159,11 +203,61 @@ function splitUnquotedReadCommands(command) {
       part += character;
     }
   }
-  if (quote !== null || escaped || !part.trim()) {
+  if (quote !== null || escaped) {
     return null;
   }
-  parts.push(part.trim());
-  return parts;
+  if (part.trim()) {
+    parts.push(part.trim());
+  }
+  return parts.length ? parts : null;
+}
+
+const SHELL_FLOW_KEYWORDS = ['if', 'then', 'else', 'elif', 'do'];
+const SHELL_FLOW_TERMINATORS = new Set(['fi', 'done']);
+
+// Strip leading flow keywords so `if [ ... ]` grades as its probe and bare
+// terminators grade as empty; unknown flow (while, for, case) stays intact
+// and fails closed downstream.
+function strippedFlowPart(part) {
+  let current = String(part || '').trim();
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const keyword of SHELL_FLOW_KEYWORDS) {
+      if (current === keyword) {
+        return '';
+      }
+      if (current.startsWith(`${keyword} `)) {
+        current = current.slice(keyword.length + 1).trim();
+        changed = true;
+      }
+    }
+  }
+  return SHELL_FLOW_TERMINATORS.has(current) ? '' : current;
+}
+
+// A compound read may include silent or short-output probes, such as the
+// bridge-presence check the stub itself requires, as long as no probe can
+// fabricate staged skill content into the credited output.
+function isHarmlessProbePart(part, expectedSkillContent) {
+  const tokens = shellTokens(part);
+  let index = 0;
+  while (index < tokens.length &&
+      /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[index])) {
+    index += 1;
+  }
+  const executable = normalizedPath(tokens[index]).split('/').at(-1);
+  if (['test', '['].includes(executable)) {
+    return true;
+  }
+  // printf and echo may emit their arguments; wc, stat, and ls emit counts,
+  // metadata, and names derived from their arguments. All are safe exactly
+  // when no argument token could reproduce staged skill content.
+  if (!['printf', 'echo', 'wc', 'stat', 'ls'].includes(executable)) {
+    return false;
+  }
+  return tokens.slice(index + 1).every((token) =>
+    token.length < 8 || !expectedSkillContent.includes(token));
 }
 
 function exactSkillPathReference(value, expectedSkillPath) {
@@ -208,9 +302,11 @@ function isSimpleExactSkillReadCommand(
         .split('/').at(-1);
       return SHELL_READERS.has(partExecutable);
     };
-    return parts.every((part) =>
-      reader(part) || isStaticBannerCommand(part, expectedSkillContent)) &&
-      parts.some((part) =>
+    const strippedParts = parts.map(strippedFlowPart).filter(Boolean);
+    return strippedParts.length > 0 && strippedParts.every((part) =>
+      reader(part) || isStaticBannerCommand(part, expectedSkillContent) ||
+        isHarmlessProbePart(part, expectedSkillContent)) &&
+      strippedParts.some((part) =>
         isSimpleExactSkillReadCommand(
           part,
           expectedSkillPath,
@@ -405,6 +501,24 @@ export function assertSemanticTranscript({
     'Semantic transcript contains a failed or incomplete Uclusion call');
   const semanticCalls = calls.filter((call) =>
     !WORKFLOW_AUDIT_TOOLS.has(semanticToolName(call)));
+  // T-all-2465: economical loading exists to prevent duplication. The first
+  // get_job of a short code may take its whole scope; any repeat load of the
+  // same code in one live process must be scoped with thread_only or
+  // nonempty sections instead of pulling the whole job again.
+  const unscopedLoads = new Map();
+  for (const call of semanticCalls.filter((entry) => semanticToolName(entry) === 'get_job')) {
+    const scoped = call.input?.thread_only === true ||
+      (Array.isArray(call.input?.sections) && call.input.sections.length > 0);
+    if (scoped) {
+      continue;
+    }
+    const code = call.input?.short_code_id;
+    const count = (unscopedLoads.get(code) || 0) + 1;
+    unscopedLoads.set(code, count);
+    assert(count <= 1,
+      `An item poke must not duplicate context: ${code} was fully loaded ` +
+        `${count} times in one live process`);
+  }
   // Treat every non-audit tool as state-changing unless it is explicitly
   // known to be read-only. This fails closed if the MCP surface grows.
   const mutations = semanticCalls.filter((call) =>
@@ -514,6 +628,39 @@ export function assertSemanticTranscript({
       questionCode: targets.bugQuestionCode,
       label: 'Standalone-bug conversion'
     });
+    return;
+  }
+
+  if (phase === 'onboarding') {
+    const findWorkCalls = semanticCalls.filter((call) =>
+      semanticToolName(call) === 'find_work');
+    assert(findWorkCalls.length > 0, 'Live onboarding must discover work through find_work');
+    const guidanceTexts = codexMcpResultTexts(parsed?.events, 'find_work');
+    assert(guidanceTexts.some((text) => text.includes(ONBOARDING_GUIDANCE_MARKER)),
+      'Live onboarding find_work must serve the wizard-fresh setup guidance markdown');
+    assert.deepStrictEqual(
+      mutations.map(semanticToolName).sort(),
+      ['add_view', 'get_invite_link'],
+      'Live onboarding must create exactly one view and fetch exactly one invite link'
+    );
+    const viewAdd = mutations.find((call) => semanticToolName(call) === 'add_view');
+    exactInput(viewAdd, { name: ONBOARDING_VIEW_NAME, group_type: 'TEAM' },
+      'Live onboarding view creation');
+    const inviteFetch = mutations.find((call) => semanticToolName(call) === 'get_invite_link');
+    const inviteInput = inviteFetch.input;
+    assert(inviteInput === undefined || inviteInput === null ||
+      (typeof inviteInput === 'object' && !Array.isArray(inviteInput) &&
+        Object.keys(inviteInput).length === 0),
+    'Live onboarding invite link fetch must not invent arguments');
+    assert(Math.min(...findWorkCalls.map((call) => call.resultEventIndex)) <
+      Math.min(...mutations.map((call) => call.eventIndex)),
+    'Live onboarding must receive the served guidance before performing setup');
+    const inviteTexts = codexMcpResultTexts(parsed?.events, 'get_invite_link');
+    assert(inviteTexts.some((text) => text.includes('/invite/')),
+      'Live onboarding get_invite_link must return a shareable invite link');
+    const visible = codexUserVisibleTexts(parsed?.events);
+    assert(visible.some((text) => text.includes('/invite/')),
+      'Live onboarding must hand the human the invite link in its user-visible reply');
     return;
   }
 

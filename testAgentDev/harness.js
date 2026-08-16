@@ -117,6 +117,7 @@ export async function executeHarness({
         store.startSession(session, {
           market_id: fixture.marketId,
           target_short_code: fixture.targetShortCode,
+          target_name: fixture.targetName,
           expected_cli_command: fixture.expectedCliCommand,
           staged_source: fixture.stagedSource
         });
@@ -153,6 +154,7 @@ export async function executeHarness({
           parsed: agentResult.parsed,
           expectedCommand: fixture.expectedCliCommand,
           targetShortCode: fixture.targetShortCode,
+          targetName: fixture.targetName,
           stateBefore,
           stateAfter
         });

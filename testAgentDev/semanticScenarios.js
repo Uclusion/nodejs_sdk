@@ -56,6 +56,11 @@ export function buildStandaloneBugConversionPlan() {
 }
 
 export function semanticPrompt(session, targets) {
+  if (!session.target) {
+    // Catalogs without a durable event target, like onboarding, ship their
+    // full prompt statically.
+    return session.prompt;
+  }
   const target = targets?.[session.target];
   if (typeof target !== 'string' || !target.trim()) {
     throw new Error(`${session.key} is missing exact target ${session.target}`);
