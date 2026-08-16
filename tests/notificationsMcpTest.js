@@ -7,7 +7,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, pollFor, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration, userConfiguration) {
   describe('#test notifications MCP integration', () => {
@@ -293,19 +293,50 @@ export default function (adminConfiguration, userConfiguration) {
       const inviteLink = await pollFreshMcp('get_invite_link', {});
       assert(inviteLink.includes('/invite/'),
         `get_invite_link should return a shareable invite link: ${inviteLink}`);
+      // J-all-401: the human can hand the agent email addresses instead of sharing a link,
+      // with optional placement into a view, matching the UI's Add collaborators action
+      const collaboratorAdd = await pollFreshMcp('add_collaborators', {
+        emails: [userConfiguration.username],
+        view: 'Engineering'
+      });
+      assert(collaboratorAdd.includes('Added 1 collaborator by email and placed in view Engineering'),
+        `add_collaborators should add by email into the view: ${collaboratorAdd}`);
+      const engineeringGroupId = (viewAdded.match(/\/dialog\/[^/]+\/([0-9a-f-]{36})/) || [])[1];
+      assert(engineeringGroupId, `add_view response should link the created view: ${viewAdded}`);
 
       // T-all-2470: a later invited human's first MCP contact gets the joined-workspace
-      // guidance offering their own single person view, also exactly once
+      // guidance offering their own single person view, also exactly once. The email add
+      // above is the join mechanism: no invite link is ever followed, and the Engineering
+      // membership assert below is attributable only to add_collaborators' view placement,
+      // since a same-account login alone never follows a user into a TEAM view.
       if (!userConfiguration.idToken) {
         userConfiguration.idToken = await loginUserToIdentity(userConfiguration);
       }
-      await loginUserToMarketInvite(userConfiguration, result.market.invite_capability);
-      const invitedMarketLogin = await loginUserToMarketAndGetToken(userConfiguration, freshMarketId);
-      const invitedAccountLogin = await loginUserToAccountAndGetToken(userConfiguration);
-      const invitedUser = await invitedAccountLogin.client.users.get();
-      const invitedPreferences = invitedUser.ui_preferences ? JSON.parse(invitedUser.ui_preferences) : {};
+      const invitedMarketLogin = await pollFor(
+        () => loginUserToMarketAndGetToken(userConfiguration, freshMarketId),
+        Boolean,
+        20,
+        3000
+      );
+      const invitedMarketUser = await invitedMarketLogin.client.users.get();
+      const engineeringMembers = await invitedMarketLogin.client.markets.listGroupMembers(
+        engineeringGroupId,
+        [{ id: invitedMarketUser.id, version: 1 }]
+      );
+      assert(engineeringMembers.some((member) =>
+        member.id === invitedMarketUser.id && !member.deleted),
+      `Email-added collaborator should be in the Engineering view: ${JSON.stringify(engineeringMembers)}`);
+      // Reset the served marker through the market-scoped client: the backend reads
+      // and writes the marker on the market user row, and the email add copies the
+      // account row's preferences when it creates that row, so an account-level
+      // reset done here would miss stale state on reruns with the same user.
+      const invitedPreferences = invitedMarketUser.ui_preferences
+        ? JSON.parse(invitedMarketUser.ui_preferences)
+        : {};
       delete invitedPreferences.aiViewSetupGuidanceShown;
-      await invitedAccountLogin.client.users.update({ uiPreferences: JSON.stringify(invitedPreferences) });
+      await invitedMarketLogin.client.users.update({
+        uiPreferences: JSON.stringify(invitedPreferences)
+      });
       const invitedToken = await mcpLogin(userConfiguration, invitedMarketLogin.client, freshMarketId);
       const pollInvitedMcp = async (toolName, args) => {
         for (let i = 0; i < 10; i += 1) {

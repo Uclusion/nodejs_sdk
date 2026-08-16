@@ -22,11 +22,15 @@ import {
   COGNITO,
   DEV_ENDPOINTS,
   INTEGRATION_TEST_SUB_TYPE,
+  parseAdvisoryDevCredentials,
   pollMcp,
   seedCodexAuth,
   writeSessionState
 } from './semanticFixture.js';
-import { ONBOARDING_VIEW_NAME } from './onboardingScenarios.js';
+import {
+  ONBOARDING_COLLABORATOR_EMAIL,
+  ONBOARDING_VIEW_NAME
+} from './onboardingScenarios.js';
 import { stageSourcePackage } from './sourcePackage.js';
 
 const Amplify = awsAmplify.default;
@@ -72,6 +76,20 @@ export class OnboardingDevFixture {
       username: primary.username, password: primary.password };
     this.configuration.idToken = await loginUserToIdentity(this.configuration);
     this.registerSensitiveValues([this.configuration.idToken]);
+    // S-all-244: the live scenario adds this identity by email. Market
+    // membership is proven by the capability count alone because same-account
+    // logins prove nothing and could create the capability under test; the
+    // fixture logs in as the identity only after the count already rose, and
+    // only to learn its user id for the id-addressed group membership read.
+    // The username is checked-in public data that appears in the prompt, so
+    // it must not be registered for redaction.
+    const advisory = parseAdvisoryDevCredentials(this.env);
+    assert.strictEqual(advisory.username.toLowerCase(),
+      ONBOARDING_COLLABORATOR_EMAIL.toLowerCase(),
+      'Onboarding collaborator email must match the advisory identity the prompt names');
+    this.registerSensitiveValues([advisory.raw, advisory.password]);
+    this.advisoryConfiguration = { ...DEV_ENDPOINTS,
+      username: advisory.username, password: advisory.password };
     const accountLogin = await loginUserToAccountAndGetToken(this.configuration);
     this.accountClient = accountLogin.client;
     this.accountToken = accountLogin.accountToken;
@@ -90,6 +108,7 @@ export class OnboardingDevFixture {
     await loginUserToMarketInvite(this.configuration, marketResult.market.invite_capability);
     const marketLogin = await loginUserToMarketAndGetToken(this.configuration, this.marketId);
     this.adminClient = marketLogin.client;
+    this.adminId = (await this.adminClient.users.get()).id;
     this.registerSensitiveValues([marketLogin.marketToken]);
     this.uclusionToken = await mcpLogin(this.configuration, this.adminClient, this.marketId);
     this.registerSensitiveValues([this.uclusionToken]);
@@ -127,6 +146,8 @@ export class OnboardingDevFixture {
     const ready = await this.snapshotSemantic();
     assert(!ready.group_names.includes(ONBOARDING_VIEW_NAME),
       `Onboarding market unexpectedly already has a ${ONBOARDING_VIEW_NAME} view`);
+    assert.strictEqual(ready.capability_count, 2,
+      'Onboarding market must start with only the primary human and the planning AI');
   }
 
   targets() {
@@ -147,9 +168,40 @@ export class OnboardingDevFixture {
     const groups = references.length
       ? await this.adminClient.markets.listGroups(references)
       : [];
+    const capabilities = canonicalMarketSignature(versions, this.marketId)
+      .find((signature) => signature.type === 'market_capability');
+    const capabilityCount = (capabilities?.object_versions || []).length;
+    // The market is hermetic: the third capability can only come from the
+    // graded add_collaborators call, and only its view placement can put the
+    // advisory identity in the Engineering view. The group membership read is
+    // id-addressed, so it needs the advisory user id, learned by a login that
+    // happens strictly after the capability count already rose.
+    let advisoryPlaced = false;
+    const engineering = groups.find((group) => group.name === ONBOARDING_VIEW_NAME);
+    if (engineering && capabilityCount >= 3) {
+      if (!this.advisoryUserId) {
+        this.advisoryConfiguration.idToken = this.advisoryConfiguration.idToken ||
+          await loginUserToIdentity(this.advisoryConfiguration);
+        this.registerSensitiveValues([this.advisoryConfiguration.idToken]);
+        const advisoryLogin = await loginUserToMarketAndGetToken(
+          this.advisoryConfiguration,
+          this.marketId
+        );
+        this.registerSensitiveValues([advisoryLogin.marketToken]);
+        this.advisoryUserId = (await advisoryLogin.client.users.get()).id;
+      }
+      const members = await this.adminClient.markets.listGroupMembers(
+        engineering.id,
+        [{ id: this.advisoryUserId, version: 1 }]
+      );
+      advisoryPlaced = members.some((member) =>
+        member.id === this.advisoryUserId && !member.deleted);
+    }
     return {
       market_id: this.marketId,
-      group_names: groups.map((group) => group.name).sort()
+      group_names: groups.map((group) => group.name).sort(),
+      capability_count: capabilityCount,
+      advisory_placed: advisoryPlaced
     };
   }
 
@@ -157,9 +209,10 @@ export class OnboardingDevFixture {
     assert.strictEqual(phase, 'onboarding', `Unknown onboarding fixture phase ${phase}`);
     return pollFor(
       () => this.snapshotSemantic(),
-      (state) => state.group_names.includes(ONBOARDING_VIEW_NAME),
+      (state) => state.group_names.includes(ONBOARDING_VIEW_NAME) &&
+        state.capability_count >= 3 && state.advisory_placed,
       20,
-      1000
+      3000
     );
   }
 
@@ -167,8 +220,14 @@ export class OnboardingDevFixture {
     assert.strictEqual(phase, 'onboarding', `Unknown onboarding assertion phase ${phase}`);
     assert(!before.group_names.includes(ONBOARDING_VIEW_NAME),
       'Live onboarding must begin before the requested view exists');
+    assert.strictEqual(before.capability_count, 2,
+      'Live onboarding must begin with only the primary human and the planning AI');
     assert(after.group_names.includes(ONBOARDING_VIEW_NAME),
       `Live onboarding must durably create the ${ONBOARDING_VIEW_NAME} view`);
+    assert(after.capability_count >= 3,
+      'Live onboarding must durably add the collaborator to the workspace by email');
+    assert(after.advisory_placed,
+      `Live onboarding must durably place the collaborator in the ${ONBOARDING_VIEW_NAME} view`);
   }
 
   async preparePhase(session) {

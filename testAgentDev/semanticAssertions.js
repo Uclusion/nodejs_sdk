@@ -1,5 +1,8 @@
 import assert from 'assert';
-import { ONBOARDING_VIEW_NAME } from './onboardingScenarios.js';
+import {
+  ONBOARDING_COLLABORATOR_EMAIL,
+  ONBOARDING_VIEW_NAME
+} from './onboardingScenarios.js';
 import { mcpResultTexts } from './trace.js';
 
 export const MAX_CODEX_REPORTED_TOKENS = 500000;
@@ -640,12 +643,20 @@ export function assertSemanticTranscript({
       'Live onboarding find_work must serve the wizard-fresh setup guidance markdown');
     assert.deepStrictEqual(
       mutations.map(semanticToolName).sort(),
-      ['add_view', 'get_invite_link'],
-      'Live onboarding must create exactly one view and fetch exactly one invite link'
+      ['add_collaborators', 'add_view', 'get_invite_link'],
+      'Live onboarding must create one view, add one collaborator, and fetch one invite link'
     );
     const viewAdd = mutations.find((call) => semanticToolName(call) === 'add_view');
     exactInput(viewAdd, { name: ONBOARDING_VIEW_NAME, group_type: 'TEAM' },
       'Live onboarding view creation');
+    const collaboratorAdd = mutations.find((call) =>
+      semanticToolName(call) === 'add_collaborators');
+    exactInput(collaboratorAdd, {
+      emails: [ONBOARDING_COLLABORATOR_EMAIL],
+      view: ONBOARDING_VIEW_NAME
+    }, 'Live onboarding collaborator add');
+    assert(viewAdd.resultEventIndex < collaboratorAdd.eventIndex,
+      'Live onboarding must create the view before placing the collaborator in it');
     const inviteFetch = mutations.find((call) => semanticToolName(call) === 'get_invite_link');
     const inviteInput = inviteFetch.input;
     assert(inviteInput === undefined || inviteInput === null ||

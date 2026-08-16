@@ -38,10 +38,14 @@ one UUID-marked `INTEGRATION_TEST` planning market that stays wizard-fresh,
 resets the one-time served-guidance marker on the primary identity, and
 executes exactly one `codex exec --ephemeral --json` process. That process
 must receive the served view and collaborator setup guidance from
-`find_work`, create the requested `Engineering` TEAM view exactly once, fetch
-an invite link, and hand that link to the human in its user-visible reply.
-The durable market state must show the created view afterward. The executable
-catalog is `onboardingScenarios.js` and its fixture is `onboardingFixture.js`.
+`find_work`, create the requested `Engineering` TEAM view exactly once, add
+the checked-in secondary identity by email into that view with
+`add_collaborators` exactly once, fetch an invite link, and hand that link to
+the human in its user-visible reply. The durable market state must show the
+created view afterward, and the fixture proves the collaborator add by
+logging in as the secondary identity and checking its Engineering view
+membership. The executable catalog is `onboardingScenarios.js` and its
+fixture is `onboardingFixture.js`.
 
 The executable catalog is `semanticScenarios.js`. There is deliberately no
 implicit `all` mode: choosing the semantic script does not rerun the nine
@@ -57,9 +61,9 @@ transport sessions.
   credential input is required to run against dev. `UCLUSION_DEV_CREDENTIALS`
   and `UCLUSION_DEV_ADVISORY_CREDENTIALS` remain optional JSON overrides with
   `username` and `password` fields. Both humans join the one semantic market;
-  the job assignment remains owned by the primary identity. Only the semantic
-  catalogs use the advisory identity; the onboarding catalog needs just the
-  primary identity, Codex auth, and the AWS deletion permission.
+  the job assignment remains owned by the primary identity. The semantic
+  catalogs join it as a second human; the onboarding catalog uses it as the
+  email-added collaborator and logs in as it to prove durable membership.
 - `CODEX_API_KEY`/`OPENAI_API_KEY` must be available to the harness unless
   `TEST_AGENT_DEV_USE_LOCAL_AUTH=1` explicitly enables copying the current
   Codex `auth.json` into each isolated child HOME. Provider variables are
