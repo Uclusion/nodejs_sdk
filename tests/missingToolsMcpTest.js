@@ -359,13 +359,16 @@ export default function (adminConfiguration) {
       const addedBug = await pollMcp('add_bug', { bug: bugMarker, severity: 'BLUE' });
       const bugCode = extractShortCode(addedBug);
 
-      await assert.rejects(
-        () => mcpCall(adminConfiguration, uclusionToken, 'ask_question', {
-          job_id: bugCode,
-          question: `How can the bug be reproduced ${marker}?`
-        }),
-        /status 400/,
-        'ask_question should reject bug conversion without answer options');
+      // S-all-251: business-rule refusals now arrive as descriptive tool
+      // errors instead of bare HTTP statuses, so the agent can self-correct.
+      const refusal = await mcpCall(adminConfiguration, uclusionToken, 'ask_question', {
+        job_id: bugCode,
+        question: `How can the bug be reproduced ${marker}?`
+      });
+      assert(refusal.includes('"isError":true'),
+        `ask_question without options should refuse as a tool error: ${refusal}`);
+      assert(refusal.includes('ask_question was refused'),
+        `The refusal should name the refused tool: ${refusal}`);
 
       const replyMarker = `Please provide the exact reproduction steps ${marker}.`;
       const replied = await pollMcp('add_info', {

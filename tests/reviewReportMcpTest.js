@@ -148,10 +148,16 @@ export default function (adminConfiguration) {
       });
       assert(reviewResult.includes('Added report with id'),
         `MCP ask_for_review response wrong: ${reviewResult}`);
+      // ask_for_review files the report; moving a human-assigned job into
+      // review is the human's explicit action, mirroring the UI's All Done.
+      await adminClient.investibles.stateChange(job.investible.id, {
+        current_stage_id: stagesByName.Doable.id,
+        stage_id: stagesByName.Reviewable.id
+      });
       const reviewableStage = await pollFor(currentStageId,
         (stage) => stage === stagesByName.Reviewable.id);
       assert.strictEqual(reviewableStage, stagesByName.Reviewable.id,
-        'ask_for_review should move the job to Reviewable');
+        'The human move should put the job in Reviewable');
       const report = await findCommentByMarker(reportMarker);
       assert(report?.ticket_code, 'The review report should be durable with a short code');
       assert.notStrictEqual(report.resolved, true, 'A fresh report must be open');
