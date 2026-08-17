@@ -15,6 +15,7 @@ import conversionsTest from '../tests/conversionsTest.js';
 import resolveNotificationsTest from '../tests/resolveNotificationsTest.js';
 import mcpVotingTest from '../tests/mcpVotingTest.js';
 import aiPokeTest from '../tests/aiPokeTest.js';
+import workClaimTest from '../tests/workClaimTest.js';
 import notificationsMcpTest from '../tests/notificationsMcpTest.js';
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import missingToolsMcpTest from '../tests/missingToolsMcpTest.js';
@@ -66,6 +67,7 @@ describe('uclusion', () => {
   resolveNotificationsTest(adminConfiguration, userConfiguration);
   mcpVotingTest(adminConfiguration, userConfiguration);
   aiPokeTest(adminConfiguration);
+  workClaimTest(adminConfiguration);
   notificationsMcpTest(adminConfiguration, userConfiguration);
   viewNotesMcpTest(adminConfiguration);
   missingToolsMcpTest(adminConfiguration);

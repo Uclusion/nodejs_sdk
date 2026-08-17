@@ -41,11 +41,15 @@ class WebSocketRunner {
      * subscriptions is an object of a form similar to
      * @param idToken the identity token to subscribe to
      * @param isAI whether to subscribe to the token's market as an AI client
+     * @param ownedShortCodeIds optional work claim short codes to re-bind to this connection
      */
-    subscribe(idToken, isAI = false) {
+    subscribe(idToken, isAI = false, ownedShortCodeIds = undefined) {
         const action = { action: 'subscribe', identity : idToken };
         if (isAI) {
             action.is_ai = true;
+        }
+        if (ownedShortCodeIds && ownedShortCodeIds.length > 0) {
+            action.owned_short_code_ids = ownedShortCodeIds;
         }
         // push the action onto the subscribe queue so if we reconnect we'll track it
         this.subscribeQueue.push(action);
@@ -155,6 +159,24 @@ class WebSocketRunner {
 
     pokeAI(idToken, message) {
         this.send({ action: 'poke_ai', identity: idToken, message });
+    }
+
+    claimWork(idToken, operation, shortCodeId, messageId, expirySeconds = undefined) {
+        const action = {
+            action: 'claim_work',
+            identity: idToken,
+            operation,
+            message_id: messageId
+        };
+        if (Array.isArray(shortCodeId)) {
+            action.short_code_ids = shortCodeId;
+        } else if (shortCodeId !== undefined) {
+            action.short_code_id = shortCodeId;
+        }
+        if (expirySeconds !== undefined) {
+            action.expiry_seconds = expirySeconds;
+        }
+        this.send(action);
     }
 
     /** Waits for a received message matching the signature passed in
