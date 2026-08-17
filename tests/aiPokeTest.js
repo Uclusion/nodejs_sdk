@@ -232,7 +232,7 @@ export default function (adminConfiguration) {
       assertPokeEnvelope(received);
     }).timeout(180000);
 
-    it('should emit exactly one correlated Responded poke when the last Unresponded item is cleared', async () => {
+    it('should emit one compound Responded poke when the last open assistance is answered', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -264,21 +264,31 @@ export default function (adminConfiguration) {
       assert.deepStrictEqual(openAssistance.map((comment) => comment.id), [question.id],
         'Fresh job should contain exactly one Unresponded assistance item before the reply');
 
-      const respondedSignature = {
-        event_type: 'poke_ai',
-        message: `Responded ${jobTicketCode}`
-      };
-      const respondedPromise = aiWebSocketRunner.waitForReceivedMessage(
-        respondedSignature, MESSAGE_TIMEOUT_MS);
+      const answerMarker = `Human reply clearing the final open assistance ${marker}.`;
       await adminClient.investibles.createComment(
         job.investible.id,
         marketId,
-        `Human reply clearing the final Unresponded item ${marker}.`,
+        answerMarker,
         question.id
       );
-      const responded = await respondedPromise;
+      const answer = await findCommentByMarker(adminClient, marketId, answerMarker);
+      assert(answer?.ticket_code, 'The answering reply should have a ticket code');
+      // Q-all-443: the answer that clears the last open assistance carries its
+      // own compound identity like every other response; the former bare job
+      // form was a computed backend rule that was never asked for.
+      const respondedSignature = {
+        event_type: 'poke_ai',
+        message: `Responded ${answer.ticket_code} of ${jobTicketCode}`
+      };
+      const responded = await aiWebSocketRunner.waitForReceivedMessage(
+        respondedSignature, MESSAGE_TIMEOUT_MS);
       assertPokeEnvelope(responded);
 
+      await assertNoPoke(
+        { event_type: 'poke_ai', message: `Responded ${jobTicketCode}` },
+        BASELINE_QUIET_WINDOW_MS,
+        'The removed bare job-identity transition must not be delivered'
+      );
       await assert.rejects(
         aiWebSocketRunner.waitForReceivedMessage(
           respondedSignature, DUPLICATE_QUIET_WINDOW_MS),
@@ -336,19 +346,30 @@ export default function (adminConfiguration) {
       await assertNoPoke(
         { event_type: 'poke_ai', message: `Responded ${jobTicketCode}` },
         BASELINE_QUIET_WINDOW_MS,
-        'The job-unblocking target must wait for the second answer'
+        'No bare job-identity Responded exists under the compound contract'
       );
 
-      const jobRespondedPromise = aiWebSocketRunner.waitForReceivedMessage(
-        { event_type: 'poke_ai', message: `Responded ${jobTicketCode}` },
-        MESSAGE_TIMEOUT_MS);
+      // Q-all-443: the answer clearing the last open question is compound like
+      // every other response; the former bare job form was removed.
+      const secondReplyMarker = `Answer to the second question ${marker}.`;
       await adminClient.investibles.createComment(
         job.investible.id,
         marketId,
-        `Answer to the second question ${marker}.`,
+        secondReplyMarker,
         secondQuestion.id
       );
-      assertPokeEnvelope(await jobRespondedPromise);
+      const secondReply = await findCommentByMarker(adminClient, marketId, secondReplyMarker);
+      assert(secondReply?.ticket_code, 'Second answer should have a ticket code');
+      const secondResponded = await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Responded ${secondReply.ticket_code} of ${jobTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+      assertPokeEnvelope(secondResponded);
+      await assertNoPoke(
+        { event_type: 'poke_ai', message: `Responded ${jobTicketCode}` },
+        BASELINE_QUIET_WINDOW_MS,
+        'The removed bare job-identity transition must not be delivered'
+      );
 
       // B-all-554: the first question already sits Responded, so the old flip
       // gate would swallow this follow-up answer entirely.
@@ -434,30 +455,39 @@ export default function (adminConfiguration) {
       const reopenPoke = await reopenPromise;
       assertPokeEnvelope(reopenPoke);
 
-      const replyPromise = aiWebSocketRunner.waitForReceivedMessage(
-        respondedSignature, MESSAGE_TIMEOUT_MS);
+      // S-all-252: view-level replies carry their own compound identity, and
+      // every consecutive human reply pokes - turn chronology left the backend.
+      const firstDirectionMarker = `Also do X after reopen ${marker}`;
       await adminClient.investibles.createComment(
         undefined,
         marketId,
-        `Also do X after reopen ${marker}`,
+        firstDirectionMarker,
         persistedBug.id
       );
-      const replyPoke = await replyPromise;
+      const firstDirection = await findCommentByMarker(
+        adminClient, marketId, firstDirectionMarker);
+      assert(firstDirection?.ticket_code, 'Reply after reopen should have a ticket code');
+      const replyPoke = await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Responded ${firstDirection.ticket_code} of ${bugTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
       assertPokeEnvelope(replyPoke);
 
-      const secondReplyPromise = aiWebSocketRunner.waitForReceivedMessage(
-        respondedSignature, DUPLICATE_QUIET_WINDOW_MS);
+      const secondDirectionMarker = `Even more direction after reopen ${marker}`;
       await adminClient.investibles.createComment(
         undefined,
         marketId,
-        `Even more direction after reopen ${marker}`,
+        secondDirectionMarker,
         persistedBug.id
       );
-      await assert.rejects(
-        secondReplyPromise,
-        (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
-        'A second consecutive human reply after reopen should stay silent until AI acts'
-      );
+      const secondDirection = await findCommentByMarker(
+        adminClient, marketId, secondDirectionMarker);
+      assert(secondDirection?.ticket_code, 'Second reply after reopen should have a ticket code');
+      const secondReplyPoke = await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Responded ${secondDirection.ticket_code} of ${bugTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+      assertPokeEnvelope(secondReplyPoke);
     }).timeout(360000);
 
     it('should emit one compound Responded poke for a human question inside an AI option', async () => {
