@@ -9,6 +9,7 @@ import {
 } from './semanticScenarios.js';
 import { buildOnboardingPlan } from './onboardingScenarios.js';
 import { buildWorkClaimsPlan } from './workClaimsScenarios.js';
+import { buildQuestionGatePlan } from './questionGateScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
@@ -16,11 +17,13 @@ const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   onboarding: buildOnboardingPlan
 });
 const WORK_CLAIMS_CATALOG = 'work-claims';
+const QUESTION_GATE_CATALOG = 'question-gate';
 
 function selectedCatalog(argv) {
   const index = argv.indexOf('--catalog');
   const catalog = index === -1 ? 'triggers' : argv[index + 1];
   if (catalog !== 'triggers' && catalog !== WORK_CLAIMS_CATALOG &&
+      catalog !== QUESTION_GATE_CATALOG &&
       !Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog)) {
     throw new Error(`Unknown agent dev catalog ${catalog || '(missing)'}`);
   }
@@ -31,7 +34,8 @@ const directory = path.dirname(fileURLToPath(import.meta.url));
 const catalog = selectedCatalog(process.argv.slice(2));
 const semanticCatalog = Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog);
 const workClaimsCatalog = catalog === WORK_CLAIMS_CATALOG;
-const defaultArtifactDir = semanticCatalog || workClaimsCatalog
+const questionGateCatalog = catalog === QUESTION_GATE_CATALOG;
+const defaultArtifactDir = semanticCatalog || workClaimsCatalog || questionGateCatalog
   ? path.join(directory, 'artifacts', catalog)
   : path.join(directory, 'artifacts');
 const artifactDir = path.resolve(
@@ -49,12 +53,25 @@ const options = {
   seedPinsPath: path.join(directory, 'last-known-good.json'),
   webUiRoot: path.resolve(webUiRoot)
 };
-const plan = semanticCatalog
+let plan = semanticCatalog
   ? SEMANTIC_PLAN_BUILDERS[catalog]()
   : workClaimsCatalog
     ? buildWorkClaimsPlan()
-    : buildSessionMatrix();
-if (semanticCatalog || workClaimsCatalog) {
+    : questionGateCatalog
+      ? buildQuestionGatePlan()
+      : buildSessionMatrix();
+// --phase <name> narrows a multi-tier catalog to one phase so a fixed tier
+// can re-verify without re-paying for tiers that already passed.
+const phaseIndex = process.argv.indexOf('--phase');
+if (phaseIndex !== -1) {
+  const phase = process.argv[phaseIndex + 1];
+  const narrowed = plan.filter((session) => session.phase === phase);
+  if (!narrowed.length) {
+    throw new Error(`No ${catalog} session has phase ${phase || '(missing)'}`);
+  }
+  plan = narrowed;
+}
+if (semanticCatalog || workClaimsCatalog || questionGateCatalog) {
   options.catalog = catalog;
   options.sessions = plan;
   options.reportProgress = (message) => process.stdout.write(`${message}\n`);
@@ -69,9 +86,11 @@ const result = semanticCatalog
   ? await (await import('./semanticHarness.js')).executeSemanticHarness(options)
   : workClaimsCatalog
     ? await (await import('./workClaimsHarness.js')).executeWorkClaimsHarness(options)
-    : await executeHarness(options);
+    : questionGateCatalog
+      ? await (await import('./questionGateHarness.js')).executeQuestionGateHarness(options)
+      : await executeHarness(options);
 const passed = result.results.filter((entry) => entry.status === 'passed').length;
-const summary = semanticCatalog || workClaimsCatalog
+const summary = semanticCatalog || workClaimsCatalog || questionGateCatalog
   ? `Agent dev ${catalog} catalog ${result.status}: ` +
     `${passed}/${plan.length} live phases passed. Artifacts: ${artifactDir}\n`
   : `Agent dev gate ${result.status}: ${passed}/9 sessions passed. ` +

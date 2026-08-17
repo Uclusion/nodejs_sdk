@@ -35,6 +35,7 @@
     "testAgentDevSemanticStandaloneBugConversion": "node testAgentDev/run.js --catalog semantic-standalone-bug-conversion",
     "testAgentDevOnboarding": "node testAgentDev/run.js --catalog onboarding",
     "testAgentDevWorkClaims": "node testAgentDev/run.js --catalog work-claims",
+    "testAgentDevQuestionGate": "node testAgentDev/run.js --catalog question-gate",
     "testAgentDevUnit": "mocha --recursive testAgentDev/unit",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }

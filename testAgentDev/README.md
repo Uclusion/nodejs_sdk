@@ -63,6 +63,19 @@ exactly once. The pass depends on both racers overlapping in time, which the
 simultaneous launch makes likely. The harness is `workClaimsHarness.js` with
 its fixture in `workClaimsFixture.js` and grading in `workClaimsAssertions.js`.
 
+`npm run testAgentDevQuestionGate` runs the design disclosure gate catalog. It
+creates one UUID-marked `INTEGRATION_TEST` planning market whose view opts into
+auto-take, plants a single Doable job whose description embeds two
+reviewer-divergent forks (storage: LMDB or SQLite; refresh: manual or
+automatic) with a single completion task, and launches one
+`codex exec --ephemeral --json` process with an idle prompt that never mentions
+disclosure or questions. Grading is durable-state based: the job must end in
+Requires Input with the task untouched and no review requested, a design
+disclosure note must exist naming both forks, exactly two AI questions must
+exist whose options cover both alternatives of each fork, and each question
+must carry the AI's own vote. The harness is `questionGateHarness.js` with its
+fixture in `questionGateFixture.js`.
+
 The executable catalog is `semanticScenarios.js`. There is deliberately no
 implicit `all` mode: choosing the semantic script does not rerun the nine
 transport sessions.
