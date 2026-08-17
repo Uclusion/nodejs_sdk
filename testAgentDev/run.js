@@ -8,17 +8,20 @@ import {
   buildStandaloneBugConversionPlan
 } from './semanticScenarios.js';
 import { buildOnboardingPlan } from './onboardingScenarios.js';
+import { buildWorkClaimsPlan } from './workClaimsScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
   'semantic-standalone-bug-conversion': buildStandaloneBugConversionPlan,
   onboarding: buildOnboardingPlan
 });
+const WORK_CLAIMS_CATALOG = 'work-claims';
 
 function selectedCatalog(argv) {
   const index = argv.indexOf('--catalog');
   const catalog = index === -1 ? 'triggers' : argv[index + 1];
-  if (catalog !== 'triggers' && !Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog)) {
+  if (catalog !== 'triggers' && catalog !== WORK_CLAIMS_CATALOG &&
+      !Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog)) {
     throw new Error(`Unknown agent dev catalog ${catalog || '(missing)'}`);
   }
   return catalog;
@@ -27,7 +30,8 @@ function selectedCatalog(argv) {
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const catalog = selectedCatalog(process.argv.slice(2));
 const semanticCatalog = Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog);
-const defaultArtifactDir = semanticCatalog
+const workClaimsCatalog = catalog === WORK_CLAIMS_CATALOG;
+const defaultArtifactDir = semanticCatalog || workClaimsCatalog
   ? path.join(directory, 'artifacts', catalog)
   : path.join(directory, 'artifacts');
 const artifactDir = path.resolve(
@@ -47,8 +51,10 @@ const options = {
 };
 const plan = semanticCatalog
   ? SEMANTIC_PLAN_BUILDERS[catalog]()
-  : buildSessionMatrix();
-if (semanticCatalog) {
+  : workClaimsCatalog
+    ? buildWorkClaimsPlan()
+    : buildSessionMatrix();
+if (semanticCatalog || workClaimsCatalog) {
   options.catalog = catalog;
   options.sessions = plan;
   options.reportProgress = (message) => process.stdout.write(`${message}\n`);
@@ -61,9 +67,11 @@ if (semanticCatalog) {
 }
 const result = semanticCatalog
   ? await (await import('./semanticHarness.js')).executeSemanticHarness(options)
-  : await executeHarness(options);
+  : workClaimsCatalog
+    ? await (await import('./workClaimsHarness.js')).executeWorkClaimsHarness(options)
+    : await executeHarness(options);
 const passed = result.results.filter((entry) => entry.status === 'passed').length;
-const summary = semanticCatalog
+const summary = semanticCatalog || workClaimsCatalog
   ? `Agent dev ${catalog} catalog ${result.status}: ` +
     `${passed}/${plan.length} live phases passed. Artifacts: ${artifactDir}\n`
   : `Agent dev gate ${result.status}: ${passed}/9 sessions passed. ` +

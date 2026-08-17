@@ -215,9 +215,14 @@ function tomlInlineTable(values) {
     `${tomlString(key)} = ${tomlString(value)}`).join(', ')} }`;
 }
 
+function proxyArgs(fixture) {
+  // proxyExtraArgs lets a catalog opt the child into proxy features such as
+  // the work claim lock's --work-claims flag.
+  return [fixture.proxyPath, fixture.marketId, 'dev', ...(fixture.proxyExtraArgs || [])];
+}
+
 function codexMcpOverride(fixture) {
-  const args = [fixture.proxyPath, fixture.marketId, 'dev']
-    .map(tomlString).join(', ');
+  const args = proxyArgs(fixture).map(tomlString).join(', ');
   return 'mcp_servers.Uclusion={ enabled = true, required = true, command = "python3", args = [' +
     `${args}], env = ${tomlInlineTable(fixture.proxyEnvironment)}, ` +
     'default_tools_approval_mode = "approve" }';
@@ -254,7 +259,7 @@ export function buildCodexLaunch({
 function writeMcpConfigs(fixture) {
   const server = {
     command: 'python3',
-    args: [fixture.proxyPath, fixture.marketId, 'dev'],
+    args: proxyArgs(fixture),
     env: fixture.proxyEnvironment
   };
   const claudePath = path.join(fixture.workspace, 'claude-mcp.json');

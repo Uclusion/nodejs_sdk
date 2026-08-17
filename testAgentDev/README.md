@@ -47,6 +47,22 @@ logging in as the secondary identity and checking its Engineering view
 membership. The executable catalog is `onboardingScenarios.js` and its
 fixture is `onboardingFixture.js`.
 
+`npm run testAgentDevWorkClaims` runs the work claim race catalog. It creates
+one UUID-marked `INTEGRATION_TEST` planning market whose view opts into
+"AI agents take the next available work from this view without asking", adds
+exactly one contested Doable job with a single completion task, and launches
+two identical `codex exec --ephemeral --json` processes at the same time.
+Both children register the MCP proxy with `--work-claims`, so the `claim_work`
+tool is exposed and the shipped skill's claim step applies. Grading is
+outcome-based across both traces and the durable market: both racers must
+attempt a claim for the contested short code, exactly one must be granted and
+must hold that claim before its first work-producing Uclusion call, releasing
+it at handoff, while the denied racer must produce no work-producing Uclusion
+calls at all; durably, the contested task must be completed and resolved
+exactly once. The pass depends on both racers overlapping in time, which the
+simultaneous launch makes likely. The harness is `workClaimsHarness.js` with
+its fixture in `workClaimsFixture.js` and grading in `workClaimsAssertions.js`.
+
 The executable catalog is `semanticScenarios.js`. There is deliberately no
 implicit `all` mode: choosing the semantic script does not rerun the nine
 transport sessions.
