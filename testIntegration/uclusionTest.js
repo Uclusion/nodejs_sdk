@@ -19,6 +19,7 @@ import aiPokeTest from '../tests/aiPokeTest.js';
 import workClaimTest from '../tests/workClaimTest.js';
 import reviewReportMcpTest from '../tests/reviewReportMcpTest.js';
 import notificationsMcpTest from '../tests/notificationsMcpTest.js';
+import inlineDuplicateNotificationsMcpTest from '../tests/inlineDuplicateNotificationsMcpTest.js';
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import missingToolsMcpTest from '../tests/missingToolsMcpTest.js';
 import shortCodeLinkTest from '../tests/shortCodeLinkTest.js';
@@ -79,6 +80,7 @@ describe('uclusion', () => {
   workClaimTest(adminConfiguration);
   reviewReportMcpTest(adminConfiguration);
   notificationsMcpTest(adminConfiguration, userConfiguration);
+  inlineDuplicateNotificationsMcpTest(adminConfiguration, userConfiguration);
   viewNotesMcpTest(adminConfiguration);
   missingToolsMcpTest(adminConfiguration);
   shortCodeLinkTest(adminConfiguration);
