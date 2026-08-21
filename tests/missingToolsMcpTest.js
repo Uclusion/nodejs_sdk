@@ -338,8 +338,8 @@ export default function (adminConfiguration) {
       assert(fullJob, 'The converted Bugs job should be readable through its source task');
       assert.strictEqual(fullJob.investible.created_by, adminId,
         'The converted Bugs job should be human-owned');
-      assert.strictEqual(fullJob.investible.name, 'Bugs',
-        'Bug conversion should use the dedicated Bugs job name');
+      assert.strictEqual(fullJob.investible.name, originalBug.ticket_code,
+        'Bug conversion should use the original bug ticket code as the job name');
       const fullJobInfo = fullJob.market_infos.find((info) => info.ticket_code === jobCode);
       assert(fullJobInfo?.assigned?.includes(adminId),
         'The human invoking ask_question should be assigned to the converted job');
