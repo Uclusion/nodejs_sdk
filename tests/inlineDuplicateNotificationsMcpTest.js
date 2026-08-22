@@ -6,7 +6,11 @@ import {
   loginUserToIdentity,
   loginUserToMarketInvite
 } from '../src/utils.js';
+import { WebSocketRunner } from '../src/WebSocketRunner.js';
 import { mcpCall, mcpLogin, pollFor, sleep } from './commonTestFunctions.js';
+
+const DATA_PUSH_QUIET_WINDOW_MS = 15000;
+const WEBSOCKET_TIMEOUT_CODE = 'WEBSOCKET_MESSAGE_TIMEOUT';
 
 /**
  * T-all-2484: a question created with options produced two inbox rows, an UNREAD_COMMENT on the
@@ -27,6 +31,7 @@ export default function (adminConfiguration, userConfiguration) {
     let marketId;
     let adminId;
     let uclusionToken;
+    let doableStage;
 
     before(async function () {
       this.timeout(300000);
@@ -42,6 +47,8 @@ export default function (adminConfiguration, userConfiguration) {
         market_type: 'PLANNING'
       });
       marketId = result.market.id;
+      doableStage = result.stages.find((stage) => stage.name === 'Doable');
+      assert(doableStage, 'Planning market must include a Doable stage');
       adminClient = await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       adminId = (await adminClient.users.get()).id;
       // The market-scoped token the CLI proxy uses.
@@ -80,6 +87,31 @@ export default function (adminConfiguration, userConfiguration) {
         }
       }
       return mcpCall(adminConfiguration, uclusionToken, toolName, args);
+    }
+
+    async function waitForSubscription(webSocketRunner) {
+      let lastTimeout;
+      // subscribe has no acknowledgement. A pong proves the subscription row can be found for
+      // this connection, so retry ping while its eventually-consistent index catches up.
+      for (let i = 0; i < 12; i += 1) {
+        try {
+          await webSocketRunner.waitForOpen();
+          const pongPromise = webSocketRunner.waitForReceivedMessage({ event_type: 'pong' }, 5000);
+          // If the connection closes between waitForOpen and send, this waiter will time out after
+          // the retry has moved on. Attach a handler now so that timeout is never unhandled.
+          pongPromise.catch(() => {});
+          webSocketRunner.send('ping');
+          await pongPromise;
+          return;
+        } catch (error) {
+          const closedBeforePing = error.message === 'Cannot send because websocket is not open';
+          if (error.code !== WEBSOCKET_TIMEOUT_CODE && !closedBeforePing) {
+            throw error;
+          }
+          lastTimeout = error;
+        }
+      }
+      throw lastTimeout;
     }
 
     async function getTicketCode(investibleId, marketInfoId) {
@@ -124,7 +156,16 @@ export default function (adminConfiguration, userConfiguration) {
       return question;
     }
 
-    async function createJob(name) {
+    async function getJobMarketInfo(job) {
+      const marketInfo = job.market_infos[0];
+      const fetched = await adminClient.markets.getMarketInvestibles([{
+        investible: { id: job.investible.id, version: 1 },
+        market_infos: [{ id: marketInfo.id, version: 1 }]
+      }]);
+      return fetched?.[0]?.market_infos?.find((info) => info.id === marketInfo.id);
+    }
+
+    async function createJob(name, targetStage) {
       const job = await adminClient.investibles.create({
         groupId: marketId,
         name,
@@ -137,7 +178,21 @@ export default function (adminConfiguration, userConfiguration) {
       const marketInfo = job.market_infos[0];
       const ticketCode = marketInfo.ticket_code ||
         await getTicketCode(job.investible.id, marketInfo.id);
-      return { job, ticketCode };
+      if (targetStage && marketInfo.stage !== targetStage.id) {
+        await adminClient.investibles.stateChange(job.investible.id, {
+          current_stage_id: marketInfo.stage,
+          stage_id: targetStage.id
+        });
+      }
+      const currentMarketInfo = await pollFor(
+        () => getJobMarketInfo(job),
+        (info) => info?.stage === (targetStage?.id || marketInfo.stage));
+      assert(currentMarketInfo, `Market info missing for ${job.investible.id}`);
+      if (targetStage) {
+        assert.strictEqual(currentMarketInfo.stage, targetStage.id,
+          `Job ${job.investible.id} did not reach ${targetStage.name}`);
+      }
+      return { job, marketInfo: currentMarketInfo, ticketCode };
     }
 
     function askQuestion(jobTicket, marker) {
@@ -230,43 +285,132 @@ export default function (adminConfiguration, userConfiguration) {
     });
 
     it('creates one notification per question when several are asked at once', async function () {
-      this.timeout(300000);
+      this.timeout(600000);
       await reportingHttpErrors(async () => {
         // T-all-2484's own words are that seven questions should be seven rows. Concurrency is what
         // surfaced the defect, so it is worth covering, but this part is timing exposed in a way the
         // assertion above is not. If it ever turns flaky in CI, delete it rather than retry it into
-        // stability; the invariant above is what actually guards the fix. Three rather than seven
-        // because view note R-all-1703 asks that these suites not get long.
+        // stability; the invariant above is what actually guards the notification fix. T-all-2497
+        // also pins the backend batching contract at one data refresh per question.
         const runMarker = randomUUID();
-        const markers = [1, 2, 3].map((index) => `Concurrent inline question ${index} ${runMarker}?`);
+        const markers = [1, 2, 3, 4, 5, 6, 7]
+          .map((index) => `Concurrent inline question ${index} ${runMarker}?`);
         const jobs = [];
         for (let index = 0; index < markers.length; index += 1) {
-            jobs.push(await createJob(`Inline dup concurrent ${index + 1}`));
+          jobs.push(await createJob(`Inline dup concurrent ${index + 1}`, doableStage));
         }
-        await Promise.all(jobs.map((created, index) => askQuestion(created.ticketCode, markers[index])));
 
-        const questions = [];
-        for (const marker of markers) {
-          questions.push(await findQuestionByMarker(marker));
+        let captureRunner;
+        try {
+          captureRunner = new WebSocketRunner({
+            wsUrl: adminConfiguration.websocketURL,
+            reconnectInterval: 3000
+          });
+          captureRunner.connect();
+          captureRunner.subscribe(accountToken);
+          await captureRunner.waitForOpen();
+          await waitForSubscription(captureRunner);
+
+          const receivedPayloads = [];
+          let captureConnectionClosed = false;
+          // Reconnection is useful while establishing the subscription, but losing the socket
+          // during measurement creates an unobservable gap and invalidates the exact-count claim.
+          captureRunner.socket.onclose = () => {
+            captureConnectionClosed = true;
+          };
+          captureRunner.messageHanders.push((payload) => {
+            receivedPayloads.push(payload);
+            return false;
+          });
+
+          await Promise.all(jobs.map((created, index) =>
+            askQuestion(created.ticketCode, markers[index])));
+
+          const questions = [];
+          for (const marker of markers) {
+            questions.push(await findQuestionByMarker(marker));
+          }
+          const inlineMarketIds = questions.map((question) => question.inline_market_id);
+
+          const isStructuralVersionFrame = (payload) =>
+            payload.event_type !== 'notification' && payload.event_type !== 'pong' &&
+            typeof payload.version === 'number' && typeof payload.object_id_one_two === 'string';
+          const isForQuestion = (payload, question, created) => {
+            if (!isStructuralVersionFrame(payload)) {
+              return false;
+            }
+            if (payload.object_id === question.inline_market_id) {
+              return true;
+            }
+            if (payload.object_id !== marketId) {
+              return false;
+            }
+            if (payload.event_type === 'comment') {
+              return payload.object_id_one_two === question.id;
+            }
+            if (payload.event_type === 'investment') {
+              return payload.object_id_one_two ===
+                `${created.marketInfo.id}_${question.created_by}`;
+            }
+            return payload.event_type === 'market_investible' &&
+              payload.object_id_one_two ===
+                `${created.marketInfo.id}_${created.job.investible.id}` &&
+              payload.version > created.marketInfo.version;
+          };
+          await pollFor(
+            async () => receivedPayloads.filter((payload) =>
+              questions.some((question, index) => isForQuestion(payload, question, jobs[index]))),
+            (frames) => frames.length >= markers.length);
+
+          const messages = await pollFor(
+            async () => (await getMessages(adminConfiguration)) || [],
+            (fetched) => inlineMarketIds.every((inlineMarketId) => fetched.some((message) =>
+              message.type_object_id === `NOT_FULLY_VOTED_${inlineMarketId}`)));
+
+          inlineMarketIds.forEach((inlineMarketId) => {
+            const callsToVote = messages.filter((message) =>
+              message.type_object_id === `NOT_FULLY_VOTED_${inlineMarketId}`);
+            assert.strictEqual(callsToVote.length, 1,
+              `Expected exactly one call to vote for ${inlineMarketId}`);
+          });
+          const strays = messages.filter((message) =>
+            message.type_object_id?.startsWith('UNREAD_COMMENT') &&
+            questions.some((question) => message.type_object_id.includes(question.id)));
+          assert.strictEqual(strays.length, 0,
+            `Questions asked together must still be one row each: ${JSON.stringify(strays)}`);
+
+          await sleep(DATA_PUSH_QUIET_WINDOW_MS);
+          assert.strictEqual(captureConnectionClosed, false,
+            'Websocket closed during data-refresh capture; exact push count is unknowable');
+          const relevantFrames = receivedPayloads.filter((payload) =>
+            questions.some((question, index) => isForQuestion(payload, question, jobs[index])));
+          assert.strictEqual(relevantFrames.length, markers.length,
+            `Expected exactly ${markers.length} correlated data refreshes: ${
+              JSON.stringify(relevantFrames)}`);
+          questions.forEach((question, index) => {
+            assert.strictEqual(question.is_sent, true,
+              `Question ${question.id} must be published before releasing its batch`);
+            const frames = relevantFrames.filter((payload) =>
+              isForQuestion(payload, question, jobs[index]));
+            assert.strictEqual(frames.length, 1,
+              `Expected one data refresh for question ${question.id}, job ${
+                jobs[index].job.investible.id}, and inline market ${
+                question.inline_market_id}: ${JSON.stringify(frames)}`);
+            assert.strictEqual(frames[0].event_type, 'comment',
+              `The question publish must release the batch: ${JSON.stringify(frames[0])}`);
+            assert.strictEqual(frames[0].object_id, marketId,
+              `The batch release must belong to planning market ${marketId}: ${
+                JSON.stringify(frames[0])}`);
+            assert.strictEqual(frames[0].object_id_one_two, question.id,
+              `The batch release must name question ${question.id}: ${JSON.stringify(frames[0])}`);
+            assert.strictEqual(frames[0].version, question.version,
+              `The data refresh must be the published version of question ${question.id}`);
+          });
+        } finally {
+          if (captureRunner) {
+            captureRunner.terminate();
+          }
         }
-        const inlineMarketIds = questions.map((question) => question.inline_market_id);
-
-        const messages = await pollFor(
-          async () => (await getMessages(adminConfiguration)) || [],
-          (fetched) => inlineMarketIds.every((inlineMarketId) => fetched.some((message) =>
-            message.type_object_id === `NOT_FULLY_VOTED_${inlineMarketId}`)));
-
-        inlineMarketIds.forEach((inlineMarketId) => {
-          const callsToVote = messages.filter((message) =>
-            message.type_object_id === `NOT_FULLY_VOTED_${inlineMarketId}`);
-          assert.strictEqual(callsToVote.length, 1,
-            `Expected exactly one call to vote for ${inlineMarketId}`);
-      });
-      const strays = messages.filter((message) =>
-        message.type_object_id?.startsWith('UNREAD_COMMENT') &&
-        questions.some((question) => message.type_object_id.includes(question.id)));
-      assert.strictEqual(strays.length, 0,
-        `Questions asked together must still be one row each: ${JSON.stringify(strays)}`);
       });
     });
   });
