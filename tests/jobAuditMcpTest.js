@@ -18,6 +18,10 @@ const DELETE_FUNCTION_BY_BASE_URL = new Map([
   ['https://dev.api.uclusion.com/v1', 'uclusion-markets-dev-markets_delete'],
   ['https://stage.api.uclusion.com/v1', 'uclusion-markets-dev-markets_delete']
 ]);
+const EXPORT_FUNCTION_BY_BASE_URL = new Map([
+  ['https://dev.api.uclusion.com/v1', 'uclusion-markets-dev-markets_export'],
+  ['https://stage.api.uclusion.com/v1', 'uclusion-markets-dev-markets_export']
+]);
 
 function machineCapability(marketId) {
   return {
@@ -167,23 +171,53 @@ export default function (adminConfiguration) {
       return fetched;
     }
 
-    async function listMarketComments() {
+    async function listHumanCommentVersionIds() {
       const versions = await accountClient.summaries.versions(accountToken, [marketId]);
       const marketEntry = (versions.signatures || [])
         .find((entry) => entry.market_id === marketId);
-      const commentVersions = new Map();
-      (marketEntry?.signatures || [])
+      return new Set((marketEntry?.signatures || [])
         .filter((signature) => signature.type === 'comment')
         .flatMap((signature) => signature.object_versions || [])
-        .forEach((version) => {
-          const currentVersion = commentVersions.get(version.object_id_one) || 0;
-          commentVersions.set(version.object_id_one, Math.max(currentVersion, version.version));
-        });
-      if (commentVersions.size === 0) {
-        return [];
-      }
-      return adminClient.investibles.getMarketComments(
-        [...commentVersions].map(([id, version]) => ({ id, version })));
+        .map((version) => version.object_id_one));
+    }
+
+    async function listRawMarketComments(marketInvestibleId) {
+      const functionName = EXPORT_FUNCTION_BY_BASE_URL.get(adminConfiguration.baseURL);
+      assert(
+        functionName,
+        `Refusing raw audit export in unsupported environment ${adminConfiguration.baseURL}`
+      );
+      const lambda = new AWS.Lambda({
+        region: REGION,
+        maxRetries: 2,
+        httpOptions: { timeout: LAMBDA_HTTP_TIMEOUT_MS }
+      });
+      const response = await lambda.invoke({
+        FunctionName: functionName,
+        InvocationType: 'RequestResponse',
+        ClientContext: Buffer.from(JSON.stringify({
+          custom: { capability: machineCapability(marketId) }
+        })).toString('base64'),
+        Payload: JSON.stringify({ market_investible_ids: [marketInvestibleId] })
+      }).promise();
+      const result = decodeLambdaPayload(response, functionName);
+      assert.strictEqual(
+        result.statusCode,
+        200,
+        `Raw audit export failed for ${marketId}: ${JSON.stringify(result.body)}`
+      );
+      assert.strictEqual(result.body?.jobs?.length, 1,
+        `Raw audit export did not return one job: ${JSON.stringify(result.body)}`);
+      const exportedJob = result.body.jobs[0];
+      return [...(exportedJob.comments || []), ...(exportedJob.resolved_comments || [])]
+        .map(({ comment }) => comment);
+    }
+
+    function assertMachineOnlyAuditNote(comment) {
+      assert.strictEqual(comment.is_machine_only, true,
+        `Audit note must be machine-only: ${JSON.stringify(comment)}`);
+      assert.strictEqual(comment.is_visible, false,
+        `Audit note must stay out of ordinary get_job: ${JSON.stringify(comment)}`);
     }
 
     function finalization(total, bucketItems, startedAt, overrides = {}) {
@@ -256,6 +290,7 @@ export default function (adminConfiguration) {
         'TODO'
       );
       assert(task.ticket_code, `Task ticket code missing: ${JSON.stringify(task)}`);
+      const listRawJobComments = () => listRawMarketComments(job.market_infos[0].id);
 
       const firstRunId = randomUUID();
       const started = parseMcpToolResult(await pollMcp('start_job_audit', {
@@ -299,7 +334,7 @@ export default function (adminConfiguration) {
       assert.strictEqual(firstCheckpoint.bucket, 'web searches');
       assert.strictEqual(firstCheckpoint.checkpoint_normalized_total_tokens, 30);
 
-      const commentsAfterFirstCheckpoint = await pollFor(listMarketComments,
+      const commentsAfterFirstCheckpoint = await pollFor(listRawJobComments,
         (comments) => comments.some((comment) =>
           comment.body?.includes(firstRunId)
           && comment.body?.includes('checkpoint:1')));
@@ -307,6 +342,7 @@ export default function (adminConfiguration) {
         comment.body?.includes(firstRunId) && comment.body?.includes('checkpoint:1'));
       assert(firstCheckpointNote,
         `First audit checkpoint missing before end: ${JSON.stringify(commentsAfterFirstCheckpoint)}`);
+      assertMachineOnlyAuditNote(firstCheckpointNote);
       assert(firstCheckpointNote.body.includes('Closed-bucket snapshot'), firstCheckpointNote.body);
       assert(firstCheckpointNote.body.includes('planning'), firstCheckpointNote.body);
       assert(firstCheckpointNote.body.includes('Current bucket: web searches'),
@@ -362,7 +398,7 @@ export default function (adminConfiguration) {
         /^sha256-v1:[0-9a-f]{64}$/);
       assert.strictEqual(secondCheckpoint.checkpoint_normalized_total_tokens, 120);
 
-      const commentsAfterSecondCheckpoint = await pollFor(listMarketComments,
+      const commentsAfterSecondCheckpoint = await pollFor(listRawJobComments,
         (comments) => comments.some((comment) =>
           comment.body?.includes(firstRunId)
           && comment.body?.includes('checkpoint:2')));
@@ -370,6 +406,7 @@ export default function (adminConfiguration) {
         comment.body?.includes(firstRunId) && comment.body?.includes('checkpoint:2'));
       assert(secondCheckpointNote,
         `Second audit checkpoint missing before end: ${JSON.stringify(commentsAfterSecondCheckpoint)}`);
+      assertMachineOnlyAuditNote(secondCheckpointNote);
       assert(secondCheckpointNote.body.includes('planning'), secondCheckpointNote.body);
       assert(secondCheckpointNote.body.includes('web searches'), secondCheckpointNote.body);
       assert(secondCheckpointNote.body.includes('Current bucket: testing'),
@@ -416,7 +453,7 @@ export default function (adminConfiguration) {
       assert.strictEqual(first.cumulative, undefined);
       assert(first.note_short_code_id.startsWith('R-'), JSON.stringify(first));
 
-      const commentsAfterFirst = await pollFor(listMarketComments,
+      const commentsAfterFirst = await pollFor(listRawJobComments,
         (comments) => comments.some((comment) =>
           comment.body?.includes(firstRunId)
           && comment.body?.includes('Audit publication: <code>final</code>')));
@@ -428,6 +465,7 @@ export default function (adminConfiguration) {
       assert.strictEqual(firstNote.comment_type, 'REPORT');
       assert.strictEqual(firstNote.notification_type, 'BLUE');
       assert.strictEqual(firstNote.job_audit, undefined);
+      assertMachineOnlyAuditNote(firstNote);
       assert(firstNote.body.includes('Agent token usage'), firstNote.body);
       assert(firstNote.body.includes(firstRunId), firstNote.body);
       assert(firstNote.body.includes('web searches'), firstNote.body);
@@ -437,16 +475,45 @@ export default function (adminConfiguration) {
       assert(firstNote.body.includes('Audit publication: <code>final</code>'),
         firstNote.body);
 
+      const syncBarrierMarker = `Post-audit sync barrier ${marker}`;
+      const syncBarrier = await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        syncBarrierMarker,
+        null,
+        'TODO'
+      );
+      let humanCommentVersionIds = await pollFor(
+        listHumanCommentVersionIds,
+        (commentIds) => commentIds.has(syncBarrier.id)
+      );
+      assert(humanCommentVersionIds.has(syncBarrier.id),
+        `Post-audit task did not reach ObjectVersions: ${JSON.stringify([...humanCommentVersionIds])}`);
+      const firstRunAuditComments = commentsAfterFirst
+        .filter((comment) => comment.body?.includes(firstRunId));
+      const firstRunAuditIds = new Set(firstRunAuditComments.map((comment) => comment.id));
+      for (let i = 0; i < 5; i += 1) {
+        await sleep(3000);
+        humanCommentVersionIds = await listHumanCommentVersionIds();
+        assert(![...firstRunAuditIds].some((commentId) => humanCommentVersionIds.has(commentId)),
+          `Machine-only audit notes reached ObjectVersions: ${JSON.stringify([...humanCommentVersionIds])}`);
+      }
+      const directlyHydratedAuditComments = await adminClient.investibles.getMarketComments(
+        firstRunAuditComments.map((comment) => ({ id: comment.id, version: comment.version }))
+      );
+      assert(!directlyHydratedAuditComments.some((comment) => firstRunAuditIds.has(comment.id)),
+        `Machine-only audit notes reached direct human hydration: ${JSON.stringify(directlyHydratedAuditComments)}`);
+
       const jobMarkdown = await pollFor(
         () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
-          short_code_id: jobTicketCode,
-          include_all_resolved: true
+          short_code_id: jobTicketCode
         }),
-        (markdown) => markdown.includes(firstRunId)
-          && markdown.includes('160 normalized tokens')
+        (markdown) => markdown.includes(syncBarrierMarker)
       );
-      assert(jobMarkdown.includes('Agent token usage'), jobMarkdown);
-      assert(jobMarkdown.includes('160 normalized tokens'), jobMarkdown);
+      assert(jobMarkdown.includes(syncBarrierMarker),
+        'get_job did not reach the post-audit task barrier');
+      assert(!jobMarkdown.includes(firstRunId),
+        `Machine-only audit note reached ordinary get_job: ${jobMarkdown}`);
 
       const replay = parseMcpToolResult(await pollMcp('end_job_audit', {
         job_id: jobTicketCode,
@@ -458,7 +525,7 @@ export default function (adminConfiguration) {
       assert.strictEqual(replay.publication, 'final');
       assert.strictEqual(replay.idempotent, true);
       assert.strictEqual(replay.note_short_code_id, first.note_short_code_id);
-      const auditNotes = (await listMarketComments()).filter((comment) =>
+      const auditNotes = (await listRawJobComments()).filter((comment) =>
         comment.body?.includes(firstRunId));
       const finalAuditNotes = auditNotes.filter((comment) =>
         comment.body?.includes('Audit publication: <code>final</code>'));
@@ -492,12 +559,13 @@ export default function (adminConfiguration) {
       assert.strictEqual(partial.run_normalized_total_tokens, 80);
       assert.strictEqual(partial.cumulative, undefined);
 
-      const commentsAfterPartial = await pollFor(listMarketComments,
+      const commentsAfterPartial = await pollFor(listRawJobComments,
         (comments) => comments.some((comment) =>
           comment.body?.includes(partialRunId)));
       const partialNote = commentsAfterPartial.find((comment) =>
         comment.body?.includes(partialRunId));
       assert(partialNote, `Partial audit note missing: ${JSON.stringify(commentsAfterPartial)}`);
+      assertMachineOnlyAuditNote(partialNote);
       assert(partialNote.body.includes('Source: codex'), partialNote.body);
       assert(partialNote.body.includes('Coverage: main partial'), partialNote.body);
       assert(partialNote.body.includes('Measurement limitation'), partialNote.body);
@@ -532,7 +600,7 @@ export default function (adminConfiguration) {
       assert.strictEqual(interruptedCheckpoint.identity_verified, true);
       assert.match(interruptedCheckpoint.checkpoint_identity_fingerprint,
         /^sha256-v1:[0-9a-f]{64}$/);
-      const interruptedComments = await pollFor(listMarketComments,
+      const interruptedComments = await pollFor(listRawJobComments,
         (comments) => comments.some((comment) =>
           comment.body?.includes(interruptedRunId)
           && comment.body?.includes('checkpoint:1')));
@@ -541,6 +609,7 @@ export default function (adminConfiguration) {
         && comment.body?.includes('checkpoint:1'));
       assert(durableBeforeEnd,
         `Interrupted run checkpoint was not durable before end: ${JSON.stringify(interruptedComments)}`);
+      assertMachineOnlyAuditNote(durableBeforeEnd);
       assert(!interruptedComments.some((comment) =>
         comment.body?.includes(interruptedRunId)
         && comment.body?.includes('Audit publication: <code>final</code>')),

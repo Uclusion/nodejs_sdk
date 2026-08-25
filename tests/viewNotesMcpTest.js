@@ -12,6 +12,7 @@ import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 export default function (adminConfiguration) {
   describe('#test view level notes in get_job (J-all-381)', () => {
     let accountClient;
+    let accountToken;
     let adminClient;
     let marketId;
     let uclusionToken;
@@ -24,6 +25,7 @@ export default function (adminConfiguration) {
       }
       const accountLogin = await loginUserToAccountAndGetToken(adminConfiguration);
       accountClient = accountLogin.client;
+      accountToken = accountLogin.accountToken;
       const result = await accountClient.markets.createMarket({
         name: 'View notes MCP integration',
         market_type: 'PLANNING'
@@ -73,6 +75,25 @@ export default function (adminConfiguration) {
       const ticketCode = await pollFor(fetcher, (code) => code);
       assert(ticketCode, `Ticket code missing for ${investible.investible.id}`);
       return ticketCode;
+    }
+
+    async function listHumanMarketComments() {
+      const versions = await accountClient.summaries.versions(accountToken, [marketId]);
+      const marketEntry = (versions.signatures || [])
+        .find((entry) => entry.market_id === marketId);
+      const commentVersions = new Map();
+      (marketEntry?.signatures || [])
+        .filter((signature) => signature.type === 'comment')
+        .flatMap((signature) => signature.object_versions || [])
+        .forEach((version) => {
+          const currentVersion = commentVersions.get(version.object_id_one) || 0;
+          commentVersions.set(version.object_id_one, Math.max(currentVersion, version.version));
+        });
+      if (commentVersions.size === 0) {
+        return [];
+      }
+      return adminClient.investibles.getMarketComments(
+        [...commentVersions].map(([id, version]) => ({ id, version })));
     }
 
     it('defaults view notes to hidden and shows Show AI notes only in the note view', async () => {
@@ -196,6 +217,74 @@ export default function (adminConfiguration) {
       );
       assert(jobMarkdown.includes(defaultMarker),
         'A note created with no code should land in the default view');
+    }).timeout(600000);
+
+    it('keeps AI-created job and task notes out of get_job (B-all-584)', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Hidden AI notes job ${marker}`,
+        description: 'Job whose regular AI notes should not become AI context.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const taskMarker = `Hidden AI notes task ${marker}`;
+      const task = await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        taskMarker,
+        null,
+        'TODO'
+      );
+      assert(task.ticket_code, `Task ticket code missing: ${JSON.stringify(task)}`);
+
+      const jobNoteMarker = `Job note hidden from AI ${marker}`;
+      const taskNoteMarker = `Task note hidden from AI ${marker}`;
+      await pollMcp('add_info', {
+        short_code_id: jobTicketCode,
+        info: jobNoteMarker,
+        tz: 'America/Los_Angeles'
+      });
+      await pollMcp('add_info', {
+        short_code_id: task.ticket_code,
+        info: taskNoteMarker,
+        tz: 'America/Los_Angeles'
+      });
+
+      const humanComments = await pollFor(
+        listHumanMarketComments,
+        (comments) => [jobNoteMarker, taskNoteMarker].every((noteMarker) =>
+          comments.some((comment) => comment.body?.includes(noteMarker)))
+      );
+      const jobNote = humanComments.find((comment) => comment.body?.includes(jobNoteMarker));
+      const taskNote = humanComments.find((comment) => comment.body?.includes(taskNoteMarker));
+      assert(jobNote, `AI-created job note did not synchronize: ${JSON.stringify(humanComments)}`);
+      assert(taskNote, `AI-created task note did not synchronize: ${JSON.stringify(humanComments)}`);
+      assert.strictEqual(jobNote.is_visible, false,
+        `AI-created job note should default Show AI off: ${JSON.stringify(jobNote)}`);
+      assert.strictEqual(taskNote.is_visible, false,
+        `AI-created task note should default Show AI off: ${JSON.stringify(taskNote)}`);
+      assert.strictEqual(jobNote.investible_id, job.investible.id);
+      assert.strictEqual(taskNote.investible_id, job.investible.id);
+      assert(!jobNote.associated_comment_id,
+        `Job note should not be task-associated: ${JSON.stringify(jobNote)}`);
+      assert.strictEqual(taskNote.associated_comment_id, task.id,
+        `Task note association missing: ${JSON.stringify(taskNote)}`);
+
+      const fullJobMarkdown = await pollFor(
+        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+          short_code_id: jobTicketCode,
+          include_all_resolved: true
+        }),
+        (markdown) => markdown.includes(jobNoteMarker) && markdown.includes(taskNoteMarker)
+      );
+      assert(fullJobMarkdown.includes(jobNoteMarker) && fullJobMarkdown.includes(taskNoteMarker),
+        'Full get_job did not reach both AI note barriers');
+      const jobMarkdown = await pollMcp('get_job', { short_code_id: jobTicketCode });
+      assert(jobMarkdown.includes(taskMarker), 'get_job must retain the ordinary task');
+      assert(!jobMarkdown.includes(jobNoteMarker),
+        'get_job must omit a regular AI-created job note by default');
+      assert(!jobMarkdown.includes(taskNoteMarker),
+        'get_job must omit a regular AI-created task note by default');
     }).timeout(600000);
   });
 }
