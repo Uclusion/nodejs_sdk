@@ -10,7 +10,7 @@ import {
 import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 
 const REGION = 'us-west-2';
-const INTEGRATION_TEST_SUB_TYPE = 'INTEGRATION_TEST';
+export const INTEGRATION_TEST_SUB_TYPE = 'INTEGRATION_TEST';
 const LAMBDA_HTTP_TIMEOUT_MS = 210000;
 // Both AWS accounts deploy the serverless stack named "dev"; environments
 // differ by account credentials, so the function name is the same on stage.
@@ -61,7 +61,7 @@ function decodeLambdaPayload(response, functionName) {
   return { statusCode: envelope.statusCode, body };
 }
 
-async function deleteIntegrationTestMarket(adminConfiguration, marketId) {
+export async function deleteIntegrationTestMarket(adminConfiguration, marketId) {
   const functionName = DELETE_FUNCTION_BY_BASE_URL.get(adminConfiguration.baseURL);
   assert(
     functionName,

@@ -25,6 +25,7 @@ import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
 import listsTest from '../tests/listsTest.js';
 import jobAuditMcpTest from '../tests/jobAuditMcpTest.js';
+import designCapsuleMcpTest from '../tests/designCapsuleMcpTest.js';
 
 const Amplify = awsAmplify.default;
 
@@ -78,4 +79,5 @@ describe('uclusion', () => {
   investmentsTest(adminConfiguration, userConfiguration, 2);
   listsTest(adminConfiguration, userConfiguration);
   jobAuditMcpTest(adminConfiguration);
+  designCapsuleMcpTest(adminConfiguration);
 });
