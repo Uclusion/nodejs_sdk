@@ -8,7 +8,7 @@ const MUTATING_TOOLS = Object.freeze(new Set([
   'add_info', 'add_task', 'add_blocker', 'add_bug', 'add_job', 'add_options',
   'add_view', 'add_view_note', 'add_collaborators', 'approve_job_or_option',
   'ask_for_review', 'ask_question', 'change_job_stage',
-  'make_suggestion', 'resolve', 'vote_on_suggestion'
+  'make_suggestion', 'resolve', 'update_option', 'vote_on_suggestion'
 ]));
 
 function uclusionToolName(call) {

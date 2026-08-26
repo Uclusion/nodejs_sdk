@@ -114,7 +114,7 @@ function assertDelivery(parsed, client, expectedCommand) {
 
 const MUTATING_UCLUSION_TOOLS = new Set([
   'ask_question', 'make_suggestion', 'approve_job_or_option', 'vote_on_suggestion',
-  'add_info', 'resolve', 'ask_for_review', 'add_options', 'add_view_note',
+  'add_info', 'resolve', 'ask_for_review', 'add_options', 'update_option', 'add_view_note',
   'add_job', 'add_task', 'add_bug', 'add_blocker', 'clear_notifications',
   'request_work', 'change_job_stage',
   'start_job_audit', 'set_job_audit_phase', 'end_job_audit'

@@ -167,6 +167,42 @@ export default function (adminConfiguration, userConfiguration) {
           .map((version) => version.object_id_one)))];
     }
 
+    async function listInlineInvestibles(inlineMarketId, client) {
+      const versions = await accountClient.summaries.versions(accountToken, [inlineMarketId]);
+      const marketEntry = (versions.signatures || [])
+        .find((entry) => entry.market_id === inlineMarketId);
+      const signatures = marketEntry?.signatures || [];
+      const investibleVersions = new Map();
+      signatures
+        .filter((signature) => signature.type === 'investible')
+        .flatMap((signature) => signature.object_versions || [])
+        .forEach((version) => {
+          const current = investibleVersions.get(version.object_id_one) || 0;
+          investibleVersions.set(version.object_id_one, Math.max(current, version.version));
+        });
+      const marketInfoVersions = new Map();
+      signatures
+        .filter((signature) => signature.type === 'market_investible')
+        .flatMap((signature) => signature.object_versions || [])
+        .forEach((version) => {
+          const byInvestible = marketInfoVersions.get(version.object_id_two) || new Map();
+          const current = byInvestible.get(version.object_id_one) || 0;
+          byInvestible.set(version.object_id_one, Math.max(current, version.version));
+          marketInfoVersions.set(version.object_id_two, byInvestible);
+        });
+      const requested = [...investibleVersions]
+        .map(([id, version]) => ({
+          investible: { id, version },
+          market_infos: [...(marketInfoVersions.get(id) || [])]
+            .map(([marketInfoId, marketInfoVersion]) => ({
+              id: marketInfoId,
+              version: marketInfoVersion
+            }))
+        }))
+        .filter((signature) => signature.market_infos.length > 0);
+      return requested.length === 0 ? [] : client.markets.getMarketInvestibles(requested);
+    }
+
     async function getJobStage(job) {
       const marketInfo = job.market_infos.find((info) => info.market_id === marketId) ||
         job.market_infos[0];
@@ -321,6 +357,96 @@ export default function (adminConfiguration, userConfiguration) {
       assert(!isLiveInvestment(moved.a),
         'MCP approval should move the AI vote off the first option instead of duplicating per C-all-1168');
     }).timeout(240000);
+
+    it('should update the existing option without consuming its human suggestion', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Option update integration ${marker}`,
+        description: 'Job for exercising canonical MCP option updates.'
+      });
+      const jobTicket = job.market_infos[0].ticket_code ||
+        await getTicketCode(adminClient, job.investible.id, job.market_infos[0].id);
+      const questionMarker = `Which option should change ${marker}?`;
+      const originalName = `Original option ${marker}`;
+      const originalDescription = 'The option that will receive a suggestion.';
+      const asked = await pollMcp('ask_question', {
+        job_id: jobTicket,
+        question: questionMarker,
+        options: [
+          { name: originalName, description: originalDescription },
+          { name: `Unchanged option ${marker}`, description: 'The other canonical option.' }
+        ]
+      });
+      const questionCodeMatch = asked.match(/\bQ-[A-Za-z0-9-]+\b/);
+      assert(questionCodeMatch, `ask_question should return a question code: ${asked}`);
+      const questionCode = questionCodeMatch[0];
+      const question = await findCommentByMarker(questionMarker);
+      assert(question?.inline_market_id, 'MCP question should have an inline decision market');
+      const inlineMarketId = question.inline_market_id;
+      const inlineUserClient = await pollLogin(userConfiguration, inlineMarketId);
+      const inlineAdminClient = await pollLogin(adminConfiguration, inlineMarketId);
+      const beforeOptions = await pollFor(
+        () => listInlineInvestibles(inlineMarketId, inlineAdminClient),
+        (options) => options.length === 2 && options.some((option) =>
+          option.investible.name === originalName &&
+          option.market_infos.some((info) => info.ticket_code)));
+      assert.strictEqual(beforeOptions.length, 2, 'MCP question should create exactly two options');
+      const targetBefore = beforeOptions.find((option) => option.investible.name === originalName);
+      assert(targetBefore, 'The option chosen for update should be discoverable');
+      const optionInfoBefore = targetBefore.market_infos.find((info) =>
+        info.market_id === inlineMarketId) || targetBefore.market_infos[0];
+      const optionId = targetBefore.investible.id;
+      const optionCode = optionInfoBefore?.ticket_code;
+      assert(optionCode, `Option code missing for ${optionId}`);
+
+      const suggestionMarker = `Human suggestion ${marker}`;
+      const suggestion = await inlineUserClient.investibles.createComment(
+        optionId, inlineMarketId, suggestionMarker, null, 'SUGGEST');
+      const updatedName = `Updated option ${marker}`;
+      const updatedDescription = `Updated option body ${marker}.`;
+      const updateResult = await pollMcp('update_option', {
+        parent_question_short_code_id: questionCode,
+        option_id: optionCode,
+        name: updatedName,
+        description: updatedDescription
+      });
+      assert(updateResult.includes(questionCode) && updateResult.includes(optionCode),
+        `update_option should name ${questionCode} and ${optionCode}: ${updateResult}`);
+
+      const afterOptions = await pollFor(
+        () => listInlineInvestibles(inlineMarketId, inlineAdminClient),
+        (options) => {
+          const target = options.find((option) => option.investible.id === optionId);
+          return options.length === beforeOptions.length && target?.investible.name === updatedName &&
+            target.investible.description?.includes(updatedDescription);
+        });
+      assert.strictEqual(afterOptions.length, beforeOptions.length,
+        'Updating an option must not create a replacement option');
+      const targetAfter = afterOptions.find((option) => option.investible.id === optionId);
+      assert(targetAfter, 'The same option investible should remain after update');
+      const optionInfoAfter = targetAfter.market_infos.find((info) =>
+        info.market_id === inlineMarketId) || targetAfter.market_infos[0];
+      assert.strictEqual(targetAfter.investible.name, updatedName,
+        'update_option should fully replace the option name');
+      assert(targetAfter.investible.description?.includes(updatedDescription),
+        'update_option should fully replace the option description');
+      assert(!targetAfter.investible.description?.includes(originalDescription),
+        'update_option should remove the prior option description');
+      assert.strictEqual(optionInfoAfter?.ticket_code, optionCode,
+        'Updating an option must preserve its stable O-code');
+
+      const comments = await pollFor(
+        () => listMarketComments(inlineMarketId, inlineUserClient),
+        (fetched) => fetched.some((comment) => comment.id === suggestion.id));
+      const preservedSuggestion = comments.find((comment) => comment.id === suggestion.id);
+      assert.strictEqual(preservedSuggestion?.comment_type, 'SUGGEST',
+        'The human suggestion should remain a separate suggestion artifact');
+      assert.strictEqual(preservedSuggestion?.investible_id, optionId,
+        'The human suggestion should remain attached to the updated option');
+      assert(preservedSuggestion?.body?.includes(suggestionMarker) && !preservedSuggestion.resolved,
+        'Updating the option must not rewrite or resolve its human suggestion');
+    }).timeout(600000);
 
     it('should vote against then for a suggestion via MCP', async () => {
       const suggestion = await adminClient.investibles.createComment(undefined, marketId,
