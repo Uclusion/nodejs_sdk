@@ -306,7 +306,8 @@ export default function (adminConfiguration) {
       assert(capsuleReplyThread.includes(`Task capsule selected through grouped child ${marker}`)
         && capsuleReplyThread.includes(capsuleReplyMarker));
       assert(!capsuleReplyThread.includes(`Job capsule version one ${marker}`));
-      assert.strictEqual(capsuleReplyThread.split(CAPSULE_HEADING).length - 1, 1,
+      assert.strictEqual(capsuleReplyThread
+        .split(`Task capsule selected through grouped child ${marker}`).length - 1, 1,
         'A thread-only capsule discussion must render the selected capsule exactly once');
 
       const jobCapsuleNotifications = await pollFor(
@@ -572,7 +573,8 @@ export default function (adminConfiguration) {
         items.some((comment) => comment.body?.includes(deltaMarker) && comment.ticket_code));
       const deltaReview = comments.find((comment) => comment.body?.includes(deltaMarker));
       assert(deltaReview.ticket_code?.startsWith('R-'));
-      assert(deltaReview.body.includes(createdCapsule.capsule_short_code_id),
+      const deltaReviewMarkdown = await readTarget(jobTicketCode, deltaMarker);
+      assert(deltaReviewMarkdown.includes(`](#${createdCapsule.capsule_short_code_id})`),
         'Review prose must name the stable current capsule R code');
       assert(deltaReview.created_by && deltaReview.created_by !== adminId,
         'The review under test must be owned by the workspace AI user');
@@ -626,7 +628,8 @@ export default function (adminConfiguration) {
       comments = await waitForComments((items) =>
         items.some((comment) => comment.body?.includes(noDeltaMarker) && comment.ticket_code));
       const noDeltaReview = comments.find((comment) => comment.body?.includes(noDeltaMarker));
-      assert(noDeltaReview.body.includes(revisedCapsule.capsule_short_code_id));
+      const noDeltaReviewMarkdown = await readTarget(jobTicketCode, noDeltaMarker);
+      assert(noDeltaReviewMarkdown.includes(`](#${revisedCapsule.capsule_short_code_id})`));
       assert.notStrictEqual(noDeltaReview.resolved, true, 'The new no-delta review must be open');
       assert.notStrictEqual(noDeltaReview.id, deltaReview.id,
         'A resolved handoff must be followed by a new review, not a backend rewrite');
