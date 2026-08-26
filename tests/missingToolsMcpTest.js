@@ -230,7 +230,7 @@ export default function (adminConfiguration) {
       // The server may re-home the upload under the market prefix, so match the file name part
       const fileName = upload.metadata.path.split('/')[1];
       const jobMarkdown = await pollFor(
-        () => pollMcp('get_job', { short_code_id: jobCode }),
+        () => pollMcp('get_job', { short_code_id: jobCode, include_all_resolved: true }),
         (markdown) => typeof markdown === 'string' && markdown.includes(fileName));
       assert(jobMarkdown.includes(fileName),
         'get_job should render the attached file reference');
