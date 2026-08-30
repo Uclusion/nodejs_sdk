@@ -201,19 +201,32 @@ export default function (adminConfiguration) {
       return ticketCode;
     }
 
-    async function readTarget(shortCode, expectedMarker) {
+    function currentCapsuleSection(markdown) {
+      const start = markdown.indexOf(CAPSULE_HEADING);
+      if (start < 0) {
+        return '';
+      }
+      const afterHeading = start + CAPSULE_HEADING.length;
+      const boundary = markdown.slice(afterHeading)
+        .search(/\n#### (?:Reports|Tasks|Assistance|Notes|Resolved)\b/);
+      const end = boundary < 0 ? markdown.length : afterHeading + boundary;
+      return markdown.slice(start, end);
+    }
+
+    async function readTarget(shortCode, expectedMarker, renderedStateIsReady = () => true) {
+      const hasExpectedState = (markdown) =>
+        markdown.includes(CAPSULE_HEADING) &&
+        markdown.includes(expectedMarker) &&
+        renderedStateIsReady(markdown);
       const response = await pollFor(
         () => retryMcp('get_job', { short_code_id: shortCode }),
-        (candidate) => {
-          const markdown = toolText(candidate);
-          return markdown.includes(CAPSULE_HEADING) && markdown.includes(expectedMarker);
-        },
+        (candidate) => hasExpectedState(toolText(candidate)),
         20,
         3000
       );
       const markdown = toolText(response);
-      assert(markdown.includes(CAPSULE_HEADING) && markdown.includes(expectedMarker),
-        `get_job ${shortCode} did not expose its selected capsule marker ${expectedMarker}: ${markdown}`);
+      assert(hasExpectedState(markdown),
+        `get_job ${shortCode} did not reach the expected state containing ${expectedMarker}: ${markdown}`);
       return markdown;
     }
 
@@ -841,15 +854,26 @@ export default function (adminConfiguration) {
         comments, createdDestinationCapsule.capsule_short_code_id).length, 0,
         'Creating the destination capsule must not create history');
 
+      const freshDestinationMarker = `Fresh destination task capsule version one ${marker}`;
+      const movedTaskCapsuleMarker = `Movable task capsule version two ${marker}`;
+      const movedCapsuleIsHistory = (markdown) => {
+        const currentCapsule = currentCapsuleSection(markdown);
+        return currentCapsule.includes(freshDestinationMarker) &&
+          markdown.includes(movedTaskCapsuleMarker) &&
+          !currentCapsule.includes(movedTaskCapsuleMarker);
+      };
       const taskMarkdown = await readTarget(
-        taskCode, `Fresh destination task capsule version one ${marker}`);
+        taskCode, freshDestinationMarker, movedCapsuleIsHistory);
       const groupedMarkdown = await readTarget(
-        groupedTaskCode, `Fresh destination task capsule version one ${marker}`);
+        groupedTaskCode, freshDestinationMarker, movedCapsuleIsHistory);
       assert(taskMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
       assert(groupedMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
       [taskMarkdown, groupedMarkdown].forEach((markdown) => {
         assert(!markdown.includes(`Source job control capsule ${marker}`));
-        assert(!markdown.includes(`Movable task capsule version two ${marker}`),
+        assert(markdown.includes(movedTaskCapsuleMarker),
+          'The demoted source capsule must remain visible as destination history');
+        assert(!currentCapsuleSection(markdown)
+          .includes(movedTaskCapsuleMarker),
           'The demoted source capsule must not compete with the destination current capsule');
       });
       const destinationCapsuleV2Body =
