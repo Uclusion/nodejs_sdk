@@ -606,7 +606,8 @@ export default function (adminConfiguration) {
         assignments: [adminId]
       });
       const destinationGroup = (await adminClient.markets.createGroup({
-        name: `Capsule move destination group ${marker}`
+        name: `Capsule move destination group ${marker}`,
+        ticket_sub_code: `move-${marker.slice(0, 8)}`
       })).group;
       const destinationJob = await adminClient.investibles.create({
         groupId: destinationGroup.id,
