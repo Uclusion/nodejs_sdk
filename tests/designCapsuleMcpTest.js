@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
+import AWS from 'aws-sdk';
 import {
   getMessages,
   loginUserToAccountAndGetToken,
@@ -14,6 +15,11 @@ import {
 } from './jobAuditMcpTest.js';
 
 const CAPSULE_HEADING = '#### Current intent/design capsule';
+const REGION = 'us-west-2';
+const COMMENTS_TABLE_BY_BASE_URL = new Map([
+  ['https://dev.api.uclusion.com/v1', 'uclusion-markets-dev-comments'],
+  ['https://stage.api.uclusion.com/v1', 'uclusion-markets-dev-comments']
+]);
 
 export default function (adminConfiguration) {
   describe('#test intent/design capsule MCP integration (J-Marketing-33)', () => {
@@ -21,6 +27,7 @@ export default function (adminConfiguration) {
     let accountToken;
     let adminClient;
     let adminId;
+    let documentClient;
     let marketId;
     let uclusionToken;
 
@@ -45,6 +52,7 @@ export default function (adminConfiguration) {
       adminClient = marketLogin.client;
       adminId = (await adminClient.users.get()).id;
       uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
+      documentClient = new AWS.DynamoDB.DocumentClient({ region: REGION });
     });
 
     after(async function () {
@@ -98,6 +106,43 @@ export default function (adminConfiguration) {
       });
     }
 
+    async function setAssociatedRelocationBarrier(commentId, ownerId, enabled) {
+      const tableName = COMMENTS_TABLE_BY_BASE_URL.get(adminConfiguration.baseURL);
+      assert(tableName,
+        `Relocation barrier is not allowed in ${adminConfiguration.baseURL}`);
+      const response = await documentClient.update({
+        TableName: tableName,
+        Key: { id: commentId },
+        UpdateExpression: 'SET #pinned = :enabled, #machine = :enabled ADD #version :one',
+        ConditionExpression:
+          '#market = :market AND #association = :owner AND #type = :report ' +
+          'AND #pinned = :previousEnabled AND #machine = :previousEnabled ' +
+          'AND #notification = :blue',
+        ExpressionAttributeNames: {
+          '#association': 'associated_comment_id',
+          '#machine': 'is_machine_only',
+          '#market': 'market_id',
+          '#notification': 'notification_type',
+          '#pinned': 'pinned',
+          '#type': 'comment_type',
+          '#version': 'version'
+        },
+        ExpressionAttributeValues: {
+          ':enabled': enabled,
+          ':blue': 'BLUE',
+          ':market': marketId,
+          ':one': 1,
+          ':owner': ownerId,
+          ':previousEnabled': !enabled,
+          ':report': 'REPORT'
+        },
+        ReturnValues: 'ALL_NEW'
+      }).promise();
+      assert.strictEqual(response.Attributes?.pinned, enabled);
+      assert.strictEqual(response.Attributes?.is_machine_only, enabled);
+      assert.strictEqual(response.Attributes?.notification_type, 'BLUE');
+    }
+
     async function listComments() {
       const versions = await accountClient.summaries.versions(accountToken, [marketId]);
       const marketEntry = (versions.signatures || [])
@@ -113,8 +158,14 @@ export default function (adminConfiguration) {
       if (commentVersions.size === 0) {
         return [];
       }
-      return adminClient.investibles.getMarketComments(
-        [...commentVersions].map(([id, version]) => ({ id, version })));
+      const signatures = [...commentVersions]
+        .map(([id, version]) => ({ id, version }));
+      const batches = [];
+      for (let offset = 0; offset < signatures.length; offset += 100) {
+        batches.push(signatures.slice(offset, offset + 100));
+      }
+      return (await Promise.all(batches.map((batch) =>
+        adminClient.investibles.getMarketComments(batch)))).flat();
     }
 
     async function waitForComments(isDone) {
@@ -166,6 +217,23 @@ export default function (adminConfiguration) {
       return markdown;
     }
 
+    async function addInfoCode(shortCode, body) {
+      const response = await retryMcp('add_info', {
+        short_code_id: shortCode,
+        info: body
+      });
+      const match = toolText(response).match(/Added info with id (\S+) and link/);
+      assert(match, `add_info did not return the created note R code: ${response}`);
+      return match[1];
+    }
+
+    async function addInfo(shortCode, body) {
+      const code = await addInfoCode(shortCode, body);
+      const comments = await waitForComments((items) =>
+        items.some((comment) => comment.ticket_code === code));
+      return comments.find((comment) => comment.ticket_code === code);
+    }
+
     async function listMcpTools() {
       const response = await fetch(
         adminConfiguration.baseURL.replace('https://', 'https://investibles.') + '/mcp',
@@ -181,20 +249,15 @@ export default function (adminConfiguration) {
       return envelope.result.tools;
     }
 
-    function capsuleOrder(left, right) {
-      const leftKey = [left.updated_at || left.created_at || '', left.version || 0, left.id || ''];
-      const rightKey = [right.updated_at || right.created_at || '', right.version || 0, right.id || ''];
-      for (let index = 0; index < leftKey.length; index += 1) {
-        if (leftKey[index] !== rightKey[index]) {
-          return leftKey[index] < rightKey[index] ? 1 : -1;
-        }
-      }
-      return 0;
+    function allCapsuleArchives(comments, sourceCode) {
+      const prefix = `Former intent/design capsule ${sourceCode}, version `;
+      return comments.filter((comment) => comment.body?.includes(prefix));
     }
 
     function capsuleArchives(comments, sourceCode, sourceVersion) {
       const prefix = `Former intent/design capsule ${sourceCode}, version ${sourceVersion}.`;
-      return comments.filter((comment) => comment.body?.includes(prefix));
+      return allCapsuleArchives(comments, sourceCode)
+        .filter((comment) => comment.body.includes(prefix));
     }
 
     function assertArchive(archive, source) {
@@ -236,8 +299,35 @@ export default function (adminConfiguration) {
       }
     }
 
-    it('creates target-scoped capsules, updates them safely, archives revisions, and converges a create race', async () => {
+    it('upserts target-scoped capsules, archives revisions, and converges an identical race', async () => {
       const marker = randomUUID();
+      const tools = await listMcpTools();
+      const capsuleTool = tools.find((tool) => tool.name === 'set_design_capsule');
+      assert(capsuleTool?.description.includes('creates the capsule when absent or replaces'),
+        'set_design_capsule copy must describe target-only create-or-replace behavior');
+      assert.deepStrictEqual(
+        Object.keys(capsuleTool.inputSchema.properties).sort(),
+        ['capsule', 'job_id', 'task_id', 'update_capsule_short_code_id',
+          'update_capsule_version'],
+        'Target mode must state the job and optionally its task'
+      );
+      assert.deepStrictEqual(
+        capsuleTool.inputSchema.oneOf.map((choice) => choice.required),
+        [['job_id'], ['update_capsule_short_code_id', 'update_capsule_version']],
+        'A task-only target must not satisfy either capsule write mode'
+      );
+      assert.deepStrictEqual(
+        capsuleTool.inputSchema.oneOf[0].not.anyOf
+          .map((rule) => rule.required[0]).sort(),
+        ['update_capsule_short_code_id', 'update_capsule_version'],
+        'Target mode must exclude explicit R/version fields'
+      );
+      assert.deepStrictEqual(
+        capsuleTool.inputSchema.oneOf[1].not.anyOf
+          .map((rule) => rule.required[0]).sort(),
+        ['job_id', 'task_id'],
+        'Explicit R/version mode must exclude target fields'
+      );
       const job = await adminClient.investibles.create({
         groupId: marketId,
         name: `Capsule lifecycle ${marker}`,
@@ -259,7 +349,7 @@ export default function (adminConfiguration) {
       const jobV1 = `## Outcome\nJob capsule version one ${marker}.`;
       const taskV1 = `## Outcome\nTask capsule selected through grouped child ${marker}.`;
       const createdJob = structuredResult(await retryMcp('set_design_capsule', {
-        job_or_task_id: jobTicketCode,
+        job_id: jobTicketCode,
         capsule: jobV1
       }));
       assert.strictEqual(createdJob.status, 'created');
@@ -269,7 +359,8 @@ export default function (adminConfiguration) {
       assert(createdJob.link.includes(createdJob.capsule_short_code_id));
 
       const createdTask = structuredResult(await retryMcp('set_design_capsule', {
-        job_or_task_id: groupedTicketCode,
+        job_id: jobTicketCode,
+        task_id: groupedTicketCode,
         capsule: taskV1
       }));
       assert.strictEqual(createdTask.status, 'created');
@@ -324,22 +415,23 @@ export default function (adminConfiguration) {
       assert.strictEqual(jobCapsuleNotifications[0].alert_type, 'AI_GENERATED');
 
       const blank = await retryMcp('set_design_capsule', {
-        job_or_task_id: jobTicketCode,
+        job_id: jobTicketCode,
         capsule: '   '
       });
       assertRefusal(blank, 'capsule must be nonblank');
       const xor = await retryMcp('set_design_capsule', {
-        job_or_task_id: jobTicketCode,
+        job_id: jobTicketCode,
         update_capsule_short_code_id: createdJob.capsule_short_code_id,
         update_capsule_version: 1,
         capsule: `Must not be saved ${marker}`
       });
       assertRefusal(xor, 'Choose exactly one mode');
-      const duplicate = await retryMcp('set_design_capsule', {
-        job_or_task_id: jobTicketCode,
-        capsule: `Sequential duplicate ${marker}`
+      const removedTargetField = await retryMcp('set_design_capsule', {
+        job_id: jobTicketCode,
+        job_or_task_id: taskTicketCode,
+        capsule: `Must not ignore a removed target field ${marker}`
       });
-      assertRefusal(duplicate, createdJob.capsule_short_code_id, 'version 1');
+      assertRefusal(removedTargetField, 'Unknown set_design_capsule fields', 'job_or_task_id');
 
       const jobMarkdown = await readTarget(jobTicketCode, `Job capsule version one ${marker}`);
       assert(jobMarkdown.includes(`Selected implementation target: Job ${jobTicketCode}.`));
@@ -360,23 +452,32 @@ export default function (adminConfiguration) {
 
       const jobV2 = `## Outcome\nAI-revised capsule version two ${marker}.`;
       const updatedJob = structuredResult(await retryMcp('set_design_capsule', {
-        update_capsule_short_code_id: createdJob.capsule_short_code_id,
-        update_capsule_version: createdJob.capsule_version,
+        job_id: jobTicketCode,
         capsule: jobV2
       }));
       assert.strictEqual(updatedJob.status, 'updated');
       assert.strictEqual(updatedJob.normalized_target, jobTicketCode);
       assert.strictEqual(updatedJob.capsule_short_code_id, createdJob.capsule_short_code_id,
-        'A revision must keep the current R code stable');
+        'A target-only replacement must keep the current R code stable');
       assert.strictEqual(updatedJob.capsule_version, 2);
       const unchanged = structuredResult(await retryMcp('set_design_capsule', {
-        update_capsule_short_code_id: updatedJob.capsule_short_code_id,
-        update_capsule_version: updatedJob.capsule_version,
+        job_id: jobTicketCode,
         capsule: jobV2
       }));
       assert.strictEqual(unchanged.status, 'unchanged');
+      assert.strictEqual(unchanged.capsule_short_code_id, createdJob.capsule_short_code_id);
       assert.strictEqual(unchanged.capsule_version, 2,
-        'An identical sanitized body must not increment the capsule version');
+        'An identical target-only body must not increment the capsule version');
+
+      const explicitUnchanged = structuredResult(await retryMcp('set_design_capsule', {
+        update_capsule_short_code_id: unchanged.capsule_short_code_id,
+        update_capsule_version: unchanged.capsule_version,
+        capsule: jobV2
+      }));
+      assert.strictEqual(explicitUnchanged.status, 'unchanged');
+      assert.strictEqual(explicitUnchanged.capsule_short_code_id, createdJob.capsule_short_code_id,
+        'An explicit current-version write must retain the same capsule R code');
+      assert.strictEqual(explicitUnchanged.capsule_version, 2);
 
       const stale = await retryMcp('set_design_capsule', {
         update_capsule_short_code_id: createdJob.capsule_short_code_id,
@@ -444,85 +545,365 @@ export default function (adminConfiguration) {
       const raceTask = await adminClient.investibles.createComment(
         job.investible.id, marketId, raceTaskMarker, null, 'TODO');
       const raceTaskCode = await commentCode(raceTask);
-      const raceBodies = Array.from({ length: 12 }, (_, index) =>
-        `## Outcome\nConcurrent candidate ${index} ${marker}.`);
-      const raceResponses = await Promise.all(raceBodies.map((capsule) =>
+      const raceBody = `## Outcome\nConcurrent identical candidate ${marker}.`;
+      const raceResponses = await Promise.all(Array.from({ length: 12 }, () =>
         retryMcp('set_design_capsule', {
-          job_or_task_id: raceTaskCode,
-          capsule
+          job_id: jobTicketCode,
+          task_id: raceTaskCode,
+          capsule: raceBody
         })));
-      const createdRaceCapsules = [];
-      let raceRefusalCount = 0;
-      raceResponses.forEach((response, index) => {
+      const successfulRaceCapsules = [];
+      const raceConflictTexts = [];
+      raceResponses.forEach((response) => {
         const result = toolResult(response);
         if (result.isError === true) {
-          raceRefusalCount += 1;
-          assert(toolText(response).includes('Current capsule is'),
-            `A losing concurrent create should identify the current capsule: ${response}`);
+          const text = toolText(response);
+          assert(text.includes('set_design_capsule was refused:')
+            && text.includes('Current capsule is R-')
+            && text.includes('at version'),
+            `A bounded race refusal must identify the current R and version: ${response}`);
+          raceConflictTexts.push(text);
           return;
         }
         const payload = structuredResult(response);
-        assert.strictEqual(payload.status, 'created');
+        assert(['created', 'unchanged'].includes(payload.status),
+          `An identical concurrent upsert cannot change the body: ${response}`);
         assert.strictEqual(payload.normalized_target, raceTaskCode);
-        createdRaceCapsules.push({ ...payload, body: raceBodies[index] });
+        successfulRaceCapsules.push(payload);
       });
-      assert(createdRaceCapsules.length >= 1,
-        `The concurrent create race produced no capsule: ${JSON.stringify(raceResponses)}`);
+      assert(successfulRaceCapsules.some((capsule) => capsule.status === 'created'),
+        `The concurrent upsert race produced no capsule: ${JSON.stringify(raceResponses)}`);
+      assert.strictEqual(successfulRaceCapsules.filter(
+        (capsule) => capsule.status === 'created').length, 1,
+        'Exactly one concurrent upsert may create the stable capsule row');
 
-      const createdRaceCodes = new Set(createdRaceCapsules
+      const createdRaceCodes = new Set(successfulRaceCapsules
         .map((capsule) => capsule.capsule_short_code_id));
+      assert.strictEqual(createdRaceCodes.size, 1,
+        'Every successful identical upsert must return the same stable R code');
+      const stableRaceCode = [...createdRaceCodes][0];
+      raceConflictTexts.forEach((text) => assert(text.includes(stableRaceCode),
+        `Every race refusal must identify the stable current R: ${text}`));
       comments = await waitForComments((items) =>
-        [...createdRaceCodes].every((code) => items.some((comment) => comment.ticket_code === code)));
-      const raceRows = comments.filter((comment) => createdRaceCodes.has(comment.ticket_code));
-      const pinnedRaceRows = raceRows.filter((comment) => comment.pinned === true)
-        .sort(capsuleOrder);
-      assert(pinnedRaceRows.length >= 1,
-        `The race must leave a selected current capsule: ${JSON.stringify(raceRows)}`);
-      const selectedRaceRow = pinnedRaceRows[0];
-      const selectedRace = createdRaceCapsules.find((capsule) =>
-        capsule.capsule_short_code_id === selectedRaceRow.ticket_code);
-      assert(selectedRace, `Selected race row did not match a successful create: ${selectedRaceRow.ticket_code}`);
-      const selectedRaceMarker = selectedRace.body.split('\n')[1];
+        items.some((comment) => comment.ticket_code === stableRaceCode));
+      const raceRows = comments.filter((comment) =>
+        comment.associated_comment_id === raceTask.id &&
+        comment.comment_type === 'REPORT' && comment.notification_type === 'BLUE');
+      assert.strictEqual(raceRows.length, 1,
+        `Identical concurrent upserts must persist one capsule row: ${JSON.stringify(raceRows)}`);
+      assert.strictEqual(raceRows[0].pinned, true);
+      const selectedRaceMarker = raceBody.split('\n')[1];
       const raceMarkdown = await readTarget(raceTaskCode, selectedRaceMarker);
       assert(raceMarkdown.includes(`Selected implementation target: Task ${raceTaskCode}.`));
-      createdRaceCapsules
-        .filter((capsule) => capsule.capsule_short_code_id !== selectedRace.capsule_short_code_id)
-        .forEach((loser) => {
-          assert(!raceMarkdown.includes(loser.body.split('\n')[1]),
-            `get_job selected race loser ${loser.capsule_short_code_id}`);
-        });
+    }).timeout(900000);
 
-      const repaired = structuredResult(await retryMcp('set_design_capsule', {
-        update_capsule_short_code_id: selectedRace.capsule_short_code_id,
-        update_capsule_version: selectedRace.capsule_version,
-        capsule: selectedRace.body
-      }));
-      assert.strictEqual(repaired.status, 'unchanged',
-        'A repair-only write should not manufacture a body revision');
-      comments = await waitForComments((items) => {
-        const rows = items.filter((comment) => createdRaceCodes.has(comment.ticket_code));
-        return rows.length === createdRaceCodes.size &&
-          rows.filter((comment) => comment.pinned === true).length === 1;
+    it('moves task-owned notes and capsule history to the task destination', async () => {
+      const marker = randomUUID();
+      const sourceJob = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Capsule move source ${marker}`,
+        description: 'Owns the task and controls that must stay in the source job.',
+        assignments: [adminId]
       });
-      const repairedRows = comments.filter((comment) => createdRaceCodes.has(comment.ticket_code));
-      assert.strictEqual(repairedRows.length, createdRaceCodes.size,
-        'Every successful concurrent create must remain durable through repair');
-      const repairedCurrent = repairedRows.filter((comment) => comment.pinned === true);
-      assert.strictEqual(repairedCurrent.length, 1,
-        'The next capsule write must converge any race to one pinned current');
-      assert.strictEqual(repairedCurrent[0].ticket_code, selectedRace.capsule_short_code_id);
-      repairedRows
-        .filter((comment) => comment.ticket_code !== selectedRace.capsule_short_code_id)
-        .forEach((loser) => assert.strictEqual(loser.pinned, false,
-          `Successful race loser ${loser.ticket_code} must become an ordinary unpinned note`));
-      if (createdRaceCapsules.length === 1) {
-        assert.strictEqual(raceRefusalCount, raceBodies.length - 1,
-          'A serialized race must atomically refuse every create after its sole winner');
-      } else {
-        assert(repairedRows.some((comment) =>
-          comment.ticket_code !== selectedRace.capsule_short_code_id && comment.pinned === false),
-          'A race that creates temporary duplicates must repair at least one successful loser');
+      const destinationGroup = (await adminClient.markets.createGroup({
+        name: `Capsule move destination group ${marker}`
+      })).group;
+      const destinationJob = await adminClient.investibles.create({
+        groupId: destinationGroup.id,
+        name: `Capsule move destination ${marker}`,
+        description: 'Receives the task and every note owned by it.',
+        assignments: [adminId]
+      });
+      const sourceJobCode = await jobCode(sourceJob);
+      const destinationJobCode = await jobCode(destinationJob);
+
+      const sourceJobCapsuleBody = `## Outcome\nSource job control capsule ${marker}.`;
+      const sourceJobCapsule = structuredResult(await retryMcp('set_design_capsule', {
+        job_id: sourceJobCode,
+        capsule: sourceJobCapsuleBody
+      }));
+      const sourceJobNote = await addInfo(sourceJobCode, `Source job control note ${marker}`);
+
+      const task = await adminClient.investibles.createComment(
+        sourceJob.investible.id, marketId, `Task to move ${marker}`, null, 'TODO');
+      const taskCode = await commentCode(task);
+      const groupedTask = await adminClient.investibles.createComment(
+        sourceJob.investible.id, marketId, `Grouped task to move ${marker}`, task.id);
+      const groupedTaskCode = await commentCode(groupedTask);
+      assert(groupedTaskCode.startsWith('C-'));
+
+      const taskNote = await addInfo(taskCode, `Top-level task note ${marker}`);
+      const groupedTaskNote = await addInfo(groupedTaskCode, `Grouped task note ${marker}`);
+      assert(taskNote.ticket_code.startsWith('R-') && groupedTaskNote.ticket_code.startsWith('R-'));
+      assert.strictEqual(taskNote.associated_comment_id, task.id);
+      assert.strictEqual(groupedTaskNote.associated_comment_id, groupedTask.id,
+        'A grouped-task note must retain the exact grouped C owner');
+      const batchedTaskNoteCodes = [];
+      for (let index = 0; index < 100; index += 1) {
+        batchedTaskNoteCodes.push(await addInfoCode(
+          groupedTaskCode,
+          `Task root batch note ${index} ${marker}`
+        ));
       }
+      const batchedTaskNoteCodeSet = new Set(batchedTaskNoteCodes);
+      const batchedTaskNotes = (await waitForComments((items) =>
+        batchedTaskNoteCodes.every((code) =>
+          items.some((comment) => comment.ticket_code === code))))
+        .filter((comment) => batchedTaskNoteCodeSet.has(comment.ticket_code));
+      assert.strictEqual(batchedTaskNotes.length, 100,
+        'The owner move fixture must cross the 100-root relocation batch boundary');
+
+      const taskCapsuleV1Body = `## Outcome\nMovable task capsule version one ${marker}.`;
+      const createdTaskCapsule = structuredResult(await retryMcp('set_design_capsule', {
+        job_id: sourceJobCode,
+        task_id: taskCode,
+        capsule: taskCapsuleV1Body
+      }));
+      let comments = await waitForComments((items) =>
+        items.some((comment) =>
+          comment.ticket_code === createdTaskCapsule.capsule_short_code_id && comment.version === 1));
+      const taskCapsuleV1 = comments.find((comment) =>
+        comment.ticket_code === createdTaskCapsule.capsule_short_code_id);
+      const taskCapsuleV2Body = `## Outcome\nMovable task capsule version two ${marker}.`;
+      const revisedTaskCapsule = structuredResult(await retryMcp('set_design_capsule', {
+        job_id: sourceJobCode,
+        task_id: taskCode,
+        capsule: taskCapsuleV2Body
+      }));
+      assert.strictEqual(revisedTaskCapsule.status, 'updated');
+      assert.strictEqual(revisedTaskCapsule.capsule_short_code_id,
+        createdTaskCapsule.capsule_short_code_id);
+
+      comments = await waitForComments((items) =>
+        items.some((comment) =>
+          comment.ticket_code === revisedTaskCapsule.capsule_short_code_id &&
+          comment.version === revisedTaskCapsule.capsule_version) &&
+        capsuleArchives(items, revisedTaskCapsule.capsule_short_code_id, 1).length === 1);
+      const currentTaskCapsule = comments.find((comment) =>
+        comment.ticket_code === revisedTaskCapsule.capsule_short_code_id && comment.pinned === true);
+      const taskCapsuleArchive = capsuleArchives(
+        comments, revisedTaskCapsule.capsule_short_code_id, 1)[0];
+      assertCurrentCapsule(currentTaskCapsule, task.id);
+      assertArchive(taskCapsuleArchive, taskCapsuleV1);
+
+      const associatedRoots = [
+        taskNote,
+        groupedTaskNote,
+        currentTaskCapsule,
+        taskCapsuleArchive,
+        ...batchedTaskNotes
+      ];
+      const replyRoots = [
+        taskNote,
+        groupedTaskNote,
+        currentTaskCapsule,
+        taskCapsuleArchive,
+        batchedTaskNotes[0]
+      ];
+      const associatedReplies = [];
+      for (const [index, root] of replyRoots.entries()) {
+        associatedReplies.push(await adminClient.investibles.createComment(
+          sourceJob.investible.id,
+          marketId,
+          `Associated note reply ${index} ${marker}`,
+          root.id,
+          null,
+          null,
+          null,
+          'RED'
+        ));
+      }
+      associatedReplies.push(await adminClient.investibles.createComment(
+        sourceJob.investible.id,
+        marketId,
+        `Nested associated note reply ${marker}`,
+        associatedReplies[0].id,
+        null,
+        null,
+        null,
+        'RED'
+      ));
+      const trackedIds = [
+        task.id,
+        groupedTask.id,
+        ...associatedRoots.map((comment) => comment.id),
+        ...associatedReplies.map((comment) => comment.id),
+        sourceJobNote.id
+      ];
+      comments = await waitForComments((items) =>
+        trackedIds.every((id) => items.some((comment) => comment.id === id)) &&
+        items.some((comment) => comment.ticket_code === sourceJobCapsule.capsule_short_code_id));
+      const beforeMoveById = new Map(comments.map((comment) => [comment.id, comment]));
+      associatedReplies.forEach((reply) => assert.strictEqual(
+        beforeMoveById.get(reply.id).notification_type,
+        'RED',
+        'The reply fan-out must exercise preservation of non-default flags'
+      ));
+      const sourceJobCapsuleRow = comments.find((comment) =>
+        comment.ticket_code === sourceJobCapsule.capsule_short_code_id);
+      assertCurrentCapsule(sourceJobCapsuleRow);
+      const preMoveCurrentTaskCapsule = beforeMoveById.get(currentTaskCapsule.id);
+
+      const mismatchedJob404 = await retryMcp('set_design_capsule', {
+        job_id: destinationJobCode,
+        task_id: taskCode,
+        capsule: `Must not be saved for a mismatched job ${marker}`
+      });
+      assertRefusal(mismatchedJob404, destinationJobCode, taskCode, 'does not exist');
+
+      await assert.rejects(
+        () => adminClient.investibles.moveComments(
+          destinationJob.investible.id,
+          [associatedReplies[0].id]
+        ),
+        'A public caller must not move a task-associated reply independently'
+      );
+      const destinationCapsuleV1Body =
+        `## Outcome\nFresh destination task capsule version one ${marker}.`;
+      let createdDestinationCapsule;
+      await setAssociatedRelocationBarrier(taskNote.id, task.id, true);
+      try {
+        await adminClient.investibles.moveComments(destinationJob.investible.id, [task.id]);
+        createdDestinationCapsule = structuredResult(await retryMcp('set_design_capsule', {
+          job_id: destinationJobCode,
+          task_id: taskCode,
+          capsule: destinationCapsuleV1Body
+        }));
+      } finally {
+        await setAssociatedRelocationBarrier(taskNote.id, task.id, false);
+      }
+      assert.strictEqual(createdDestinationCapsule.status, 'created');
+      assert.strictEqual(createdDestinationCapsule.normalized_target, taskCode);
+      assert.strictEqual(createdDestinationCapsule.capsule_version, 1);
+      assert(createdDestinationCapsule.capsule_short_code_id.startsWith('R-'));
+      assert.notStrictEqual(createdDestinationCapsule.capsule_short_code_id,
+        revisedTaskCapsule.capsule_short_code_id,
+        'A destination-scoped upsert must create a different R while the source R is absent');
+
+      const movedIds = trackedIds.filter((id) => id !== sourceJobNote.id);
+      comments = await waitForComments((items) => {
+        const byId = new Map(items.map((comment) => [comment.id, comment]));
+        return movedIds.every((id) =>
+          byId.get(id)?.investible_id === destinationJob.investible.id) &&
+          byId.get(currentTaskCapsule.id)?.pinned === false &&
+          byId.get(currentTaskCapsule.id)?.body === preMoveCurrentTaskCapsule.body &&
+          items.some((comment) =>
+            comment.ticket_code === createdDestinationCapsule.capsule_short_code_id &&
+            comment.pinned === true &&
+            comment.body.includes(`Fresh destination task capsule version one ${marker}`)) &&
+          allCapsuleArchives(items, revisedTaskCapsule.capsule_short_code_id).length === 1 &&
+          byId.get(sourceJobNote.id)?.investible_id === sourceJob.investible.id &&
+          items.find((comment) =>
+            comment.ticket_code === sourceJobCapsule.capsule_short_code_id)?.investible_id ===
+              sourceJob.investible.id;
+      });
+      const afterMoveById = new Map(comments.map((comment) => [comment.id, comment]));
+
+      const stableFields = [
+        'id', 'ticket_code', 'body', 'associated_comment_id', 'comment_type',
+        'notification_type', 'pinned', 'resolved', 'deleted', 'is_visible',
+        'is_machine_only', 'is_sent', 'created_by', 'uploaded_files', 'reply_id',
+        'root_comment_id'
+      ];
+      movedIds.forEach((id) => {
+        const before = beforeMoveById.get(id);
+        const after = afterMoveById.get(id);
+        assert(before && after, `Moved comment ${id} must remain readable`);
+        assert.strictEqual(after.investible_id, destinationJob.investible.id);
+        assert.strictEqual(after.group_id, destinationGroup.id);
+        const fieldsToPreserve = id === currentTaskCapsule.id
+          ? stableFields.filter((field) => field !== 'pinned')
+          : stableFields;
+        fieldsToPreserve.forEach((field) => assert.deepStrictEqual(
+          after[field], before[field], `${field} changed while moving ${before.ticket_code || id}`));
+      });
+      assert.strictEqual(afterMoveById.get(currentTaskCapsule.id).pinned, false,
+        'The older source capsule must converge as unpinned destination history');
+      assert.strictEqual(afterMoveById.get(sourceJobNote.id).investible_id, sourceJob.investible.id);
+      assert.strictEqual(afterMoveById.get(sourceJobNote.id).group_id, marketId);
+      assert.strictEqual(comments.find((comment) =>
+        comment.ticket_code === sourceJobCapsule.capsule_short_code_id).investible_id,
+        sourceJob.investible.id);
+      assert.strictEqual(comments.find((comment) =>
+        comment.ticket_code === sourceJobCapsule.capsule_short_code_id).group_id, marketId);
+      assert.strictEqual(allCapsuleArchives(
+        comments, revisedTaskCapsule.capsule_short_code_id).length, 1,
+        'Demoting the older source capsule must not add another archive');
+      const destinationCurrentBeforeUpdate = comments.find((comment) =>
+        comment.ticket_code === createdDestinationCapsule.capsule_short_code_id &&
+        comment.pinned === true);
+      assertCurrentCapsule(destinationCurrentBeforeUpdate, task.id);
+      assert.strictEqual(destinationCurrentBeforeUpdate.investible_id,
+        destinationJob.investible.id);
+      assert.strictEqual(destinationCurrentBeforeUpdate.group_id, destinationGroup.id);
+      assert.strictEqual(allCapsuleArchives(
+        comments, createdDestinationCapsule.capsule_short_code_id).length, 0,
+        'Creating the destination capsule must not create history');
+
+      const taskMarkdown = await readTarget(
+        taskCode, `Fresh destination task capsule version one ${marker}`);
+      const groupedMarkdown = await readTarget(
+        groupedTaskCode, `Fresh destination task capsule version one ${marker}`);
+      assert(taskMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
+      assert(groupedMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
+      [taskMarkdown, groupedMarkdown].forEach((markdown) => {
+        assert(!markdown.includes(`Source job control capsule ${marker}`));
+        assert(!markdown.includes(`Movable task capsule version two ${marker}`),
+          'The demoted source capsule must not compete with the destination current capsule');
+      });
+      const destinationCapsuleV2Body =
+        `## Outcome\nFresh destination task capsule version two ${marker}.`;
+      const updatedDestinationCapsule = structuredResult(await retryMcp('set_design_capsule', {
+        job_id: destinationJobCode,
+        task_id: groupedTaskCode,
+        capsule: destinationCapsuleV2Body
+      }));
+      assert.strictEqual(updatedDestinationCapsule.status, 'updated');
+      assert.strictEqual(updatedDestinationCapsule.normalized_target, taskCode);
+      assert.strictEqual(updatedDestinationCapsule.capsule_short_code_id,
+        createdDestinationCapsule.capsule_short_code_id,
+        'A later destination update must retain the new destination R');
+
+      comments = await waitForComments((items) =>
+        items.some((comment) =>
+          comment.ticket_code === updatedDestinationCapsule.capsule_short_code_id &&
+          comment.pinned === true &&
+          comment.body.includes(`Fresh destination task capsule version two ${marker}`)) &&
+        capsuleArchives(
+          items,
+          updatedDestinationCapsule.capsule_short_code_id,
+          destinationCurrentBeforeUpdate.version
+        ).length === 1 &&
+        items.some((comment) =>
+          comment.id === currentTaskCapsule.id && comment.pinned === false) &&
+        allCapsuleArchives(items, revisedTaskCapsule.capsule_short_code_id).length === 1);
+      const updatedDestinationCurrent = comments.find((comment) =>
+        comment.ticket_code === updatedDestinationCapsule.capsule_short_code_id &&
+        comment.pinned === true);
+      assertCurrentCapsule(updatedDestinationCurrent, task.id);
+      assert.strictEqual(updatedDestinationCurrent.investible_id,
+        destinationJob.investible.id);
+      assert.strictEqual(updatedDestinationCurrent.group_id, destinationGroup.id);
+      const destinationArchives = capsuleArchives(
+        comments,
+        updatedDestinationCapsule.capsule_short_code_id,
+        destinationCurrentBeforeUpdate.version
+      );
+      assert.strictEqual(destinationArchives.length, 1,
+        'The later destination body update must create exactly one archive');
+      assertArchive(destinationArchives[0], destinationCurrentBeforeUpdate);
+      assert.strictEqual(allCapsuleArchives(
+        comments, updatedDestinationCapsule.capsule_short_code_id).length, 1);
+      assert.strictEqual(comments.find((comment) =>
+        comment.id === currentTaskCapsule.id).pinned, false,
+        'Updating the destination capsule must not repin the older source R');
+
+      const updatedTaskMarkdown = await readTarget(
+        taskCode, `Fresh destination task capsule version two ${marker}`);
+      const updatedGroupedMarkdown = await readTarget(
+        groupedTaskCode, `Fresh destination task capsule version two ${marker}`);
+      assert(updatedTaskMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
+      assert(updatedGroupedMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
     }).timeout(900000);
 
     it('keeps reviews as freeform, explicit, agent-owned delta handoffs naming the stable capsule R', async () => {
@@ -551,7 +932,7 @@ export default function (adminConfiguration) {
       const jobTicketCode = await jobCode(job);
       const capsuleV1 = `## Outcome\nReview baseline version one ${marker}.`;
       const createdCapsule = structuredResult(await retryMcp('set_design_capsule', {
-        job_or_task_id: jobTicketCode,
+        job_id: jobTicketCode,
         capsule: capsuleV1
       }));
 
