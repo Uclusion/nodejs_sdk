@@ -76,9 +76,31 @@ exist whose options cover both alternatives of each fork, and each question
 must carry the AI's own vote. The harness is `questionGateHarness.js` with its
 fixture in `questionGateFixture.js`.
 
-The executable catalog is `semanticScenarios.js`. There is deliberately no
-implicit `all` mode: choosing the semantic script does not rerun the nine
-transport sessions.
+`npm run testAgentDevDesignWriting` runs the one-process design-writing
+acceptance catalog. It creates one disposable UUID-marked `INTEGRATION_TEST`
+planning market and one human-owned Doable job with a literal actor-to-terminal
+lifecycle and exactly two resolved choices backed by the primary human's For
+votes. One fresh paid `codex exec --ephemeral --json` process must load the
+complete core Uclusion skill, the complete sibling `uclusion-design` skill,
+and that skill's complete examples reference before it creates the job's
+capsule. The durable result must be exactly one current,
+pinned, job-scoped capsule. Each selected choice's exact `Q-` and `O-` evidence,
+descriptive link, and selected behavior must occur in the same claim block, so
+a detached evidence ledger fails. The literal actor trigger, terminal success,
+and terminal failure anchors must survive in order. The process may make no
+other workflow mutation beyond the Uclusion audit telemetry required by the
+installed workflow.
+
+The design-writing catalog uses the shared semantic harness, including its
+ten-minute timeout, fail-closed 500,000-token ceiling, no whole-session retry,
+credential redaction, isolated workspace and HOME, and guarded deletion of the
+exact marked market. Its executable scenario, fixture, and grader are
+`designWritingScenarios.js`, `designWritingFixture.js`, and
+`designWritingAssertions.js`.
+
+The original three-phase semantic catalog is `semanticScenarios.js`. There is
+deliberately no implicit `all` mode: choosing a semantic-harness script does
+not rerun the nine transport sessions.
 
 ## Required inputs
 
@@ -89,10 +111,11 @@ transport sessions.
   suites commit in `testIntegration/uclusionTest.js`, so no Uclusion
   credential input is required to run against dev. `UCLUSION_DEV_CREDENTIALS`
   and `UCLUSION_DEV_ADVISORY_CREDENTIALS` remain optional JSON overrides with
-  `username` and `password` fields. Both humans join the one semantic market;
-  the job assignment remains owned by the primary identity. The semantic
-  catalogs join it as a second human; the onboarding catalog uses it as the
-  email-added collaborator and logs in as it to prove durable membership.
+  `username` and `password` fields. The authority semantic catalog joins both
+  humans while keeping the job assigned to the primary identity. The
+  design-writing catalog needs only that primary human. The onboarding catalog
+  uses the secondary identity as the email-added collaborator and logs in as it
+  to prove durable membership.
 - `CODEX_API_KEY`/`OPENAI_API_KEY` must be available to the harness unless
   `TEST_AGENT_DEV_USE_LOCAL_AUTH=1` explicitly enables copying the current
   Codex `auth.json` into each isolated child HOME. Provider variables are
@@ -101,7 +124,8 @@ transport sessions.
   Lambda. Cleanup supplies the exact created market id, and DEV refuses roots
   not marked `INTEGRATION_TEST`.
 
-The semantic catalog applies a ten-minute hard timeout to every Codex process.
+Every semantic-harness catalog applies a ten-minute hard timeout to each Codex
+process.
 `TEST_AGENT_DEV_TIMEOUT_MS` remains available to the legacy trigger catalog;
 `TEST_AGENT_DEV_ARTIFACT_DIR` may replace either catalog's artifact directory.
 
@@ -126,15 +150,18 @@ There are no whole-session retries; a semantic failure is preserved as a
 failure.
 
 The source package is staged directly from the exact customer-shipped native
-paths. The harness hashes the stub, skill, and references, and each semantic
-trace must prove that the Uclusion skill EOF sentinel loaded before its first
-Uclusion MCP call. No compact test-only workflow or instruction-size override
-is used.
+paths. The harness hashes and byte-verifies both complete sibling skill
+packages after staging for Claude, Cursor, or Codex. Each semantic trace must
+prove that the Uclusion skill EOF sentinel loaded before its first Uclusion MCP
+call; the design-writing catalog additionally proves the sibling design skill
+and its examples from their exact entry markers through their EOF sentinels
+before the capsule write. No compact test-only workflow or instruction-size
+override is used.
 
-Every graded live phase, onboarding included, also enforces load economy: a
-short code's first `get_job` may take its whole scope, and any repeat load of
-the same code in one process must be scoped with `thread_only` or nonempty
-`sections` instead of pulling the whole job again.
+The original semantic phases and onboarding also enforce load economy: a short
+code's first `get_job` may take its whole scope, and any repeat load of the same
+code in one process must be scoped with `thread_only` or nonempty `sections`
+instead of pulling the whole job again.
 
 The trace contract follows the shipped compound-event routing. The
 advisory-only authority check and primary-answer continuation must first load
@@ -153,8 +180,9 @@ vote before the primary-answer phase resolves the exact question and task.
 Trigger artifacts default to `testAgentDev/artifacts/`. Full semantic artifacts
 default to `testAgentDev/artifacts/semantic/`; targeted standalone-bug artifacts
 default to `testAgentDev/artifacts/semantic-standalone-bug-conversion/`;
-onboarding artifacts default to `testAgentDev/artifacts/onboarding/`. Each
-catalog records:
+onboarding artifacts default to `testAgentDev/artifacts/onboarding/`; and
+design-writing artifacts default to `testAgentDev/artifacts/design-writing/`.
+Each catalog records:
 
 - one raw JSONL event/tool transcript per process;
 - terminal status, signal, duration, timeout state, and bounded stderr;

@@ -10,11 +10,13 @@ import {
 import { buildOnboardingPlan } from './onboardingScenarios.js';
 import { buildWorkClaimsPlan } from './workClaimsScenarios.js';
 import { buildQuestionGatePlan } from './questionGateScenarios.js';
+import { buildDesignWritingPlan, designWritingPrompt } from './designWritingScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
   'semantic-standalone-bug-conversion': buildStandaloneBugConversionPlan,
-  onboarding: buildOnboardingPlan
+  onboarding: buildOnboardingPlan,
+  'design-writing': buildDesignWritingPlan
 });
 const WORK_CLAIMS_CATALOG = 'work-claims';
 const QUESTION_GATE_CATALOG = 'question-gate';
@@ -79,6 +81,17 @@ if (semanticCatalog || workClaimsCatalog || questionGateCatalog) {
     const { OnboardingDevFixture } = await import('./onboardingFixture.js');
     options.dependencies = {
       createFixture: (fixtureOptions) => new OnboardingDevFixture(fixtureOptions)
+    };
+  } else if (catalog === 'design-writing') {
+    const [fixtureModule, assertionsModule] = await Promise.all([
+      import('./designWritingFixture.js'),
+      import('./designWritingAssertions.js')
+    ]);
+    options.dependencies = {
+      createFixture: (fixtureOptions) =>
+        new fixtureModule.DesignWritingDevFixture(fixtureOptions),
+      buildPrompt: designWritingPrompt,
+      assertTranscript: assertionsModule.assertDesignWritingTranscript
     };
   }
 }

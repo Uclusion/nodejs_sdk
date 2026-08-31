@@ -17,13 +17,24 @@ function sourceTree(root) {
   write(path.join(scripts, 'AGENTS.md'), stub);
   write(path.join(scripts, 'uclusion.mdc'), `---\nalwaysApply: true\n---\n${stub}`);
   write(path.join(scripts, 'skills', 'uclusion', 'SKILL.md'),
-    '---\nname: uclusion\ndescription: test\n---\n<!-- /uclusion-skill:v1 -->\n');
+    '---\nname: uclusion\ndescription: test\n---\n' +
+    '<!-- uclusion-skill:v1 -->\n<!-- /uclusion-skill:v1 -->\n');
   write(path.join(scripts, 'skills', 'uclusion', 'references', 'pokes.md'),
-    '# Pokes\n<!-- /uclusion-skill-reference:v1 -->\n');
+    '<!-- uclusion-skill-reference:v1 -->\n# Pokes\n' +
+    '<!-- /uclusion-skill-reference:v1 -->\n');
   write(path.join(scripts, 'skills', 'uclusion', 'references', 'operations.md'),
-    '# Operations\n<!-- /uclusion-skill-reference:v1 -->\n');
+    '<!-- uclusion-skill-reference:v1 -->\n# Operations\n' +
+    '<!-- /uclusion-skill-reference:v1 -->\n');
   write(path.join(scripts, 'skills', 'uclusion', 'agents', 'openai.yaml'),
     'interface:\n  display_name: Uclusion\n');
+  write(path.join(scripts, 'skills', 'uclusion-design', 'SKILL.md'),
+    '---\nname: uclusion-design\ndescription: test\n---\n' +
+    '<!-- uclusion-design-skill:v1 -->\n<!-- /uclusion-design-skill:v1 -->\n');
+  write(path.join(scripts, 'skills', 'uclusion-design', 'references', 'examples.md'),
+    '<!-- uclusion-design-reference:v1 -->\n# Examples\n' +
+    '<!-- /uclusion-design-reference:v1 -->\n');
+  write(path.join(scripts, 'skills', 'uclusion-design', 'agents', 'openai.yaml'),
+    'interface:\n  display_name: Uclusion Design\n');
 }
 
 describe('agent dev shipped source staging', () => {

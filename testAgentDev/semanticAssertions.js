@@ -263,10 +263,14 @@ function isHarmlessProbePart(part, expectedSkillContent) {
     token.length < 8 || !expectedSkillContent.includes(token));
 }
 
-function exactSkillPathReference(value, expectedSkillPath) {
+function exactSkillPathReference(
+  value,
+  expectedSkillPath,
+  expectedSkillRelativePath = CODEX_SKILL_RELATIVE_PATH
+) {
   const candidate = normalizedPath(value);
   const expected = normalizedPath(expectedSkillPath);
-  return candidate === expected || candidate === CODEX_SKILL_RELATIVE_PATH;
+  return candidate === expected || candidate === normalizedPath(expectedSkillRelativePath);
 }
 
 function isStaticBannerCommand(command, expectedSkillContent) {
@@ -284,6 +288,7 @@ function isSimpleExactSkillReadCommand(
   command,
   expectedSkillPath,
   expectedSkillContent,
+  expectedSkillRelativePath = CODEX_SKILL_RELATIVE_PATH,
   depth = 0
 ) {
   if (depth > 1) {
@@ -314,6 +319,7 @@ function isSimpleExactSkillReadCommand(
           part,
           expectedSkillPath,
           expectedSkillContent,
+          expectedSkillRelativePath,
           depth
         ));
   }
@@ -332,19 +338,30 @@ function isSimpleExactSkillReadCommand(
         tokens[commandFlagIndex + 1],
         expectedSkillPath,
         expectedSkillContent,
+        expectedSkillRelativePath,
         depth + 1
       );
   }
   return SHELL_READERS.has(executable) && tokens.slice(executableIndex + 1)
-    .some((token) => exactSkillPathReference(token, expectedSkillPath));
+    .some((token) => exactSkillPathReference(
+      token,
+      expectedSkillPath,
+      expectedSkillRelativePath
+    ));
 }
 
-function referencesExactSkillRead(read, expectedSkillPath, expectedSkillContent) {
+function referencesExactSkillRead(
+  read,
+  expectedSkillPath,
+  expectedSkillContent,
+  expectedSkillRelativePath
+) {
   const name = String(read?.name || '').toLowerCase();
   if (name === 'read' || name === 'read_file') {
     return exactSkillPathReference(
       read.input?.path ?? read.input?.file_path,
-      expectedSkillPath
+      expectedSkillPath,
+      expectedSkillRelativePath
     );
   }
   if (!['shell', 'bash', 'exec_command', 'command_execution'].includes(name)) {
@@ -354,7 +371,8 @@ function referencesExactSkillRead(read, expectedSkillPath, expectedSkillContent)
   return isSimpleExactSkillReadCommand(
     Array.isArray(command) ? command.join(' ') : command,
     expectedSkillPath,
-    expectedSkillContent
+    expectedSkillContent,
+    expectedSkillRelativePath
   );
 }
 
@@ -453,20 +471,67 @@ function assertExplainedOptionVote(call, { optionCodes, questionCode, label }) {
     `${label} must explain its option vote`);
 }
 
+export function assertFileLoadedBeforeEvent(parsed, {
+  expectedPath,
+  expectedContent,
+  expectedRelativePath,
+  expectedStartSentinel,
+  expectedEndSentinel,
+  beforeEventIndex,
+  label = 'Semantic staged file'
+} = {}) {
+  assert(typeof expectedPath === 'string' && expectedPath.trim(),
+    `${label} proof requires the exact staged path`);
+  assert(typeof expectedRelativePath === 'string' && expectedRelativePath.trim(),
+    `${label} proof requires the client-relative path`);
+  const normalizedExpected = normalizedPath(expectedRelativePath);
+  const normalizedAbsolute = normalizedPath(expectedPath);
+  assert(normalizedAbsolute === normalizedExpected ||
+    normalizedAbsolute.endsWith(`/${normalizedExpected}`),
+  `${label} proof path must end in ${normalizedExpected}`);
+  assert(typeof expectedContent === 'string' && expectedContent,
+    `${label} proof requires the exact full staged content`);
+  if (expectedStartSentinel !== undefined) {
+    assert(typeof expectedStartSentinel === 'string' && expectedStartSentinel,
+      `${label} proof requires a valid entry sentinel`);
+    assert(expectedContent.includes(expectedStartSentinel),
+      `${label} staged content does not contain its required entry sentinel`);
+  }
+  assert(typeof expectedEndSentinel === 'string' && expectedEndSentinel,
+    `${label} proof requires its EOF sentinel`);
+  assert(expectedContent.trimEnd().endsWith(expectedEndSentinel),
+    `${label} staged content does not end in its required EOF sentinel`);
+  assert(Number.isSafeInteger(beforeEventIndex) && beforeEventIndex >= 0,
+    `${label} proof requires a valid event boundary`);
+  const exactReads = (parsed?.successfulReadEvidence || []).filter((read) =>
+    read.eventIndex < beforeEventIndex && read.resultEventIndex < beforeEventIndex &&
+    referencesExactSkillRead(
+      read,
+      expectedPath,
+      expectedContent,
+      expectedRelativePath
+    ));
+  assert(exactReads.length > 0,
+    `${label} trace has no successful read of the exact staged path before its boundary`);
+  const fragments = exactReads.flatMap((read) => read.fragments
+    .filter((fragment) => fragment.eventIndex < beforeEventIndex)
+    .map((fragment) => fragment.text));
+  if (expectedStartSentinel !== undefined) {
+    assert(fragments.some((fragment) => fragment.includes(expectedStartSentinel)),
+      `${label} trace never exposed its literal entry sentinel before the boundary`);
+  }
+  assert(fragments.some((fragment) => fragment.includes(expectedEndSentinel)),
+    `${label} trace never exposed its literal EOF sentinel before the boundary`);
+  assert(fragmentsCoverExactContent(fragments, expectedContent),
+    `${label} reads did not cover its exact full content through EOF`);
+}
+
 export function assertSkillLoadedBeforeSemanticMcp(parsed, {
   expectedSkillPath,
   expectedSkillContent
 } = {}) {
-  assert(typeof expectedSkillPath === 'string' && expectedSkillPath.trim(),
-    'Semantic skill proof requires the exact staged SKILL.md path');
-  assert(normalizedPath(expectedSkillPath).endsWith(`/${CODEX_SKILL_RELATIVE_PATH}`),
-    `Semantic skill proof path must end in ${CODEX_SKILL_RELATIVE_PATH}`);
-  assert(typeof expectedSkillContent === 'string' && expectedSkillContent,
-    'Semantic skill proof requires the exact full staged SKILL.md content');
   assert(typeof parsed?.skillEndSentinel === 'string' && parsed.skillEndSentinel,
     'Semantic trace parser omitted the required skill EOF sentinel');
-  assert(expectedSkillContent.trimEnd().endsWith(parsed.skillEndSentinel),
-    'Expected staged skill content does not end in the required skill EOF sentinel');
   const mcpCalls = (parsed?.toolCalls || []).filter(isUclusionMcp);
   assert(mcpCalls.length > 0, 'Semantic Codex trace contains no Uclusion MCP call');
   const firstMcpIndex = Math.min(...mcpCalls.map((call) => call.eventIndex));
@@ -476,16 +541,14 @@ export function assertSkillLoadedBeforeSemanticMcp(parsed, {
       `${parsed?.skillEndSentinel || 'skill EOF sentinel'}`);
   assert(Math.min(...sentinelIndexes) < firstMcpIndex,
     'The literal shipped Uclusion skill EOF sentinel must load before the first semantic MCP call');
-  const exactReads = (parsed?.successfulReadEvidence || []).filter((read) =>
-    read.eventIndex < firstMcpIndex && read.resultEventIndex < firstMcpIndex &&
-    referencesExactSkillRead(read, expectedSkillPath, expectedSkillContent));
-  assert(exactReads.length > 0,
-    'Semantic Codex trace has no successful read of the exact staged SKILL.md path before MCP');
-  const fragments = exactReads.flatMap((read) => read.fragments
-    .filter((fragment) => fragment.eventIndex < firstMcpIndex)
-    .map((fragment) => fragment.text));
-  assert(fragmentsCoverExactContent(fragments, expectedSkillContent),
-    'Successful staged SKILL.md reads did not cover its exact full content through EOF');
+  assertFileLoadedBeforeEvent(parsed, {
+    expectedPath: expectedSkillPath,
+    expectedContent: expectedSkillContent,
+    expectedRelativePath: CODEX_SKILL_RELATIVE_PATH,
+    expectedEndSentinel: parsed.skillEndSentinel,
+    beforeEventIndex: firstMcpIndex,
+    label: 'Semantic Uclusion skill'
+  });
 }
 
 export function assertSemanticTranscript({

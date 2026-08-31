@@ -15,6 +15,25 @@ import { inspectSourcePackage } from './sourcePackage.js';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 
+function readStagedSkillFiles(stagedSource) {
+  const packages = stagedSource.skills || {
+    uclusion: {
+      target: stagedSource.skillTarget,
+      files: stagedSource.skill || { 'SKILL.md': {} }
+    }
+  };
+  return Object.fromEntries(Object.entries(packages).map(([name, skillPackage]) => [
+    name,
+    Object.fromEntries(Object.keys(skillPackage.files).map((relativePath) => {
+      const filePath = path.join(skillPackage.target, relativePath);
+      return [relativePath, {
+        path: filePath,
+        content: fs.readFileSync(filePath, 'utf8')
+      }];
+    }))
+  ]));
+}
+
 function assertSuccessfulProcess(session, agentResult, timeoutMs) {
   const processResult = agentResult.processResult;
   assert.strictEqual(processResult.timedOut, false,
@@ -77,6 +96,8 @@ export async function executeSemanticHarness({
   const createFixture = dependencies.createFixture ||
     ((options) => new SemanticDevFixture(options));
   const runSession = dependencies.runAgentSession || runAgentSession;
+  const buildPrompt = dependencies.buildPrompt || semanticPrompt;
+  const assertTranscript = dependencies.assertTranscript || assertSemanticTranscript;
   const plan = (sessions || buildSemanticPlan()).map((session) => ({ ...session }));
   assert(plan.length > 0, 'Semantic harness requires at least one planned live process');
   const store = dependencies.store || new ArtifactStore({
@@ -146,8 +167,7 @@ export async function executeSemanticHarness({
       let stateBefore;
       let stateAfter;
       let sessionResult;
-      let expectedSkillPath;
-      let expectedSkillContent;
+      let expectedSkillFiles;
       let agentInvocationStarted = false;
       try {
         phaseFixture = await fixture.preparePhase(planned);
@@ -157,13 +177,9 @@ export async function executeSemanticHarness({
         ]);
         runtimeSession = {
           ...planned,
-          prompt: semanticPrompt(planned, fixture.targets())
+          prompt: buildPrompt(planned, fixture.targets())
         };
-        expectedSkillPath = path.join(
-          phaseFixture.stagedSource.skillTarget,
-          'SKILL.md'
-        );
-        expectedSkillContent = fs.readFileSync(expectedSkillPath, 'utf8');
+        expectedSkillFiles = readStagedSkillFiles(phaseFixture.stagedSource);
         stateBefore = await phaseFixture.snapshot();
         store.startSession(runtimeSession, {
           market_id: phaseFixture.marketId,
@@ -198,7 +214,9 @@ export async function executeSemanticHarness({
           throw stateError;
         }
         fixture.assertPhase(planned.phase, stateBefore, stateAfter);
-        assertSemanticTranscript({
+        const coreSkill = expectedSkillFiles.uclusion?.['SKILL.md'];
+        assert(coreSkill, 'Semantic fixture did not stage the core Uclusion skill');
+        assertTranscript({
           phase: planned.phase,
           parsed: agentResult.parsed,
           targets: {
@@ -207,8 +225,9 @@ export async function executeSemanticHarness({
             bugQuestionCode: stateAfter.bug?.question_code,
             bugOptionCodes: stateAfter.bug?.option_codes
           },
-          expectedSkillPath,
-          expectedSkillContent
+          expectedSkillPath: coreSkill.path,
+          expectedSkillContent: coreSkill.content,
+          expectedSkillFiles
         });
         const primarySessionId = agentResult.modelRecord.primary_session_id;
         assert(primarySessionId,
