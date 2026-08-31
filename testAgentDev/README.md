@@ -22,9 +22,9 @@ durable state:
 2. After the assigned primary human answers, a fresh Codex process must resolve
    the question and continue by resolving the harmless task.
 3. A fresh Codex process must address an exact standalone bug id by creating a
-   human-owned `Bugs` job, moving the original thread into it, and asking an
-   AI-authored options question, including its required preferred-option vote,
-   that leaves the job in Requires Input.
+   human-owned job named for the bug code, moving the original thread into it,
+   and asking an AI-authored options question, including its required
+   preferred-option vote, that leaves the job in Approvable.
 
 `npm run testAgentDevSemanticStandaloneBugConversion` selects only the third
 entry. It creates a fresh marked market and executes exactly one fresh Codex

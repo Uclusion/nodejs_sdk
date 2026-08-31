@@ -310,10 +310,12 @@ export class SemanticDevFixture {
       'Semantic market AI capability did not converge before one-shot mutations');
 
     this.stages = marketResult.stages;
+    const approvable = this.stages.find((stage) => stage.name === 'Approvable');
     const doable = this.stages.find((stage) => stage.name === 'Doable');
     const requiresInput = this.stages.find((stage) => stage.name === 'Requires Input');
-    assert(doable && requiresInput,
-      'Semantic planning market requires Doable and Requires Input stages');
+    assert(approvable && doable && requiresInput,
+      'Semantic planning market requires Approvable, Doable, and Requires Input stages');
+    this.approvableStageId = approvable.id;
     this.doableStageId = doable.id;
     this.requiresInputStageId = requiresInput.id;
     this.authorityQuestionMarker = `Authority choice ${marker}`;
@@ -574,7 +576,7 @@ export class SemanticDevFixture {
       if (phase === 'bug-conversion') {
         return state.bug?.root_investible_id &&
           state.bug.reply_investible_id === state.bug.root_investible_id &&
-          state.bug.job_stage_id === this.requiresInputStageId &&
+          state.bug.job_stage_id === this.approvableStageId &&
           state.bug.question_code?.startsWith('Q-') &&
           state.bug.option_names.length === 2 &&
           state.bug.option_codes.length === 2;
@@ -843,16 +845,16 @@ export class SemanticDevFixture {
         'Standalone-bug conversion must move the original bug into a Bugs job');
       assert.strictEqual(after.bug.reply_investible_id, after.bug.root_investible_id,
         'Standalone-bug conversion must move the existing bug reply with the original root');
-      assert.strictEqual(after.bug.job_name, 'Bugs',
-        'Standalone-bug conversion must use the dedicated Bugs job');
+      assert.strictEqual(after.bug.job_name, this.standaloneBug.ticket_code,
+        'Standalone-bug conversion must use the original bug code as the job name');
       assert(after.bug.job_code?.startsWith('J-'),
         'Standalone-bug conversion must leave an exact short code for the converted Bugs job');
       assert.strictEqual(after.bug.job_created_by, this.adminId,
         'The converted Bugs job must remain human-owned');
       assert.deepStrictEqual(after.bug.job_assignments, [this.adminId],
         'The converted Bugs job must be assigned only to its human owner');
-      assert.strictEqual(after.bug.job_stage_id, this.requiresInputStageId,
-        'The converted Bugs job must wait in Requires Input');
+      assert.strictEqual(after.bug.job_stage_id, this.approvableStageId,
+        'The converted Bugs job must wait in Approvable');
       assert(after.bug.question_code?.startsWith('Q-'),
         'Standalone-bug conversion must create an options question on the Bugs job');
       assert.strictEqual(after.bug.question_created_by, this.aiId,
