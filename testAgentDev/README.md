@@ -190,6 +190,11 @@ Each catalog records:
 - durable Uclusion state before and after each semantic phase; and
 - a redacted manifest plus resolved-model summary.
 
+After an unfiltered catalog passes, `last-green.json` beside its
+`manifest.json` records the catalog, run ID, and exact `passed_at` time. Failed
+runs and `--phase`-narrowed runs leave that marker untouched, so it always
+answers when the complete catalog most recently passed.
+
 Stdout traces are limited to 16 MiB and retained stderr to 256 KiB. A timeout,
 trace overflow, malformed usage record, failed semantic assertion, or cleanup
 failure fails the catalog and leaves diagnostic artifacts without advancing

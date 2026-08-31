@@ -102,6 +102,9 @@ const result = semanticCatalog
     : questionGateCatalog
       ? await (await import('./questionGateHarness.js')).executeQuestionGateHarness(options)
       : await executeHarness(options);
+if (result.status === 'passed' && phaseIndex === -1) {
+  result.store.publishLastGreen();
+}
 const passed = result.results.filter((entry) => entry.status === 'passed').length;
 const summary = semanticCatalog || workClaimsCatalog || questionGateCatalog
   ? `Agent dev ${catalog} catalog ${result.status}: ` +

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { atomicWriteJson } from './atomicJson.js';
+import { atomicWriteBytes, atomicWriteJson } from './atomicJson.js';
 import { buildSessionMatrix } from './matrix.js';
 
 const REDACTED = '[REDACTED]';
@@ -77,6 +77,7 @@ export class ArtifactStore {
     this.manifestPath = path.join(artifactDir, 'manifest.json');
     this.modelsPath = path.join(artifactDir, 'resolved-models.json');
     this.pinsPath = path.join(artifactDir, 'last-known-good.json');
+    this.lastGreenPath = path.join(artifactDir, 'last-green.json');
     makePrivateDirectory(this.artifactDir);
     const relativeTraceDir = path.relative(path.resolve(this.artifactDir), path.resolve(this.traceDir));
     if (!relativeTraceDir || relativeTraceDir.startsWith('..') || path.isAbsolute(relativeTraceDir)) {
@@ -250,6 +251,37 @@ export class ArtifactStore {
     this.manifest.finished_at = new Date().toISOString();
     this.models.complete = status === 'passed';
     this.flush();
+  }
+
+  publishLastGreen() {
+    if (this.manifest.status !== 'passed' || typeof this.manifest.finished_at !== 'string') {
+      throw new Error('Cannot publish last green metadata before the catalog passes');
+    }
+    const baselineBytes = fs.existsSync(this.lastGreenPath)
+      ? fs.readFileSync(this.lastGreenPath)
+      : null;
+    try {
+      atomicWriteJson(this.lastGreenPath, {
+        schema_version: 1,
+        catalog: this.manifest.catalog,
+        run_id: this.runId,
+        passed_at: this.manifest.finished_at
+      });
+    } catch (error) {
+      try {
+        if (baselineBytes === null) {
+          fs.rmSync(this.lastGreenPath, { force: true });
+        } else {
+          atomicWriteBytes(this.lastGreenPath, baselineBytes);
+        }
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          'Last green publication failed and its baseline rollback also failed'
+        );
+      }
+      throw error;
+    }
   }
 
   assertPinsUnchanged() {
