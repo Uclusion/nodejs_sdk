@@ -318,6 +318,15 @@ export class SemanticDevFixture {
     this.approvableStageId = approvable.id;
     this.doableStageId = doable.id;
     this.requiresInputStageId = requiresInput.id;
+    await this.initializeScenario();
+  }
+
+  async jobCodeFor(job) {
+    return ticketCodeFor(this.adminClient, this.marketId, job);
+  }
+
+  async initializeScenario() {
+    const marker = this.marker;
     this.authorityQuestionMarker = `Authority choice ${marker}`;
     this.authorityTaskMarker = `Harmless continuation ${marker}`;
     this.advisoryReplyMarker = `Advisory evidence ${marker}`;
@@ -333,11 +342,7 @@ export class SemanticDevFixture {
         'resolve the enclosing job, or work on unrelated items.'
     });
     this.authorityJob = authorityJob;
-    this.authorityJobCode = await ticketCodeFor(
-      this.adminClient,
-      this.marketId,
-      authorityJob
-    );
+    this.authorityJobCode = await this.jobCodeFor(authorityJob);
     assert(this.authorityJobCode.startsWith('J-'),
       'Semantic authority job never received a J- short code');
     this.authorityTask = await this.adminClient.investibles.createComment(
@@ -700,6 +705,22 @@ export class SemanticDevFixture {
       assert.fail(`Unknown semantic fixture phase ${session.phase}`);
     }
 
+    const eventByPhase = {
+      'advisory-stop': this.advisoryEvent,
+      'primary-resume': this.primaryEvent,
+      'bug-conversion': this.standaloneBug?.ticket_code
+        ? `Start ${this.standaloneBug.ticket_code}`
+        : undefined
+    };
+    const expectedEvent = eventByPhase[session.phase];
+    assert(typeof expectedEvent === 'string' && expectedEvent,
+      `Semantic phase ${session.phase} has no prepared exact event`);
+    return this.createPhaseFixture(session, expectedEvent);
+  }
+
+  createPhaseFixture(session, expectedEvent) {
+    assert(typeof expectedEvent === 'string' && expectedEvent,
+      `Semantic phase ${session.phase} has no prepared exact event`);
     const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'uclusion-agent-semantic-'));
     this.sessionRoots.add(fixtureRoot);
     const workspace = path.join(fixtureRoot, 'workspace');
@@ -720,16 +741,6 @@ export class SemanticDevFixture {
     );
     assert(fs.existsSync(cliPath), `Missing dev CLI source ${cliPath}`);
     assert(fs.existsSync(shippedProxyPath), `Missing dev MCP proxy source ${shippedProxyPath}`);
-    const eventByPhase = {
-      'advisory-stop': this.advisoryEvent,
-      'primary-resume': this.primaryEvent,
-      'bug-conversion': this.standaloneBug?.ticket_code
-        ? `Start ${this.standaloneBug.ticket_code}`
-        : undefined
-    };
-    const expectedEvent = eventByPhase[session.phase];
-    assert(typeof expectedEvent === 'string' && expectedEvent,
-      `Semantic phase ${session.phase} has no prepared exact event`);
     writeSessionState({
       workspace,
       sessionHome,

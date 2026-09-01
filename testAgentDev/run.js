@@ -11,12 +11,17 @@ import { buildOnboardingPlan } from './onboardingScenarios.js';
 import { buildWorkClaimsPlan } from './workClaimsScenarios.js';
 import { buildQuestionGatePlan } from './questionGateScenarios.js';
 import { buildDesignWritingPlan, designWritingPrompt } from './designWritingScenarios.js';
+import {
+  buildStageAuthorizationPlan,
+  stageAuthorizationPrompt
+} from './stageAuthorizationScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
   'semantic-standalone-bug-conversion': buildStandaloneBugConversionPlan,
   onboarding: buildOnboardingPlan,
-  'design-writing': buildDesignWritingPlan
+  'design-writing': buildDesignWritingPlan,
+  'stage-authorization': buildStageAuthorizationPlan
 });
 const WORK_CLAIMS_CATALOG = 'work-claims';
 const QUESTION_GATE_CATALOG = 'question-gate';
@@ -92,6 +97,17 @@ if (semanticCatalog || workClaimsCatalog || questionGateCatalog) {
         new fixtureModule.DesignWritingDevFixture(fixtureOptions),
       buildPrompt: designWritingPrompt,
       assertTranscript: assertionsModule.assertDesignWritingTranscript
+    };
+  } else if (catalog === 'stage-authorization') {
+    const [fixtureModule, assertionsModule] = await Promise.all([
+      import('./stageAuthorizationFixture.js'),
+      import('./stageAuthorizationAssertions.js')
+    ]);
+    options.dependencies = {
+      createFixture: (fixtureOptions) =>
+        new fixtureModule.StageAuthorizationDevFixture(fixtureOptions),
+      buildPrompt: stageAuthorizationPrompt,
+      assertTranscript: assertionsModule.assertStageAuthorizationTranscript
     };
   }
 }

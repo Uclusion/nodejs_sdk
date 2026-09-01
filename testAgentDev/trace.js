@@ -475,7 +475,8 @@ function publicToolCall(call) {
     eventIndex: call.eventIndex,
     resultEventIndex: call.resultEventIndex,
     success: call.success,
-    completeSkillRead: Boolean(call.completeSkillRead)
+    completeSkillRead: Boolean(call.completeSkillRead),
+    ...(call.malformed ? { malformed: call.malformed } : {})
   };
 }
 
