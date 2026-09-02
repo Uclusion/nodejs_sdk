@@ -39,6 +39,7 @@ function pinDocument(runId, sourcePackage, preflight, results) {
 
 export async function executeHarness({
   artifactDir,
+  marketCleanup,
   seedPinsPath,
   webUiRoot,
   timeoutMs = Number(process.env.TEST_AGENT_DEV_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
@@ -103,13 +104,14 @@ export async function executeHarness({
       return { status: 'failed', results, preflight: preflightResults, store };
     }
 
-    fixtureFactory = createFixtureFactory({ webUiRoot, runId, env });
+    fixtureFactory = createFixtureFactory({ webUiRoot, runId, env, marketCleanup });
     store.registerSensitiveValues?.(fixtureFactory.sensitiveValues?.() || []);
     await fixtureFactory.initialize();
     store.registerSensitiveValues?.(fixtureFactory.sensitiveValues?.() || []);
     for (const session of matrix) {
       let fixture;
       let sessionFailure;
+      let stopBeforeNextMarket = false;
       try {
         fixture = await fixtureFactory.create(session);
         store.registerSensitiveValues?.(fixture.sensitiveValues || []);
@@ -173,6 +175,7 @@ export async function executeHarness({
       } catch (error) {
         store.registerSensitiveValues?.(fixtureFactory.sensitiveValues?.() || []);
         sessionFailure = error;
+        stopBeforeNextMarket = !fixture;
         const failure = serializeError(error);
         const result = {
           status: 'failed',
@@ -187,6 +190,7 @@ export async function executeHarness({
           try {
             await fixture.close();
           } catch (cleanupError) {
+            stopBeforeNextMarket = true;
             const combined = sessionFailure
               ? new AggregateError(
                 [sessionFailure, cleanupError],
@@ -210,6 +214,9 @@ export async function executeHarness({
             store.finishSession(session, failedResult);
           }
         }
+      }
+      if (stopBeforeNextMarket) {
+        break;
       }
     }
 

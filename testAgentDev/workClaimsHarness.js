@@ -58,6 +58,7 @@ function racerFailureResult({ planned, error, agentResult, stateBefore, stateAft
 
 export async function executeWorkClaimsHarness({
   artifactDir,
+  marketCleanup,
   seedPinsPath,
   webUiRoot,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -120,7 +121,7 @@ export async function executeWorkClaimsHarness({
       return { status: 'failed', results, preflight: preflightResults, store };
     }
 
-    fixture = createFixture({ webUiRoot, runId, env });
+    fixture = createFixture({ webUiRoot, runId, env, marketCleanup });
     store.registerSensitiveValues?.(fixture.sensitiveValues?.() || []);
     reportProgress('Creating one fresh marked DEV market with auto-take and the contested job');
     await fixture.initialize();

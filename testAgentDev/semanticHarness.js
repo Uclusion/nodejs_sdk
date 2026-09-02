@@ -81,6 +81,7 @@ function semanticFailureResult({ planned, error, agentResult, stateBefore, state
 
 export async function executeSemanticHarness({
   artifactDir,
+  marketCleanup,
   seedPinsPath,
   webUiRoot,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -149,7 +150,7 @@ export async function executeSemanticHarness({
       return { status: 'failed', results, preflight: preflightResults, store };
     }
 
-    fixture = createFixture({ webUiRoot, runId, env });
+    fixture = createFixture({ webUiRoot, runId, env, marketCleanup });
     store.registerSensitiveValues?.(fixture.sensitiveValues?.() || []);
     reportProgress('Creating one fresh marked DEV market and isolated semantic fixture');
     await fixture.initialize();

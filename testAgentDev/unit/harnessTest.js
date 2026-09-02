@@ -177,6 +177,8 @@ describe('agent dev harness orchestration', () => {
       entry.client === 'claude' && entry.scenario === 'session-start');
     assert.strictEqual(failed.status, 'failed');
     assert.match(failed.failure.message, /cleanup failure/);
+    assert.strictEqual(result.results.length, 1,
+      'A cleanup failure must stop before another fixture market is created');
     assert(files.baseline.equals(fs.readFileSync(
       path.join(files.artifactDir, 'last-known-good.json'))));
   });
@@ -248,6 +250,7 @@ describe('agent dev harness orchestration', () => {
     async () => {
     const files = setup();
     const canary = 'dynamic-market-token-canary';
+    let createCalls = 0;
     const deps = dependencies();
     deps.createFixtureFactory = () => {
       const secrets = new Set();
@@ -255,6 +258,7 @@ describe('agent dev harness orchestration', () => {
         sensitiveValues: () => [...secrets],
         async initialize() {},
         async create() {
+          createCalls += 1;
           secrets.add(canary);
           throw new Error(`fixture setup echoed ${canary}`);
         },
@@ -268,6 +272,8 @@ describe('agent dev harness orchestration', () => {
       dependencies: deps
     });
     assert.strictEqual(result.status, 'failed');
+    assert.strictEqual(createCalls, 1,
+      'A fixture creation failure must stop before another market is attempted');
     const manifest = fs.readFileSync(path.join(files.artifactDir, 'manifest.json'), 'utf8');
     assert(!manifest.includes(canary));
     assert(manifest.includes('[REDACTED]'));

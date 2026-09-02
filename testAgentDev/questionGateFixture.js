@@ -131,11 +131,18 @@ function forksDistinctlyCovered(forks, questionTexts) {
 }
 
 export class QuestionGateDevFixture {
-  constructor({ webUiRoot, runId, env = process.env, deleteMarket = deleteIntegrationTestMarket }) {
+  constructor({
+    webUiRoot,
+    runId,
+    env = process.env,
+    deleteMarket = deleteIntegrationTestMarket,
+    marketCleanup
+  }) {
     this.webUiRoot = webUiRoot;
     this.runId = runId;
     this.env = env;
-    this.deleteMarket = deleteMarket;
+    this.deleteMarket = marketCleanup?.deleteMarket || deleteMarket;
+    this.registerMarket = marketCleanup?.registerMarket || (() => {});
     this.sessionRoots = new Set();
     this.secretValues = new Set();
     this.marketId = null;
@@ -183,6 +190,7 @@ export class QuestionGateDevFixture {
     });
     this.marketId = marketResult?.market?.id;
     assert(this.marketId, 'Question gate market creation omitted the exact market id');
+    this.registerMarket(this.marketId);
     assert.strictEqual(marketResult.market.market_sub_type, INTEGRATION_TEST_SUB_TYPE,
       'Question gate market was not marked for guarded integration-test deletion');
     this.registerSensitiveValues([marketResult.market.invite_capability]);

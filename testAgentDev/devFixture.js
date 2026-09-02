@@ -421,11 +421,18 @@ export async function deliverFixturePoke({
 }
 
 export class DevFixtureFactory {
-  constructor({ webUiRoot, runId, env = process.env, deleteMarket = deleteIntegrationTestMarket }) {
+  constructor({
+    webUiRoot,
+    runId,
+    env = process.env,
+    deleteMarket = deleteIntegrationTestMarket,
+    marketCleanup
+  }) {
     this.webUiRoot = webUiRoot;
     this.runId = runId;
     this.env = env;
-    this.deleteMarket = deleteMarket;
+    this.deleteMarket = marketCleanup?.deleteMarket || deleteMarket;
+    this.registerMarket = marketCleanup?.registerMarket || (() => {});
     this.activeMarkets = new Set();
     const credentials = parseDevCredentials(env);
     this.configuration = {
@@ -478,11 +485,12 @@ export class DevFixtureFactory {
     const marketId = marketResult?.market?.id;
     assert(typeof marketId === 'string' && marketId,
       'Agent dev createMarket response omitted the created market id');
-    this.activeMarkets.add(marketId);
-    this.registerSensitiveValues([marketResult.market.invite_capability]);
     let fixtureRoot;
     let pokeSocket;
     try {
+      this.activeMarkets.add(marketId);
+      this.registerMarket(marketId);
+      this.registerSensitiveValues([marketResult.market.invite_capability]);
       assert.strictEqual(
         marketResult.market.market_sub_type,
         INTEGRATION_TEST_SUB_TYPE,

@@ -2,7 +2,12 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { executeHarness } from './harness.js';
+import { deleteIntegrationTestMarket } from './devFixture.js';
 import { buildSessionMatrix } from './matrix.js';
+import {
+  createPendingMarketCleanup,
+  runAfterPendingMarketCleanup
+} from './pendingMarketCleanup.js';
 import {
   buildSemanticPlan,
   buildStandaloneBugConversionPlan
@@ -48,6 +53,10 @@ const defaultArtifactDir = semanticCatalog || workClaimsCatalog || questionGateC
 const artifactDir = path.resolve(
   process.env.TEST_AGENT_DEV_ARTIFACT_DIR || defaultArtifactDir
 );
+const marketCleanup = createPendingMarketCleanup({
+  artifactDir,
+  deleteMarket: deleteIntegrationTestMarket
+});
 const webUiRoot = process.env.TEST_AGENT_DEV_WEB_UI_ROOT ||
   path.join(directory, '__missing_TEST_AGENT_DEV_WEB_UI_ROOT__');
 if (!process.env.TEST_AGENT_DEV_WEB_UI_ROOT) {
@@ -57,6 +66,7 @@ if (!process.env.TEST_AGENT_DEV_WEB_UI_ROOT) {
 }
 const options = {
   artifactDir,
+  marketCleanup,
   seedPinsPath: path.join(directory, 'last-known-good.json'),
   webUiRoot: path.resolve(webUiRoot)
 };
@@ -111,13 +121,15 @@ if (semanticCatalog || workClaimsCatalog || questionGateCatalog) {
     };
   }
 }
-const result = semanticCatalog
-  ? await (await import('./semanticHarness.js')).executeSemanticHarness(options)
-  : workClaimsCatalog
-    ? await (await import('./workClaimsHarness.js')).executeWorkClaimsHarness(options)
-    : questionGateCatalog
-      ? await (await import('./questionGateHarness.js')).executeQuestionGateHarness(options)
-      : await executeHarness(options);
+const result = await runAfterPendingMarketCleanup(marketCleanup, async () => (
+  semanticCatalog
+    ? (await import('./semanticHarness.js')).executeSemanticHarness(options)
+    : workClaimsCatalog
+      ? (await import('./workClaimsHarness.js')).executeWorkClaimsHarness(options)
+      : questionGateCatalog
+        ? (await import('./questionGateHarness.js')).executeQuestionGateHarness(options)
+        : executeHarness(options)
+));
 if (result.status === 'passed' && phaseIndex === -1) {
   result.store.publishLastGreen();
 }

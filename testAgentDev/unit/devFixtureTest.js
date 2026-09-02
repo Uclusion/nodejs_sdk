@@ -46,6 +46,20 @@ describe('agent dev fixture lifecycle', () => {
     assert.deepStrictEqual(JSON.parse(parameters.Payload), {
       capability: { role: 'Machine', is_admin: true, type: 'market', id: 'market-exact' }
     });
+
+    await deleteIntegrationTestMarket('market-already-absent', {
+      lambdaFactory: () => ({
+        invoke: () => ({
+          promise: async () => ({
+            StatusCode: 200,
+            Payload: Buffer.from(JSON.stringify({
+              statusCode: 200,
+              body: JSON.stringify({ success_message: 'Market already deleted' })
+            }))
+          })
+        })
+      })
+    });
   });
 
   it('retries every still-active market during factory close', async () => {
@@ -66,14 +80,17 @@ describe('agent dev fixture lifecycle', () => {
   });
 
   it('tracks and deletes a created market before rejecting an unexpected subtype', async () => {
-    const deleted = [];
+    const lifecycle = [];
     const factory = new DevFixtureFactory({
       webUiRoot: '/unused',
       runId: 'wrong-subtype',
       env: {
         UCLUSION_DEV_CREDENTIALS: '{"username":"dev@example.com","password":"secret"}'
       },
-      deleteMarket: async (marketId) => { deleted.push(marketId); }
+      marketCleanup: {
+        registerMarket(marketId) { lifecycle.push(`register:${marketId}`); },
+        async deleteMarket(marketId) { lifecycle.push(`delete:${marketId}`); }
+      }
     });
     factory.accountClient = {
       markets: {
@@ -91,7 +108,10 @@ describe('agent dev fixture lifecycle', () => {
       factory.create({ client: 'codex', scenario: 'session-start' }),
       /not marked for guarded deletion/
     );
-    assert.deepStrictEqual(deleted, ['market-wrong-subtype']);
+    assert.deepStrictEqual(lifecycle, [
+      'register:market-wrong-subtype',
+      'delete:market-wrong-subtype'
+    ]);
     assert.strictEqual(factory.activeMarkets.size, 0);
     assert(factory.sensitiveValues().includes('invite-secret'));
   });
