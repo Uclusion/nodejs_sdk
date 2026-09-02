@@ -32,6 +32,7 @@ export default function (adminConfiguration, userConfiguration) {
     let adminId;
     let uclusionToken;
     let doableStage;
+    let requiresInputStage;
 
     before(async function () {
       this.timeout(300000);
@@ -48,7 +49,9 @@ export default function (adminConfiguration, userConfiguration) {
       });
       marketId = result.market.id;
       doableStage = result.stages.find((stage) => stage.name === 'Doable');
-      assert(doableStage, 'Planning market must include a Doable stage');
+      requiresInputStage = result.stages.find((stage) => stage.name === 'Requires Input');
+      assert(doableStage && requiresInputStage,
+        'Planning market must include Doable and Requires Input stages');
       adminClient = await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       adminId = (await adminClient.users.get()).id;
       // The market-scoped token the CLI proxy uses.
@@ -290,8 +293,8 @@ export default function (adminConfiguration, userConfiguration) {
         // T-all-2484's own words are that seven questions should be seven rows. Concurrency is what
         // surfaced the defect, so it is worth covering, but this part is timing exposed in a way the
         // assertion above is not. If it ever turns flaky in CI, delete it rather than retry it into
-        // stability; the invariant above is what actually guards the notification fix. T-all-2497
-        // also pins the backend batching contract at one data refresh per question.
+        // stability; the invariant above is what actually guards the notification fix. J-all-429
+        // also pins the corrective refresh contract at a comment/job pair per question.
         const runMarker = randomUUID();
         const markers = [1, 2, 3, 4, 5, 6, 7]
           .map((index) => `Concurrent inline question ${index} ${runMarker}?`);
@@ -312,6 +315,7 @@ export default function (adminConfiguration, userConfiguration) {
           await waitForSubscription(captureRunner);
 
           const receivedPayloads = [];
+          const capturedVersionSnapshots = [];
           let captureConnectionClosed = false;
           // Reconnection is useful while establishing the subscription, but losing the socket
           // during measurement creates an unobservable gap and invalidates the exact-count claim.
@@ -320,6 +324,16 @@ export default function (adminConfiguration, userConfiguration) {
           };
           captureRunner.messageHanders.push((payload) => {
             receivedPayloads.push(payload);
+            if (payload.object_id === marketId &&
+              (payload.event_type === 'comment' || payload.event_type === 'market_investible') &&
+              typeof payload.version === 'number' &&
+              typeof payload.object_id_one_two === 'string') {
+              const versionsPromise = accountClient.summaries.versions(accountToken, [marketId]);
+              // The websocket callback cannot await. Observe rejection immediately, then retain the
+              // original promise so the assertion below still reports the API failure.
+              versionsPromise.catch(() => {});
+              capturedVersionSnapshots.push({ payload, versionsPromise });
+            }
             return false;
           });
 
@@ -360,7 +374,7 @@ export default function (adminConfiguration, userConfiguration) {
           await pollFor(
             async () => receivedPayloads.filter((payload) =>
               questions.some((question, index) => isForQuestion(payload, question, jobs[index]))),
-            (frames) => frames.length >= markers.length);
+            (frames) => frames.length >= markers.length * 2);
 
           const messages = await pollFor(
             async () => (await getMessages(adminConfiguration)) || [],
@@ -384,28 +398,89 @@ export default function (adminConfiguration, userConfiguration) {
             'Websocket closed during data-refresh capture; exact push count is unknowable');
           const relevantFrames = receivedPayloads.filter((payload) =>
             questions.some((question, index) => isForQuestion(payload, question, jobs[index])));
-          assert.strictEqual(relevantFrames.length, markers.length,
-            `Expected exactly ${markers.length} correlated data refreshes: ${
+          assert.strictEqual(relevantFrames.length, markers.length * 2,
+            `Expected exactly ${markers.length * 2} correlated data refreshes: ${
               JSON.stringify(relevantFrames)}`);
-          questions.forEach((question, index) => {
-            assert.strictEqual(question.is_sent, true,
-              `Question ${question.id} must be published before releasing its batch`);
+          for (let index = 0; index < questions.length; index += 1) {
+            const question = questions[index];
+            const created = jobs[index];
             const frames = relevantFrames.filter((payload) =>
-              isForQuestion(payload, question, jobs[index]));
-            assert.strictEqual(frames.length, 1,
-              `Expected one data refresh for question ${question.id}, job ${
-                jobs[index].job.investible.id}, and inline market ${
+              isForQuestion(payload, question, created));
+            assert.strictEqual(frames.length, 2,
+              `Expected a comment/job refresh pair for question ${question.id}, job ${
+                created.job.investible.id}, and inline market ${
                 question.inline_market_id}: ${JSON.stringify(frames)}`);
-            assert.strictEqual(frames[0].event_type, 'comment',
-              `The question publish must release the batch: ${JSON.stringify(frames[0])}`);
-            assert.strictEqual(frames[0].object_id, marketId,
-              `The batch release must belong to planning market ${marketId}: ${
-                JSON.stringify(frames[0])}`);
-            assert.strictEqual(frames[0].object_id_one_two, question.id,
-              `The batch release must name question ${question.id}: ${JSON.stringify(frames[0])}`);
-            assert.strictEqual(frames[0].version, question.version,
-              `The data refresh must be the published version of question ${question.id}`);
-          });
+            assert.deepStrictEqual(frames.map((frame) => frame.event_type).sort(),
+              ['comment', 'market_investible'],
+              `Expected an unordered comment/job pair for question ${question.id}: ${
+                JSON.stringify(frames)}`);
+
+            const commentFrame = frames.find((frame) => frame.event_type === 'comment');
+            const jobFrame = frames.find((frame) => frame.event_type === 'market_investible');
+            assert.strictEqual(commentFrame.object_id, marketId,
+              `The question refresh must belong to planning market ${marketId}`);
+            assert.strictEqual(commentFrame.object_id_one_two, question.id,
+              `The question refresh must name comment ${question.id}`);
+            assert.strictEqual(commentFrame.version, question.version,
+              `The question refresh must be published version ${question.version}`);
+            assert.strictEqual(jobFrame.object_id, marketId,
+              `The job refresh must belong to planning market ${marketId}`);
+            assert.strictEqual(jobFrame.object_id_one_two,
+              `${created.marketInfo.id}_${created.job.investible.id}`,
+              `The corrective refresh must name job ${created.job.investible.id}`);
+            assert(jobFrame.version > created.marketInfo.version,
+              `The corrective refresh must advance job ${created.job.investible.id}`);
+
+            const snapshots = capturedVersionSnapshots.filter(({ payload }) =>
+              isForQuestion(payload, question, created));
+            assert.strictEqual(snapshots.length, 2,
+              `Each correlated frame must start a versions snapshot for question ${question.id}`);
+            const versions = await snapshots[1].versionsPromise;
+            const marketEntry = (versions.signatures || [])
+              .find((entry) => entry.market_id === marketId);
+            const commentVersion = (marketEntry?.signatures || [])
+              .filter((signature) => signature.type === 'comment')
+              .flatMap((signature) => signature.object_versions || [])
+              .find((version) => version.object_id_one === question.id &&
+                version.version === commentFrame.version);
+            const jobVersion = (marketEntry?.signatures || [])
+              .filter((signature) => signature.type === 'market_investible')
+              .flatMap((signature) => signature.object_versions || [])
+              .find((version) => version.object_id_one === created.marketInfo.id &&
+                version.object_id_two === created.job.investible.id &&
+                version.version === jobFrame.version);
+            assert(commentVersion,
+              `Second-frame snapshot must contain comment signature ${question.id} v${
+                commentFrame.version}`);
+            assert(jobVersion,
+              `Second-frame snapshot must contain job signature ${created.marketInfo.id}_${
+                created.job.investible.id} v${jobFrame.version}`);
+
+            const comments = await adminClient.investibles.getMarketComments([{
+              id: commentVersion.object_id_one,
+              version: commentVersion.version
+            }]);
+            const sentQuestion = comments.find((comment) => comment.id === question.id);
+            assert(sentQuestion, `Snapshot question ${question.id} must hydrate`);
+            assert.strictEqual(sentQuestion.is_sent, true,
+              `Snapshot question ${question.id} must be sent`);
+            assert(sentQuestion.body?.includes(markers[index]),
+              `Snapshot question ${question.id} must contain its marker`);
+
+            const hydratedJobs = await adminClient.markets.getMarketInvestibles([{
+              investible: {
+                id: created.job.investible.id,
+                version: created.job.investible.version
+              },
+              market_infos: [{ id: jobVersion.object_id_one, version: jobVersion.version }]
+            }]);
+            const hydratedMarketInfo = hydratedJobs[0]?.market_infos
+              ?.find((info) => info.id === created.marketInfo.id);
+            assert(hydratedMarketInfo,
+              `Snapshot job ${created.job.investible.id} must hydrate`);
+            assert.strictEqual(hydratedMarketInfo.stage, requiresInputStage.id,
+              `Snapshot job ${created.job.investible.id} must be Requires Input`);
+          }
         } finally {
           if (captureRunner) {
             captureRunner.terminate();
