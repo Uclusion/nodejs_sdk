@@ -664,10 +664,12 @@ export function assertSemanticTranscript({
     const question = mutations[0].input;
     assert(question && typeof question === 'object' && !Array.isArray(question),
       'Standalone-bug conversion ask_question input must be an object');
-    assert.deepStrictEqual(Object.keys(question).sort(), ['job_id', 'options', 'question'],
-      'Standalone-bug conversion ask_question must contain only job_id, question, and options');
+    assert.deepStrictEqual(Object.keys(question).sort(), ['job_id', 'name', 'options', 'question'],
+      'Standalone-bug conversion ask_question must contain only job_id, name, question, and options');
     assert.strictEqual(question.job_id, targets.bugCode,
       'Standalone-bug conversion ask_question must target the exact standalone bug');
+    assert.strictEqual(question.name, targets.bugJobName,
+      'Standalone-bug conversion ask_question must pass the exact requested job name');
     assert.strictEqual(typeof question.question, 'string',
       'Standalone-bug conversion ask_question must contain question text');
     assert(question.question.trim(), 'Standalone-bug conversion ask_question text must not be empty');

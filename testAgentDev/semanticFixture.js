@@ -432,6 +432,7 @@ export class SemanticDevFixture {
       questionCode: this.authorityQuestionCode,
       taskCode: this.authorityTask.ticket_code,
       bugCode: this.standaloneBug?.ticket_code,
+      bugJobName: this.bugJobName,
       standaloneBugCode: this.standaloneBug?.ticket_code,
       advisoryEvent: this.advisoryEvent,
       primaryEvent: this.primaryEvent,
@@ -667,10 +668,12 @@ export class SemanticDevFixture {
     this.bugReplyMarker = `Existing bug thread reply ${this.marker}`;
     this.bugQuestionMarker = `Which fix scope ${this.marker}`;
     this.bugQuestionStoredBody = `<p>${this.bugQuestionMarker}?</p>`;
+    this.bugJobName = `Converted semantic bug ${this.marker}`;
     this.bugOptionOne = `Focused fix ${this.marker}`;
     this.bugOptionTwo = `Broader fix ${this.marker}`;
     const body = `${this.bugMarker}. The fix needs a discrete scope decision. Convert this ` +
-      `standalone bug through the installed options workflow and ask exactly ` +
+      `standalone bug through the installed options workflow, name the new job exactly ` +
+      `"${this.bugJobName}", and ask exactly ` +
       `"${this.bugQuestionMarker}?" with options "${this.bugOptionOne}" and ` +
       `"${this.bugOptionTwo}". Leave that new question open for the human.`;
     const added = await mcpCall(this.primaryConfiguration, this.uclusionToken, 'add_bug', {
@@ -856,8 +859,8 @@ export class SemanticDevFixture {
         'Standalone-bug conversion must move the original bug into a Bugs job');
       assert.strictEqual(after.bug.reply_investible_id, after.bug.root_investible_id,
         'Standalone-bug conversion must move the existing bug reply with the original root');
-      assert.strictEqual(after.bug.job_name, this.standaloneBug.ticket_code,
-        'Standalone-bug conversion must use the original bug code as the job name');
+      assert.strictEqual(after.bug.job_name, this.bugJobName,
+        'Standalone-bug conversion must persist the exact requested job name');
       assert(after.bug.job_code?.startsWith('J-'),
         'Standalone-bug conversion must leave an exact short code for the converted Bugs job');
       assert.strictEqual(after.bug.job_created_by, this.adminId,

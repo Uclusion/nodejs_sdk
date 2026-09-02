@@ -280,10 +280,12 @@ export default function (adminConfiguration) {
         undefined, marketId, replyMarker, originalBug.id);
 
       const questionMarker = `Which fix should this bug use ${marker}?`;
+      const jobName = `Converted bug ${marker}`;
       const optionOne = `Focused fix ${marker}`;
       const optionTwo = `Broader fix ${marker}`;
       const converted = await pollMcp('ask_question', {
         job_id: bugCode,
+        name: jobName,
         question: questionMarker,
         options: [
           { name: optionOne, description: 'Change only the directly reported behavior.' },
@@ -341,8 +343,8 @@ export default function (adminConfiguration) {
       assert(fullJob, 'The converted Bugs job should be readable through its source task');
       assert.strictEqual(fullJob.investible.created_by, adminId,
         'The converted Bugs job should be human-owned');
-      assert.strictEqual(fullJob.investible.name, originalBug.ticket_code,
-        'Bug conversion should use the original bug ticket code as the job name');
+      assert.strictEqual(fullJob.investible.name, jobName,
+        'Bug conversion should use the job name supplied to ask_question');
       const fullJobInfo = fullJob.market_infos.find((info) => info.ticket_code === jobCode);
       assert(fullJobInfo?.assigned?.includes(adminId),
         'The human invoking ask_question should be assigned to the converted job');
