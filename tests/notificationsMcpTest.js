@@ -202,6 +202,58 @@ export default function (adminConfiguration, userConfiguration) {
         'AI first-level question should notify the assignee with AI_GENERATED');
     }).timeout(600000);
 
+    it('notifies the assignee when the AI opens a non-votable suggestion', async () => {
+      const marker = randomUUID();
+      const user = await adminClient.users.get();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `AI suggestion inbox ${marker}`,
+        description: 'Job whose AI-authored suggestion must land in the assignee inbox.',
+        assignments: [user.id]
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const suggested = await pollMcp('make_suggestion', {
+        job_id: jobTicketCode,
+        suggestion: `This non-votable suggestion must land in the inbox ${marker}.`
+      });
+      const suggestionMatch = suggested.match(/Added suggestion with id (\S+) and link/);
+      assert(suggestionMatch, `MCP make_suggestion response wrong: ${suggested}`);
+      const suggestionTicketCode = suggestionMatch[1];
+      const expectedLink = `/${marketId}/${suggestionTicketCode}`;
+
+      const suggestionNotifications = await pollFor(async () => {
+        const messages = (await getMessages(adminConfiguration)) || [];
+        return messages.filter((message) =>
+          message.market_id === marketId &&
+          message.investible_id === job.investible.id &&
+          message.type_object_id?.startsWith('UNREAD_COMMENT_') &&
+          message.link === expectedLink);
+      }, (notifications) => notifications.length > 0);
+      assert.strictEqual(suggestionNotifications.length, 1,
+        `AI suggestion should create exactly one unread notification: ${
+          JSON.stringify(suggestionNotifications)}`);
+      assert.strictEqual(suggestionNotifications[0].alert_type, 'AI_GENERATED',
+        'AI suggestion notification should remain marked AI_GENERATED');
+
+      const suggestionId = suggestionNotifications[0].type_object_id
+        .slice('UNREAD_COMMENT_'.length);
+      const [persistedSuggestion] = await adminClient.investibles.getMarketComments([
+        { id: suggestionId, version: 1 }
+      ]);
+      assert.strictEqual(persistedSuggestion?.ticket_code, suggestionTicketCode,
+        `Notification should identify suggestion ${suggestionTicketCode}`);
+      assert.strictEqual(persistedSuggestion.comment_type, 'SUGGEST');
+      assert(!persistedSuggestion.inline_holder,
+        'A non-votable MCP suggestion must not persist an inline holder');
+      assert(!persistedSuggestion.inline_market_id,
+        'A non-votable MCP suggestion must not create an inline market');
+
+      const inbox = await pollFor(getNotifications,
+        (markdown) => markdown.includes(suggestionTicketCode));
+      assert(inbox.includes(suggestionTicketCode),
+        `get_notifications should list AI suggestion ${suggestionTicketCode}: ${inbox}`);
+    }).timeout(600000);
+
     it('marks find_work items auto_take when the view opts in', async () => {
       const marker = randomUUID();
       const user = await adminClient.users.get();
