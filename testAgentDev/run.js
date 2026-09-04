@@ -20,13 +20,18 @@ import {
   buildStageAuthorizationPlan,
   stageAuthorizationPrompt
 } from './stageAuthorizationScenarios.js';
+import {
+  buildCompletionPackagePlan,
+  completionPackagePrompt
+} from './completionPackageScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
   'semantic-standalone-bug-conversion': buildStandaloneBugConversionPlan,
   onboarding: buildOnboardingPlan,
   'design-writing': buildDesignWritingPlan,
-  'stage-authorization': buildStageAuthorizationPlan
+  'stage-authorization': buildStageAuthorizationPlan,
+  'completion-package': buildCompletionPackagePlan
 });
 const WORK_CLAIMS_CATALOG = 'work-claims';
 const QUESTION_GATE_CATALOG = 'question-gate';
@@ -118,6 +123,17 @@ if (semanticCatalog || workClaimsCatalog || questionGateCatalog) {
         new fixtureModule.StageAuthorizationDevFixture(fixtureOptions),
       buildPrompt: stageAuthorizationPrompt,
       assertTranscript: assertionsModule.assertStageAuthorizationTranscript
+    };
+  } else if (catalog === 'completion-package') {
+    const [fixtureModule, assertionsModule] = await Promise.all([
+      import('./completionPackageFixture.js'),
+      import('./completionPackageAssertions.js')
+    ]);
+    options.dependencies = {
+      createFixture: (fixtureOptions) =>
+        new fixtureModule.CompletionPackageDevFixture(fixtureOptions),
+      buildPrompt: completionPackagePrompt,
+      assertTranscript: assertionsModule.assertCompletionPackageTranscript
     };
   }
 }

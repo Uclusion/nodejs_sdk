@@ -111,6 +111,24 @@ process mutates the other job. Its scenario, fixture, and grader are
 `stageAuthorizationScenarios.js`, `stageAuthorizationFixture.js`, and
 `stageAuthorizationAssertions.js`.
 
+`npm run testAgentDevCompletionPackage` runs three fresh Codex processes in
+fail-fast order against separate completed, human-owned jobs: declined,
+partial, then full completion authorization. Every target begins Doable with
+one open AI review whose capsule-delta report ends in the four-action menu. The
+same menu is carried as the immediately preceding agent prompt without adding a
+second paid turn or a resume harness. The declined phase accepts `none` in the
+agent and performs no post-review action. The partial phase persists an earlier
+review reply of `1`, supplies a later conflicting agent reply of `1,2`, and
+must create only the task-coded local commit selected by the first response.
+The full phase accepts `all` in the agent and must order commit, local push,
+fresh exact-job notification check and clear, Reviewable transition, and the
+established completion sweep before any lane discovery. Every valid response
+reloads both the exact review thread and the exact job with assistance. Durable
+grading forbids a second review or menu prompt and preserves unrelated changes,
+notifications, and jobs. The catalog is defined by
+`completionPackageScenarios.js`, `completionPackageFixture.js`, and
+`completionPackageAssertions.js`.
+
 The original three-phase semantic catalog is `semanticScenarios.js`. There is
 deliberately no implicit `all` mode: choosing a semantic-harness script does
 not rerun the nine transport sessions.
@@ -145,14 +163,24 @@ process.
 ## Codex semantic policy
 
 Every semantic invocation uses an isolated temporary HOME, config, workspace,
-and fresh ephemeral thread. It passes `--ignore-user-config`, uses the
-`read-only` sandbox, and configures the fresh market's Uclusion MCP server as
-required. Model and reasoning effort are managed defaults: the command and
-child environment contain no model or effort override.
+and fresh ephemeral thread. It passes `--ignore-user-config` and configures the
+fresh market's Uclusion MCP server as required. Semantic catalogs use the
+`read-only` sandbox except the completion-package partial and full phases,
+which use `workspace-write` solely against their disposable workspace. Those
+phases keep their working repository metadata in an ignored directory inside
+that workspace so real local commits remain sandbox-writable, and initialize
+an ignored bare origin and export directory beside it. No Git-hosting or SSH
+credential, real remote, or external workspace path is passed to the child.
+Model and reasoning effort are managed defaults: the command and child
+environment contain no model or effort override. The longer partial and full
+completion phases have a 1,000,000-reported-token process ceiling; every other
+semantic process retains the 500,000-token ceiling. Only the full phase enables
+workspace-write command networking, because its required fresh DEV export must
+reach Uclusion before the completion scan can run.
 
 The harness also sets only the presence marker
 `UCLUSION_CODEX_BRIDGE_ACTIVE=1` in those semantic child environments. Each
-prompt names its exact durable target, so the read-only process neither starts
+prompt names its exact durable target, so each process neither starts
 the writable CLI wait gate nor consumes an unrelated retained Poke.
 
 The JSONL `turn.completed` record must report nonnegative integer
@@ -205,6 +233,8 @@ onboarding artifacts default to `testAgentDev/artifacts/onboarding/`; and
 design-writing artifacts default to `testAgentDev/artifacts/design-writing/`.
 Stage-authorization artifacts default to
 `testAgentDev/artifacts/stage-authorization/`.
+Completion-package artifacts default to
+`testAgentDev/artifacts/completion-package/`.
 Each catalog records:
 
 - one raw JSONL event/tool transcript per process;

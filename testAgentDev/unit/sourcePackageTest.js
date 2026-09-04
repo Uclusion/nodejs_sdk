@@ -25,6 +25,9 @@ function sourceTree(root) {
   write(path.join(scripts, 'skills', 'uclusion', 'references', 'operations.md'),
     '<!-- uclusion-skill-reference:v1 -->\n# Operations\n' +
     '<!-- /uclusion-skill-reference:v1 -->\n');
+  write(path.join(scripts, 'skills', 'uclusion', 'references', 'completion.md'),
+    '<!-- uclusion-skill-reference:v1 -->\n# Completion\n' +
+    '<!-- /uclusion-skill-reference:v1 -->\n');
   write(path.join(scripts, 'skills', 'uclusion', 'agents', 'openai.yaml'),
     'interface:\n  display_name: Uclusion\n');
   write(path.join(scripts, 'skills', 'uclusion-design', 'SKILL.md'),
@@ -53,6 +56,7 @@ describe('agent dev shipped source staging', () => {
       });
       assert(fs.existsSync(staged.stubTarget));
       assert(fs.existsSync(path.join(staged.skillTarget, 'SKILL.md')));
+      assert(fs.existsSync(path.join(staged.skillTarget, 'references', 'completion.md')));
       assert(!fs.readFileSync(staged.stubTarget, 'utf8').includes('{{UCLUSION_CLI}}'));
       assert(fs.readFileSync(staged.stubTarget, 'utf8').includes('/tmp/uclusion-dev -e dev'));
     }
@@ -62,7 +66,8 @@ describe('agent dev shipped source staging', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-source-unit-'));
     sourceTree(root);
     write(path.join(root, 'public', 'scripts', 'skills', 'uclusion',
-      'references', 'pokes.md'), '# truncated\n');
+      'references', 'completion.md'),
+      '<!-- uclusion-skill-reference:v1 -->\n# truncated\n');
     assert.throws(() => inspectSourcePackage(root), /does not end/);
   });
 

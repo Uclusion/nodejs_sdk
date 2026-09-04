@@ -198,7 +198,8 @@ export async function executeSemanticHarness({
         });
         assertSuccessfulProcess(runtimeSession, agentResult, timeoutMs);
         const reportedTokens = assertCodexUsageWithinCeiling(
-          agentResult.modelRecord.reported_usage
+          agentResult.modelRecord.reported_usage,
+          planned.codexReportedTokenCeiling
         );
         try {
           stateAfter = fixture.snapshotAfterPhase

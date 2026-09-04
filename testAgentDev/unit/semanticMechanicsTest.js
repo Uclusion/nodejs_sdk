@@ -16,11 +16,18 @@ import {
   buildSemanticPlan,
   buildStandaloneBugConversionPlan
 } from '../semanticScenarios.js';
+import {
+  buildCompletionPackagePlan,
+  COMPLETION_PACKAGE_CODEX_TOKEN_CEILING,
+  completionPackagePrompt
+} from '../completionPackageScenarios.js';
+import { isCompletionPackageExportCommand } from '../completionPackageAssertions.js';
 
 describe('agent dev Codex semantic harness mechanics', () => {
   it('plans exactly three independent Codex phases with unique keys and traces', () => {
     const plan = buildSemanticPlan();
     const standaloneBugPlan = buildStandaloneBugConversionPlan();
+    const completionPackagePlan = buildCompletionPackagePlan();
 
     assert.strictEqual(plan.length, 3);
     assert.deepStrictEqual(plan.map((session) => session.phase), [
@@ -43,11 +50,73 @@ describe('agent dev Codex semantic harness mechanics', () => {
     }]);
     assert.strictEqual(new Set(standaloneBugPlan.map((session) => session.key)).size, 1);
     assert.strictEqual(new Set(standaloneBugPlan.map((session) => session.traceName)).size, 1);
+    assert.deepStrictEqual(completionPackagePlan.map((session) => session.phase), [
+      'completion-package-declined',
+      'completion-package-partial',
+      'completion-package-full'
+    ]);
+    assert.deepStrictEqual(completionPackagePlan.map((session) => session.codexSandbox), [
+      'read-only',
+      'workspace-write',
+      'workspace-write'
+    ]);
+    assert.deepStrictEqual(completionPackagePlan.map((session) => session.selection), [
+      'none',
+      '1',
+      'all'
+    ]);
+    assert.deepStrictEqual(completionPackagePlan.map((session) => session.selectionSource), [
+      'agent',
+      'review',
+      'agent'
+    ]);
+    assert.deepStrictEqual(completionPackagePlan.map((session) => session.laterAgentSelection), [
+      undefined,
+      '1,2',
+      undefined
+    ]);
+    assert.deepStrictEqual(
+      completionPackagePlan.map((session) => session.codexReportedTokenCeiling),
+      [undefined, COMPLETION_PACKAGE_CODEX_TOKEN_CEILING,
+        COMPLETION_PACKAGE_CODEX_TOKEN_CEILING]
+    );
+    assert.deepStrictEqual(completionPackagePlan.map((session) => session.codexNetworkAccess),
+      [undefined, undefined, true]);
+    assert.strictEqual(new Set(completionPackagePlan.map((session) => session.key)).size, 3);
+    assert.strictEqual(new Set(completionPackagePlan.map((session) => session.traceName)).size, 3);
+
+    const completionTarget = {
+      jobCode: 'J-unit-1',
+      taskCode: 'T-unit-1',
+      reviewCode: 'R-unit-1',
+      reviewReplyCode: 'C-unit-1',
+      taskFile: 'completion-unit.txt',
+      completionMenu: 'J-unit-1 has been reviewed. Choose completion actions:\n\n' +
+        '1. Commit only its reviewed changes.\n' +
+        '2. Push only those commits.\n' +
+        '3. Clear only the notifications produced by J-unit-1.\n' +
+        '4. Move J-unit-1 from Doable to Reviewable and immediately run its completion sweep.'
+    };
+    for (const session of completionPackagePlan) {
+      const prompt = completionPackagePrompt(session, { [session.target]: completionTarget });
+      assert(prompt.includes(completionTarget.completionMenu),
+        `${session.phase} must carry the exact menu shown in the prior agent prompt`);
+      assert.strictEqual(
+        prompt.indexOf(completionTarget.completionMenu),
+        prompt.lastIndexOf(completionTarget.completionMenu),
+        `${session.phase} must carry the prior agent menu exactly once`
+      );
+      assert(prompt.includes(completionTarget.reviewCode),
+        `${session.phase} must name its already-open review`);
+      assert(prompt.startsWith(`${session.laterAgentSelection || session.selection}\n\n`),
+        `${session.phase} must expose the configured agent-channel reply first`);
+    }
   });
 
   it('launches semantic Codex read-only with isolated defaults and no model or effort override', () => {
     const fixture = {
       workspace: '/tmp/semantic-workspace',
+      gitDirectory: '/tmp/semantic-workspace/.agent-dev-git',
       sessionHome: '/tmp/semantic-home',
       proxyPath: '/tmp/uclusionMCPProxy.py',
       marketId: 'market-unit',
@@ -92,6 +161,17 @@ describe('agent dev Codex semantic harness mechanics', () => {
     assert.strictEqual(childEnv.HOME, fixture.sessionHome);
     assert.strictEqual(childEnv.CODEX_HOME, path.join(fixture.sessionHome, '.codex'));
     assert.strictEqual(childEnv.UCLUSION_CODEX_BRIDGE_ACTIVE, '1');
+    assert.strictEqual(childEnv.GIT_DIR, fixture.gitDirectory);
+    assert.strictEqual(childEnv.GIT_WORK_TREE, fixture.workspace);
+
+    const networkedLaunch = buildCodexLaunch({
+      fixture,
+      prompt: 'Handle J-unit.',
+      codexOtelEndpoint: 'http://127.0.0.1:4318/v1/logs',
+      sandbox: 'workspace-write',
+      networkAccess: true
+    });
+    assert(networkedLaunch.args.includes('sandbox_workspace_write.network_access=true'));
 
     const expectedSkillPath = path.join(
       fixture.sessionHome,
@@ -162,6 +242,43 @@ describe('agent dev Codex semantic harness mechanics', () => {
     ]) {
       assert.throws(() => assertCodexUsageWithinCeiling(invalid));
     }
+  });
+
+  it('recognizes only an exact completion CLI export command segment', () => {
+    const cli = '/tmp/uclusionCLI.py -e dev';
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `${cli} export`, cli
+    ), true);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `/bin/bash -lc '${cli} export'`, cli
+    ), true);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `/bin/bash -lc "${cli} export"`, cli
+    ), true);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `/bin/bash -lc 'cd /tmp && ${cli} export'`, cli
+    ), true);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `cd /tmp && ${cli} export`, cli
+    ), true);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `cd /tmp\n${cli} export`, cli
+    ), true);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `/bin/bash -lc '${cli} status .agent-dev-export/market.md'`, cli
+    ), false);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `echo '${cli} export'`, cli
+    ), false);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `echo 'noop; ${cli} export'`, cli
+    ), false);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `echo "bash -lc '${cli} export'"`, cli
+    ), false);
+    assert.strictEqual(isCompletionPackageExportCommand(
+      `bash /tmp/helper.sh -c '${cli} export'`, cli
+    ), false);
   });
 
   it('makes one paid runner call on failure and preserves bounded redacted artifacts and pins',

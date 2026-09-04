@@ -201,6 +201,14 @@ export function isolatedSessionEnvironment(env, client, fixture) {
     // established delivery; never copy a parent bridge value into the child.
     result.UCLUSION_CODEX_BRIDGE_ACTIVE = '1';
   }
+  if (client === 'codex' && fixture.gitDirectory) {
+    const workspace = path.resolve(fixture.workspace);
+    const gitDirectory = path.resolve(fixture.gitDirectory);
+    assert(gitDirectory.startsWith(`${workspace}${path.sep}`),
+      'Semantic Git metadata must stay inside the disposable workspace');
+    result.GIT_DIR = gitDirectory;
+    result.GIT_WORK_TREE = workspace;
+  }
   return result;
 }
 
@@ -232,11 +240,14 @@ export function buildCodexLaunch({
   fixture,
   prompt,
   codexOtelEndpoint,
-  sandbox = 'workspace-write'
+  sandbox = 'workspace-write',
+  networkAccess = false
 }) {
   assert(codexOtelEndpoint, 'Codex requires a run-scoped OTel model receiver');
   assert(['read-only', 'workspace-write'].includes(sandbox),
     `Unsupported Codex sandbox policy ${sandbox}`);
+  assert(networkAccess === false || sandbox === 'workspace-write',
+    'Codex command network access requires the workspace-write sandbox');
   return {
     command: EXECUTABLES.codex,
     args: [
@@ -246,6 +257,9 @@ export function buildCodexLaunch({
       '--ignore-user-config',
       '--skip-git-repo-check',
       '--sandbox', sandbox,
+      ...(networkAccess
+        ? ['-c', 'sandbox_workspace_write.network_access=true']
+        : []),
       '-C', fixture.workspace,
       '-c', codexMcpOverride(fixture),
       '-c', 'otel.exporter={ otlp-http={ endpoint=' +
@@ -276,7 +290,8 @@ function commandFor(
   prompt,
   configs,
   codexOtelEndpoint = null,
-  codexSandbox = 'workspace-write'
+  codexSandbox = 'workspace-write',
+  codexNetworkAccess = false
 ) {
   const executable = EXECUTABLES[client];
   if (client === 'claude') {
@@ -305,7 +320,8 @@ function commandFor(
       fixture,
       prompt,
       codexOtelEndpoint,
-      sandbox: codexSandbox
+      sandbox: codexSandbox,
+      networkAccess: codexNetworkAccess
     });
   }
   return {
@@ -416,7 +432,8 @@ export async function runAgentSession({
     session.prompt,
     configs,
     telemetry?.endpoint,
-    session.codexSandbox || 'workspace-write'
+    session.codexSandbox || 'workspace-write',
+    session.codexNetworkAccess === true
   );
   const env = isolatedSessionEnvironment(sourceEnv, session.client, fixture);
   env.TEST_AGENT_DEV_RUN_ID = fixture.runId;
