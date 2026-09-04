@@ -112,7 +112,8 @@ export default function (adminConfiguration, userConfiguration) {
       assert(question.ticket_code, `Question ticket code missing: ${JSON.stringify(question)}`);
       const replied = await pollMcp('add_info', {
         short_code_id: question.ticket_code,
-        info: `AI reply that must generate a tracked notification ${marker}.`
+        info: `AI reply that must generate a tracked notification ${marker}.`,
+        tz: 'America/Los_Angeles'
       });
       const replyMatch = replied.match(/Added info with id (\S+) and link/);
       assert(replyMatch, `MCP add_info response wrong: ${replied}`);

@@ -390,7 +390,8 @@ export default function (adminConfiguration) {
       const replyMarker = `Please provide the exact reproduction steps ${marker}.`;
       const replied = await pollMcp('add_info', {
         short_code_id: bugCode,
-        info: replyMarker
+        info: replyMarker,
+        tz: 'America/Los_Angeles'
       });
       assert(replied.includes('Added info with id'),
         `Open-ended bug question should use add_info: ${replied}`);

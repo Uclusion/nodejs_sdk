@@ -191,7 +191,8 @@ export default function (adminConfiguration) {
       const collaboratorMarker = `AI collaborator note ${marker}`;
       const mcpResult = await pollMcp('add_info', {
         short_code_id: jobTicketCode,
-        info: collaboratorMarker
+        info: collaboratorMarker,
+        tz: 'America/Los_Angeles'
       });
       assert(mcpResult.includes('Added info with id'),
         `MCP add_info response wrong: ${mcpResult}`);
@@ -416,7 +417,8 @@ export default function (adminConfiguration) {
       const completionMarker = `AI completion note for both-poke ${marker}`;
       const mcpInfo = await pollMcp('add_info', {
         short_code_id: bugTicketCode,
-        info: completionMarker
+        info: completionMarker,
+        tz: 'America/Los_Angeles'
       });
       assert(mcpInfo.includes('Added info with id'),
         `MCP add_info response wrong: ${mcpInfo}`);

@@ -233,7 +233,8 @@ export default function (adminConfiguration) {
     async function addInfoCode(shortCode, body) {
       const response = await retryMcp('add_info', {
         short_code_id: shortCode,
-        info: body
+        info: body,
+        tz: 'America/Los_Angeles'
       });
       const match = toolText(response).match(/Added info with id (\S+) and link/);
       assert(match, `add_info did not return the created note R code: ${response}`);
