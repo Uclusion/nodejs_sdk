@@ -188,17 +188,12 @@ function resultTexts(parsed, call) {
   return mcpResultTexts(item.result?.content);
 }
 
-function createdCommentCode(parsed, call, label) {
-  const codes = [...new Set(resultTexts(parsed, call).flatMap((text) =>
-    text.match(/\bC-[A-Za-z0-9-]+\b/g) || []))];
-  assert.strictEqual(codes.length, 1,
-    `${label} must return exactly one durable C- code`);
-  return codes[0];
-}
-
-function assertActionState(info, label, expected, context) {
+function assertActionState(info, label, expected, context, optionalWhenEmpty = false) {
   const line = String(info).split('\n').find((candidate) =>
     new RegExp(`\\b${label}(?:\\s+actions?)?\\b`, 'i').test(candidate));
+  if (!line && optionalWhenEmpty && expected.length === 0) {
+    return;
+  }
   assert(line, `${context} must name its ${label} actions`);
   if (expected.length === 0) {
     assert(/\b(?:none|empty|no actions?)\b|\[\s*\]/i.test(line),
@@ -214,27 +209,23 @@ function assertActionState(info, label, expected, context) {
 }
 
 function assertPackageState(call, {
-  source = null,
-  selection = null,
-  selected = null,
+  source,
+  selection,
   completed,
+  failed,
   remaining,
   label
 }) {
   const info = call.input?.info;
   assert.strictEqual(typeof info, 'string', `${label} must contain durable package state`);
-  if (source === 'agent') {
-    assert(/\bsource\b[^\n]*(?:agent|chat)/i.test(info),
-      `${label} must identify the agent-chat source`);
-  }
-  if (selection) {
-    assert(new RegExp(`canonical\\s+selection[^\\n]*\\b${selection.replace(',', '\\s*,\\s*')}\\b`, 'i')
-      .test(info), `${label} must record canonical selection ${selection}`);
-  }
-  if (selected) {
-    assertActionState(info, 'selected', selected, label);
-  }
+  const sourcePattern = source === 'review' ? /\breview\b/i : /\b(?:agent|chat)\b/i;
+  const sourceLine = info.split('\n').find((line) => /\bsource\b/i.test(line));
+  assert(sourceLine && sourcePattern.test(sourceLine),
+    `${label} must identify its ${source} response source`);
+  assert(new RegExp(`canonical\\s+selection[^\\n]*\\b${selection.replace(',', '\\s*,\\s*')}\\b`, 'i')
+    .test(info), `${label} must record canonical selection ${selection}`);
   assertActionState(info, 'completed', completed, label);
+  assertActionState(info, 'failed', failed, label, true);
   assertActionState(info, 'remaining', remaining, label);
 }
 
@@ -407,33 +398,25 @@ export function assertCompletionPackageTranscript({
 
   if (targetName === 'declined') {
     assert.deepStrictEqual(mutations.map(workflowToolName), ['add_info'],
-      'A none selection may only create its terminal accepted-selection record');
-    const selectionRecord = mutations[0];
-    assert.strictEqual(selectionRecord.input?.short_code_id, target.reviewCode,
-      'Declined chat selection must be acknowledged on the exact review');
-    assertPackageState(selectionRecord, {
+      'A none selection may only create its terminal package reply');
+    const terminalStatus = mutations[0];
+    assert.strictEqual(terminalStatus.input?.short_code_id, target.reviewCode,
+      'Declined terminal reply must target the exact review root');
+    assertPackageState(terminalStatus, {
       source: 'agent',
       selection: 'none',
-      selected: [],
       completed: [],
+      failed: [],
       remaining: [],
-      label: 'Declined accepted-selection record'
+      label: 'Declined terminal package reply'
     });
-    assert(reviewLoads.some((call) => call.resultEventIndex < selectionRecord.eventIndex),
-      'Declined package must inspect the review before accepting the chat response');
-    const selectionCode = createdCommentCode(
-      parsed, selectionRecord, 'Declined accepted-selection record'
-    );
-    const reconciledLoads = reviewLoads.filter((call) =>
-      selectionRecord.resultEventIndex < call.eventIndex &&
-      resultTexts(parsed, call).some((text) => text.includes(selectionCode)));
-    assert(reconciledLoads.length > 0,
-      'Declined package must reload the review and confirm its durable chat record');
+    assert(reviewLoads.some((call) => call.resultEventIndex < terminalStatus.eventIndex),
+      'Declined package must inspect the review before recording its terminal reply');
     assertReferenceLoaded(
       parsed,
       expectedSkillFiles,
       'references/operations.md',
-      selectionRecord.eventIndex,
+      terminalStatus.eventIndex,
       'Declined completion operations reference'
     );
     assert.deepStrictEqual(commitCalls, [], 'Declined completion package must not commit');
@@ -441,17 +424,17 @@ export function assertCompletionPackageTranscript({
     assert.deepStrictEqual(exportCalls, [], 'Declined completion package must not export');
     assert.deepStrictEqual(notificationChecks, [],
       'Declined completion package has no completion action requiring an inbox check');
-    const restoredBoundary = Math.max(
-      ...doableReloads.map((call) => call.resultEventIndex),
-      ...reconciledLoads.map((call) => call.resultEventIndex)
+    assertNoPrematureLaneSwitch(
+      workflowCalls,
+      allowedCodes,
+      terminalStatus.resultEventIndex
     );
-    assertNoPrematureLaneSwitch(workflowCalls, allowedCodes, restoredBoundary);
     return;
   }
 
   const expectedMutations = targetName === 'partial'
     ? ['add_info']
-    : ['add_info', 'clear_notifications', 'change_job_stage', 'add_info', 'add_info'];
+    : ['clear_notifications', 'change_job_stage', 'add_info', 'add_info'];
   assert.deepStrictEqual(mutations.map(workflowToolName), expectedMutations,
     `${targetName} completion package performed an unauthorized or misordered mutation`);
   assert.strictEqual(commitCalls.length, 1,
@@ -488,9 +471,12 @@ export function assertCompletionPackageTranscript({
     assert.strictEqual(terminalStatus.input?.short_code_id, target.reviewReplyCode,
       'Partial terminal status must use the human review reply as its state root');
     assertPackageState(terminalStatus, {
+      source: 'review',
+      selection: '1',
       completed: [1],
+      failed: [],
       remaining: [],
-      label: 'Partial terminal package status'
+      label: 'Partial terminal package reply'
     });
     assert(lateChecks[0].resultEventIndex < terminalStatus.eventIndex,
       'Partial package must record terminal status after its final required check');
@@ -504,35 +490,15 @@ export function assertCompletionPackageTranscript({
     return;
   }
 
-  const selectionRecord = mutations[0];
-  assert.strictEqual(selectionRecord.input?.short_code_id, target.reviewCode,
-    'Full chat selection must be acknowledged on the exact review');
-  assertPackageState(selectionRecord, {
-    source: 'agent',
-    selection: 'all',
-    selected: [1, 2, 3, 4],
-    completed: [],
-    remaining: [1, 2, 3, 4],
-    label: 'Full accepted-selection record'
-  });
-  assert(reviewLoads.some((call) => call.resultEventIndex < selectionRecord.eventIndex),
-    'Full package must inspect the review before accepting the chat response');
-  const selectionCode = createdCommentCode(
-    parsed, selectionRecord, 'Full accepted-selection record'
-  );
-  const reconciledLoads = reviewLoads.filter((call) =>
-    selectionRecord.resultEventIndex < call.eventIndex &&
-    call.resultEventIndex < commit.call.eventIndex &&
-    resultTexts(parsed, call).some((text) => text.includes(selectionCode)));
-  assert(reconciledLoads.length > 0,
-    'Full package must reconcile its durable chat record before committing');
+  assert(reviewLoads.some((call) => call.resultEventIndex < commit.call.eventIndex),
+    'Full package must inspect the review before committing');
   assert(doableReloads.some((call) => call.resultEventIndex < commit.call.eventIndex),
     'Full package must reload the exact job and assistance before committing');
   assertReferenceLoaded(
     parsed,
     expectedSkillFiles,
     'references/operations.md',
-    selectionRecord.eventIndex,
+    commit.call.eventIndex,
     'Full completion operations reference'
   );
   assert.strictEqual(pushCalls.length, 1,
@@ -548,10 +514,10 @@ export function assertCompletionPackageTranscript({
     assert(commit.call.resultEventIndex < push.call.eventIndex,
       'Full completion package must finish commit before push');
   }
-  const clear = mutations[1];
-  const stage = mutations[2];
-  const sweep = mutations[3];
-  const terminalStatus = mutations[4];
+  const clear = mutations[0];
+  const stage = mutations[1];
+  const sweep = mutations[2];
+  const terminalStatus = mutations[3];
   const lateChecks = notificationChecks.filter((call) =>
     push.call.resultEventIndex < call.eventIndex && call.resultEventIndex < clear.eventIndex);
   assert(lateChecks.length > 0,
@@ -615,12 +581,15 @@ export function assertCompletionPackageTranscript({
     'Completion sweep must record the explicit no-candidate result');
   assert(exportCall.call.resultEventIndex < sweep.eventIndex,
     'Completion sweep must finish its fresh export before recording the result');
-  assert.strictEqual(terminalStatus.input?.short_code_id, selectionCode,
-    'Full terminal status must reply to its accepted chat-selection record');
+  assert.strictEqual(terminalStatus.input?.short_code_id, target.reviewCode,
+    'Full terminal reply must target the exact review root');
   assertPackageState(terminalStatus, {
+    source: 'agent',
+    selection: 'all',
     completed: [1, 2, 3, 4],
+    failed: [],
     remaining: [],
-    label: 'Full terminal package status'
+    label: 'Full terminal package reply'
   });
   assert(sweep.resultEventIndex < terminalStatus.eventIndex,
     'Full package must record terminal status only after its completion sweep');

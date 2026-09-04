@@ -110,6 +110,30 @@ describe('agent dev Codex semantic harness mechanics', () => {
         `${session.phase} must name its already-open review`);
       assert(prompt.startsWith(`${session.laterAgentSelection || session.selection}\n\n`),
         `${session.phase} must expose the configured agent-channel reply first`);
+      assert(prompt.includes(
+        'Do not write an AI acknowledgement, receipt, status, or other selection record before'
+      ), `${session.phase} must prohibit a pre-action AI receipt`);
+      assert(prompt.includes('exactly one terminal reply'),
+        `${session.phase} must require one terminal package reply`);
+      const responseSource = session.selectionSource === 'review' ? 'review' : 'agent chat';
+      assert(prompt.includes(`response source \`${responseSource}\``),
+        `${session.phase} must carry its terminal response source`);
+      assert(prompt.includes(`canonical selection \`${session.selection}\``),
+        `${session.phase} must carry its canonical terminal selection`);
+      assert(prompt.includes('completed actions, the failed action if any, and remaining'),
+        `${session.phase} must carry the complete terminal result fields`);
+      const terminalTarget = session.selectionSource === 'review'
+        ? completionTarget.reviewReplyCode
+        : completionTarget.reviewCode;
+      assert(prompt.includes(`terminal reply to ${session.selectionSource === 'review'
+        ? 'the first human review reply'
+        : 'the review root'} ${terminalTarget}`),
+      `${session.phase} must bind its terminal reply to the response thread`);
+      assert.strictEqual(
+        prompt.includes('the human must repeat it'),
+        session.selectionSource === 'agent',
+        `${session.phase} must apply interruption replay only to agent-chat input`
+      );
     }
   });
 

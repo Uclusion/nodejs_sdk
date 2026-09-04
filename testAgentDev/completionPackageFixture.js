@@ -636,7 +636,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
         job.sweep_notes.length === 1 &&
         job.target_notification_present === false &&
         job.review_notification_present === false &&
-        job.package_records.length === 2 &&
+        job.package_records.length === 1 &&
         state.decoy_notification_present === true &&
         state.git?.head === state.git?.origin_head &&
         state.git?.export_exists === true;
@@ -745,9 +745,9 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       assert.strictEqual(afterJob.review_notification_present, true,
         'Declined package must preserve the completion review notification');
       assert.strictEqual(afterJob.package_records.length, 1,
-        'Declined package must durably acknowledge its terminal chat selection once');
+        'Declined package must record exactly one terminal reply for its chat selection');
       assert.strictEqual(afterJob.package_records[0].reply_id, target.review.id,
-        'Declined chat acknowledgement must be recorded on the exact review');
+        'Declined terminal reply must be recorded on the exact review root');
       assert.deepStrictEqual(after.git.status, expectedDirty,
         'Declined package must preserve both prepared diffs');
       assert.strictEqual(after.git.working_content, after.git.ready_content,
@@ -802,15 +802,10 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       'Full package must record exactly one completion sweep result');
     assert.strictEqual(afterJob.sweep_notes[0].body.includes(NO_COMPLETION_CANDIDATES), true,
       'Full package must record the explicit no-candidate completion result');
-    assert.strictEqual(afterJob.package_records.length, 2,
-      'Full package must retain one chat acknowledgement and one terminal status');
-    const acceptedSelection = afterJob.package_records.find((record) =>
-      record.reply_id === target.review.id);
-    assert(acceptedSelection,
-      'Full chat selection must be durably acknowledged on the exact review');
-    assert(afterJob.package_records.some((record) =>
-      record.reply_id === acceptedSelection.id),
-    'Full terminal status must reply to its accepted chat-selection record');
+    assert.strictEqual(afterJob.package_records.length, 1,
+      'Full package must record exactly one terminal reply');
+    assert.strictEqual(afterJob.package_records[0].reply_id, target.review.id,
+      'Full terminal reply must be recorded on the exact review root');
     assert.strictEqual(after.git.origin_head, after.git.head,
       'Full package must push its exact task-owned commit');
     assert.strictEqual(after.git.export_exists, true,

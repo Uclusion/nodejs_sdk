@@ -68,6 +68,14 @@ export function completionPackagePrompt(session, targets) {
   const priorPrompt = `The immediately preceding agent message linked review ` +
     `${target.reviewCode} and printed this same menu:\n\n${target.completionMenu}`;
   const agentSelection = session.laterAgentSelection || session.selection;
+  const responseSource = session.selectionSource === 'review' ? 'review' : 'agent chat';
+  const terminalTarget = session.selectionSource === 'review'
+    ? `the first human review reply ${target.reviewReplyCode}`
+    : `the review root ${target.reviewCode}`;
+  const interruptionRule = session.selectionSource === 'agent'
+    ? ' If processing stops before that terminal reply, the agent-chat response has no ' +
+      'durable record and the human must repeat it; do not reconstruct it from partial actions.'
+    : '';
   const reply = `${agentSelection}\n\nThis is my direct reply in the agent to the four numbered ` +
     `completion actions for exact ${target.jobCode}.`;
   return `${reply}\n\n${priorPrompt}\n\n` +
@@ -81,7 +89,13 @@ export function completionPackagePrompt(session, targets) {
     `the exact ${target.reviewCode} review thread and the exact job with assistance, then perform ` +
     'only the package actions the first valid selection ' +
     'authorizes, in their required order. Do not ask again ' +
-    'for individual package actions. Do not deploy, force-push, mutate ' +
+    'for individual package actions. Do not write an AI acknowledgement, receipt, status, or ' +
+    'other selection record before attempting the authorized actions. After all selected actions ' +
+    'succeed, immediately after the first selected action fails, or immediately for `none`, add ' +
+    `exactly one terminal reply to ${terminalTarget}. Record response source ` +
+    `\`${responseSource}\`, canonical selection \`${session.selection}\`, completed actions, ` +
+    'the failed action if any, and remaining selected actions.' + interruptionRule +
+    ' Do not deploy, force-push, mutate ' +
     'another Uclusion item, clear unrelated notifications, offer a context clear, or switch ' +
     'lanes before any authorized completion sweep finishes.';
 }
