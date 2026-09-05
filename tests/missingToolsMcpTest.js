@@ -267,6 +267,157 @@ export default function (adminConfiguration) {
         'add_bug must create the bug as the human token owner');
     }).timeout(240000);
 
+    it('creates a job from existing bugs and preserves their threads while exposing priority', async () => {
+      const marker = randomUUID();
+      const priorities = [
+        { severity: 'RED', label: 'critical' },
+        { severity: 'YELLOW', label: 'normal' },
+        { severity: 'BLUE', label: 'minor' },
+        { severity: 'YELLOW', label: 'normal' }
+      ];
+      function structured(response) {
+        const { result } = JSON.parse(response);
+        assert(result && !result.isError && result.structuredContent,
+          `Expected a structured tool result: ${response}`);
+        return result.structuredContent;
+      }
+
+      const fileContent = `Original bug evidence ${marker}`;
+      const uploadResponse = await mcpCall(adminConfiguration, uclusionToken, 'get_upload', {
+        content_type: 'text/plain', content_length: Buffer.byteLength(fileContent),
+        original_name: 'bug-evidence.txt'
+      });
+      const upload = JSON.parse(JSON.parse(uploadResponse).result.content[0].text);
+      const boundary = `----uclusion${randomUUID()}`;
+      let uploadBody = '';
+      for (const [key, value] of Object.entries(upload.presigned_post.fields)) {
+        uploadBody += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
+      }
+      uploadBody += `--${boundary}\r\nContent-Disposition: form-data; name="file"\r\n` +
+        `Content-Type: text/plain\r\n\r\n${fileContent}\r\n--${boundary}--\r\n`;
+      const uploaded = await fetch(upload.presigned_post.url, { method: 'POST',
+        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body: uploadBody });
+      assert(uploaded.ok, `Bug evidence upload failed: ${uploaded.status}`);
+
+      const bugs = [];
+      for (const [index, priority] of priorities.entries()) {
+        const body = `<p>Existing bug ${index} ${marker}</p>` +
+          (index === 0 ? `<p><a href="${upload.file_url}">Bug evidence</a></p>` : '');
+        const bug = await adminClient.investibles.createComment(
+          undefined, marketId, body, undefined, 'TODO',
+          index === 0 ? [upload.metadata] : undefined, undefined, priority.severity);
+        await adminClient.investibles.updateComment(bug.id, undefined, undefined, undefined,
+          undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, true);
+        bugs.push(bug);
+      }
+      const reply = await adminClient.investibles.createComment(
+        undefined, marketId, `Original reply ${marker}`, bugs[0].id);
+      const nestedReply = await adminClient.investibles.createComment(
+        undefined, marketId, `Original nested reply ${marker}`, reply.id);
+      const tracked = [...bugs, reply, nestedReply];
+      const before = await pollFor(() => listMarketComments(), (comments) => tracked.every(
+        (original) => comments.some((comment) => comment.id === original.id && comment.ticket_code)));
+      const originals = tracked.map((original) => before.find((comment) => comment.id === original.id));
+      assert(originals.every(Boolean), 'Every original bug and reply should be readable before moving');
+      const bugCodes = originals.slice(0, bugs.length).map((bug) => bug.ticket_code);
+      assert(bugCodes.every((code) => code.startsWith('B-')), 'Source bugs should have B short codes');
+      assert(originals.slice(0, bugs.length).every((bug) => !bug.investible_id && !bug.resolved),
+        'Source bugs should be standalone and unresolved');
+      assert(originals[0].uploaded_files?.length === 1, 'The source bug should retain its real attachment');
+
+      const discovered = await pollFor(async () => structured(await mcpCall(
+        adminConfiguration, uclusionToken, 'find_work', {})).work_list,
+      (work) => bugCodes.every((code) => work.some((item) => item.short_code_id === code)));
+      for (const [index, code] of bugCodes.entries()) {
+        const item = discovered.find((work) => work.short_code_id === code);
+        assert(item, `find_work should expose bug ${code}`);
+        assert.strictEqual(item.severity, priorities[index].severity);
+        assert.strictEqual(item.severity_label, priorities[index].label);
+        const report = await mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+          short_code_id: code
+        });
+        assert(report.includes(priorities[index].severity) &&
+          report.toLowerCase().includes(priorities[index].label),
+        `Standalone get_job should show the stored priority for ${code}`);
+      }
+
+      const missingCode = 'B-all-999999999';
+      const replyCode = originals[bugs.length].ticket_code;
+      const requestedCodes = [bugCodes[0], missingCode, bugCodes[1], replyCode,
+        bugCodes[2], bugCodes[3], bugCodes[0]];
+      const taskMarker = `New task alongside moved bugs ${marker}`;
+      // Each add_job call creates a new job; never retry a creation through pollMcp.
+      const created = structured(await mcpCall(adminConfiguration, uclusionToken, 'add_job', {
+        name: 'Existing bugs integration job', description: `Bug destination ${marker}`,
+        tasks: [taskMarker], bug_short_code_ids: requestedCodes
+      }));
+      assert(created.short_code_id.startsWith('J-'), 'add_job should identify its new job');
+      assert(created.link.endsWith(`/${marketId}/${created.short_code_id}`));
+      assert.deepStrictEqual(created.bug_moves.map((move) => move.short_code_id),
+        [...new Set(requestedCodes)], 'Repeated bug IDs should have one outcome');
+      for (const outcome of created.bug_moves) {
+        assert.strictEqual(outcome.status, bugCodes.includes(outcome.short_code_id) ? 'moved' : 'failed',
+          `Each valid bug should move despite invalid items: ${JSON.stringify(outcome)}`);
+      }
+
+      const jobReport = await pollFor(() => mcpCall(
+        adminConfiguration, uclusionToken, 'get_job', { short_code_id: created.short_code_id }),
+      (report) => bugCodes.every((code) => report.includes(code)) &&
+        report.includes(`Original nested reply ${marker}`) && report.includes(taskMarker));
+      assert(bugCodes.every((code) => jobReport.includes(code)) &&
+        jobReport.includes(`Original reply ${marker}`) &&
+        jobReport.includes(`Original nested reply ${marker}`) && jobReport.includes(taskMarker),
+      'get_job should converge on all original bug threads and the newly requested task');
+      assert(jobReport.includes(originals[0].uploaded_files[0].path.split('/').pop()),
+        'get_job should retain the original attachment reference');
+
+      const moved = await pollFor(() => listMarketComments(), (comments) => {
+        const destination = comments.find((comment) => comment.body?.includes(taskMarker))?.investible_id;
+        return destination && originals.every((original) => comments.some(
+          (comment) => comment.id === original.id && comment.investible_id === destination));
+      });
+      const destinationId = moved.find((comment) => comment.body?.includes(taskMarker))?.investible_id;
+      assert(destinationId, 'The new task should identify the destination job');
+      const fullJob = await pollFor(() => getFullInvestible(destinationId),
+        (job) => job?.market_infos.some((info) => info.ticket_code === created.short_code_id));
+      assert(fullJob, 'The created destination job should be readable');
+      assert(fullJob.market_infos.some((info) => info.ticket_code === created.short_code_id));
+      assert.strictEqual(fullJob.investible.created_by, adminId);
+      for (const original of originals) {
+        const current = moved.find((comment) => comment.id === original.id);
+        assert(current, `Original comment ${original.id} must still exist`);
+        assert.strictEqual(current.investible_id, destinationId);
+        for (const field of ['ticket_code', 'body', 'comment_type', 'reply_id', 'root_comment_id',
+          'resolved', 'created_by', 'uploaded_files']) {
+          assert.deepStrictEqual(current[field], original[field],
+            `Moving ${original.ticket_code} should preserve ${field}`);
+        }
+      }
+
+      const retried = structured(await mcpCall(adminConfiguration, uclusionToken, 'add_job', {
+        name: 'Repeated bug list integration job', description: `Repeated list ${marker}`,
+        bug_short_code_ids: bugCodes
+      }));
+      assert.notStrictEqual(retried.short_code_id, created.short_code_id,
+        'A repeated add_job request still creates a fresh job');
+      assert.deepStrictEqual(retried.bug_moves.map((move) => move.short_code_id), bugCodes);
+      assert(retried.bug_moves.every((move) => move.status === 'failed'),
+        'Historical B codes now attached as tasks must not be moved again');
+      const afterRetry = await listMarketComments();
+      for (const original of originals) {
+        const matches = afterRetry.filter((comment) => comment.body === original.body);
+        assert.deepStrictEqual(matches.map((comment) => comment.id), [original.id],
+          'Repeated bug IDs must not create replacement task or reply rows');
+        assert.strictEqual(matches[0].investible_id, destinationId,
+          'An existing task must stay in its original destination job');
+      }
+      const retryReport = await mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+        short_code_id: retried.short_code_id
+      });
+      assert(!bugCodes.some((code) => retryReport.includes(code)),
+        'The second job must not contain the already moved bugs');
+    }).timeout(600000);
+
     it('converts an option-bearing bug into a human-owned Bugs job and asks there', async () => {
       const marker = randomUUID();
       const bugMarker = `Bug converted with its thread ${marker}`;
