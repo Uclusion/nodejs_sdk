@@ -144,6 +144,7 @@ export default function (adminConfiguration, userConfiguration) {
     }).timeout(240000);
 
     it('should remove new option notifications when question resolved', async () => {
+      await userClient.markets.followGroup(marketId, [{ user_id: userId, is_following: true }]);
       const question = await adminClient.investibles.createComment(undefined, marketId,
         'Option cleanup question?', null, 'QUESTION');
       const inlineMarket = await accountClient.markets.createMarket({ market_type: 'DECISION',
@@ -164,10 +165,16 @@ export default function (adminConfiguration, userConfiguration) {
       const approvableStage = inlineMarket.stages.find((stage) => stage.name === 'Approvable');
       await inlineAdminClient.investibles.stateChange(votedOptionId, { current_stage_id: proposedStage.id,
         stage_id: approvableStage.id });
+      const optionInfo = await inlineAdminClient.investibles.createComment(votedOptionId, inlineMarketId,
+        'Please vote for this option.', null, 'TODO');
+      await assertNotificationArrives(userConfiguration, `UNREAD_COMMENT_${optionInfo.id}`,
+        'information on the option');
       await inlineUserClient.markets.updateInvestment(votedOptionId, 100, 0);
       // This new or updated option notification is the type left behind in B-all-487
       await assertNotificationArrives(adminConfiguration, `UNREAD_VOTE_${votedOptionId}_${userId}`,
         'vote for new option');
+      await assertNotificationRemoved(userConfiguration, `UNREAD_COMMENT_${optionInfo.id}`,
+        'voting after reading option information');
       await adminClient.investibles.updateComment(question.id, undefined, true);
       await assertNotificationRemoved(adminConfiguration, `INVESTIBLE_SUBMITTED_${proposedOptionId}`,
         'resolving question with inline market');
