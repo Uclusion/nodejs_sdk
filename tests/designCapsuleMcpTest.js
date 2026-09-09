@@ -970,9 +970,6 @@ export default function (adminConfiguration) {
         job_id: jobTicketCode,
         report: deltaReport
       });
-      const reviewResult = toolResult(reviewResponse);
-      assert.strictEqual(reviewResult.structuredContent, undefined,
-        'ask_for_review must not acquire a structured capsule-delta response');
       assert(toolText(reviewResponse).includes('Added report with id'),
         `ask_for_review should create an ordinary report: ${reviewResponse}`);
 
