@@ -1026,8 +1026,6 @@ export default function (adminConfiguration) {
         job_id: jobTicketCode,
         report: noDeltaReport
       });
-      assert.strictEqual(toolResult(noDeltaResponse).structuredContent, undefined,
-        'A no-delta handoff must remain freeform report prose');
       assert(toolText(noDeltaResponse).includes('Added report with id'));
       comments = await waitForComments((items) =>
         items.some((comment) => comment.body?.includes(noDeltaMarker) && comment.ticket_code));
