@@ -146,6 +146,51 @@ export default function (adminConfiguration) {
         'A job in another view must not receive notes from the first view');
     }).timeout(600000);
 
+    it('omits view notes from a scoped read but still renders the job header (J-all-443)', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Scoped read job ${marker}`,
+        description: `Job whose scoped reloads must not re-send the view note ${marker}.`
+      });
+      const jobTicketCode = await getTicketCode(job);
+
+      const noteMarker = `Standing note that must not ride along on reloads ${marker}`;
+      const created = await pollMcp('add_view_note', {
+        view_short_code_id: jobTicketCode,
+        note: noteMarker
+      });
+      assert(created.includes('Added view note'), `Expected view note creation: ${created}`);
+
+      // An unscoped read is the first read of a job and still carries the standing notes.
+      const unscoped = await pollFor(
+        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
+        (markdown) => markdown.includes(noteMarker)
+      );
+      assert(unscoped.includes('#### View Notes'),
+        'An unscoped get_job must still render the View Notes section');
+
+      // A scoped read asserts the caller already holds the job, so the note is not re-sent.
+      const scoped = await mcpCall(adminConfiguration, uclusionToken, 'get_job',
+        { short_code_id: jobTicketCode, sections: ['tasks'] });
+      assert(!scoped.includes(noteMarker),
+        `A scoped get_job must not re-send the view note body: ${scoped}`);
+      assert(!scoped.includes('#### View Notes'),
+        'A scoped get_job must not render the View Notes section at all');
+
+      // The point of the contract: scoping hides the notes and nothing else. A bare
+      // "Updated <job>" event can only mean a job-level change, and all of those still
+      // render, so answering it with a scoped reload cannot miss the change.
+      assert(scoped.includes(jobTicketCode),
+        'A scoped get_job must still identify the job');
+      assert(scoped.includes(`Scoped read job ${marker}`),
+        'A scoped get_job must still render the job name, so a renamed job is visible');
+      assert(scoped.includes(`Job whose scoped reloads must not re-send the view note ${marker}`),
+        'A scoped get_job must still render the description, so an edited description is visible');
+      assert(/This job is in stage /.test(scoped),
+        'A scoped get_job must still render the stage, so a stage change is visible');
+    }).timeout(600000);
+
     it('creates and updates an AI view note with add_view_note and notifies the view (T-all-2459)', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
