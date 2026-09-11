@@ -49,6 +49,10 @@ export default function(adminConfiguration, userConfiguration) {
                 createdCommentId = comment.id;
                 // B-all-533 / T-all-2442: poll the versions the assertions below read instead
                 // of websocket barriers, including the Requires Input transition to version 2.
+                // Wait for every type those assertions require. Polling only two of them let
+                // the test read the signatures before the rest had landed, so a late arrival
+                // surfaced as a count mismatch that reads like a backend regression. Absence
+                // cannot be polled, so 'addressed', which must stay absent, is not listed.
                 return pollFor(() => adminClient.summaries.idList(globalAccountToken).then((audits) => {
                     const allMarkets = audits.map((audit) => audit.id);
                     return adminClient.summaries.versions(globalAccountToken, allMarkets)
@@ -57,7 +61,10 @@ export default function(adminConfiguration, userConfiguration) {
                     const hasType = (aType, minimumVersion = 1) => (marketEntry?.signatures || []).some((marketSignature) =>
                         marketSignature.type === aType && marketSignature.object_versions.some(
                             (objectVersion) => objectVersion.version >= minimumVersion));
-                    return hasType('comment') && hasType('market_investible', 2);
+                    return hasType('market') && hasType('investible')
+                        && hasType('market_investible', 2) && hasType('market_capability')
+                        && hasType('stage') && hasType('comment') && hasType('group')
+                        && hasType('group_capability');
                 });
             }).then((versions) => {
                 let marketVersion = 0;

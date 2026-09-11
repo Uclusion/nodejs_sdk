@@ -23,15 +23,24 @@ class WebSocketRunner {
         const handler = (event) => {
             //console.log(event);
             const payload = JSON.parse(event.data);
-            if (this.messageHanders.length === 0 && payload.event_type !== 'pong') {
-                // console.log("Queuing for later:");
-                // console.log(payload);
-                // No active message handler so try to avoid dropping a message
-                this.previouslyQueued.push(payload);
-            }
             //we're going to filter the messagehandlers at each run
             //and if they return true assume they want to go away
-            this.messageHanders = this.messageHanders.filter(messageHandler => !messageHandler(payload));
+            let consumed = false;
+            this.messageHanders = this.messageHanders.filter((messageHandler) => {
+                if (messageHandler(payload)) {
+                    consumed = true;
+                    return false;
+                }
+                return true;
+            });
+            // Queue whatever no handler took. Queueing only when no handler was active at
+            // all dropped every message that landed while an unrelated wait was in flight,
+            // since the waiting handler does not match it and nothing else retains it. A
+            // later wait for that message then had nothing to find and timed out, which is
+            // why notification waits failed while the socket was demonstrably healthy.
+            if (!consumed && payload.event_type !== 'pong') {
+                this.previouslyQueued.push(payload);
+            }
         };
         return handler.bind(this);
     }
