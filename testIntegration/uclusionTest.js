@@ -23,6 +23,7 @@ import inlineDuplicateNotificationsMcpTest from '../tests/inlineDuplicateNotific
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import findWorkOrderingTest from '../tests/findWorkOrderingTest.js';
 import missingToolsMcpTest from '../tests/missingToolsMcpTest.js';
+import taskMoveCliTest from '../tests/taskMoveCliTest.js';
 import shortCodeLinkTest from '../tests/shortCodeLinkTest.js';
 import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
@@ -86,6 +87,7 @@ describe('uclusion', () => {
   viewNotesMcpTest(adminConfiguration);
   findWorkOrderingTest(adminConfiguration);
   missingToolsMcpTest(adminConfiguration);
+  taskMoveCliTest(adminConfiguration);
   shortCodeLinkTest(adminConfiguration);
   marketInvestiblesTest(adminConfiguration, userConfiguration);
   investmentsTest(adminConfiguration, userConfiguration, 2);
