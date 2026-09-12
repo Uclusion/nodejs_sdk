@@ -12,6 +12,7 @@ export default function (adminConfiguration) {
   describe('#test find_work orders work oldest first (J-all-444)', () => {
     let accountClient;
     let adminClient;
+    let adminUserId;
     let marketId;
     let uclusionToken;
 
@@ -31,6 +32,7 @@ export default function (adminConfiguration) {
       await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const marketLogin = await loginUserToMarketAndGetToken(adminConfiguration, marketId);
       adminClient = marketLogin.client;
+      adminUserId = (await adminClient.users.get()).id;
       uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
     });
 
@@ -81,7 +83,8 @@ export default function (adminConfiguration) {
       const job = await adminClient.investibles.create({
         groupId,
         name: `${label} ${randomUUID()}`,
-        description: 'Job used to assert find_work ordering.'
+        description: 'Job used to assert find_work ordering.',
+        assignments: [adminUserId]
       });
       return getTicketCode(job);
     }
