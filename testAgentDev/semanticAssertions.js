@@ -656,16 +656,17 @@ export function assertSemanticTranscript({
     );
     assert.deepStrictEqual(
       mutations.map(semanticToolName),
-      ['ask_question', 'approve_job_or_option'],
-      'Standalone-bug conversion must ask once and cast exactly one required option vote'
+      ['ask_question'],
+      'Standalone-bug conversion must create its question and initial vote in one call'
     );
     assert(Math.min(...reloads.map((call) => call.resultEventIndex)) < mutations[0].eventIndex,
       'Standalone-bug conversion must load the exact standalone bug before asking on it');
     const question = mutations[0].input;
     assert(question && typeof question === 'object' && !Array.isArray(question),
       'Standalone-bug conversion ask_question input must be an object');
-    assert.deepStrictEqual(Object.keys(question).sort(), ['job_id', 'name', 'options', 'question'],
-      'Standalone-bug conversion ask_question must contain only job_id, name, question, and options');
+    assert.deepStrictEqual(Object.keys(question).sort(),
+      ['initial_vote', 'job_id', 'name', 'options', 'question'],
+      'Standalone-bug conversion must include its initial recommendation in ask_question');
     assert.strictEqual(question.job_id, targets.bugCode,
       'Standalone-bug conversion ask_question must target the exact standalone bug');
     assert.strictEqual(question.name, targets.bugJobName,
@@ -686,16 +687,28 @@ export function assertSemanticTranscript({
     assert(Math.min(...convertedJobReloads.map((call) => call.eventIndex)) >
       mutations[0].resultEventIndex,
     'Standalone-bug conversion must reload the exact returned Bugs job after conversion completes');
-    const firstConvertedReload = Math.min(...convertedJobReloads.map(
-      (call) => call.resultEventIndex
-    ));
-    assert(firstConvertedReload < mutations[1].eventIndex,
-      'Standalone-bug conversion must reload the converted Bugs job before voting');
-    assertExplainedOptionVote(mutations[1], {
-      optionCodes: targets.bugOptionCodes,
-      questionCode: targets.bugQuestionCode,
-      label: 'Standalone-bug conversion'
-    });
+    const initialVote = question.initial_vote;
+    assert(initialVote && typeof initialVote === 'object' && !Array.isArray(initialVote));
+    assert.deepStrictEqual(Object.keys(initialVote).sort(), ['certainty', 'new_option_index', 'reason']);
+    assert(Number.isInteger(initialVote.new_option_index) && initialVote.new_option_index >= 0 &&
+      initialVote.new_option_index < question.options.length, 'Initial vote must select a supplied option');
+    assert(Number.isInteger(initialVote.certainty) && initialVote.certainty >= 1 &&
+      initialVote.certainty <= 5, 'Initial certainty must be an integer from one through five');
+    assert(typeof initialVote.reason === 'string' && initialVote.reason.trim(),
+      'The combined creation must explain its preferred option');
+    assert.strictEqual(targets.bugVotes?.length, 1,
+      'The combined creation must leave exactly one saved preferred-option vote');
+    const [savedVote] = targets.bugVotes;
+    assert.strictEqual(savedVote.option_name, question.options[initialVote.new_option_index].name,
+      'The counted vote must belong to the option selected in the creation request');
+    assert(targets.bugOptionCodes.includes(savedVote.option_code));
+    assert.strictEqual(savedVote.quantity, [0, 5, 25, 50, 75, 100][initialVote.certainty]);
+    assert.strictEqual(savedVote.user_id, targets.bugQuestionAuthor);
+    assert(savedVote.reason && !savedVote.reason.deleted && savedVote.reason.body?.trim(),
+      'The counted vote must link to a saved, nonblank reason');
+    assert.strictEqual(savedVote.reason.comment_type, 'JUSTIFY');
+    assert.strictEqual(savedVote.reason.created_by, targets.bugQuestionAuthor);
+    assert.strictEqual(savedVote.reason.investible_id, savedVote.option_id);
     return;
   }
 

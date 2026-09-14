@@ -99,7 +99,9 @@ export default function (adminConfiguration) {
         options: [{
           name: 'Blocked',
           description: `Wait for ${jobTicketCode} but keep ${codeSpan} in scripts.`
-        }]
+        }],
+        initial_vote: { new_option_index: 0, certainty: 4,
+          reason: 'The dependency must finish before this work can proceed.' }
       });
       const questionDone = (markdown) => markdown.split(linkedName).length > 2 && markdown.includes(codeSpan);
       const jobMarkdown = await pollFor(

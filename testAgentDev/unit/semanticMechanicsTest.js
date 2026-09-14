@@ -8,6 +8,7 @@ import {
 } from '../clientAdapters.js';
 import {
   MAX_CODEX_REPORTED_TOKENS,
+  assertSemanticTranscript,
   assertSkillLoadedBeforeSemanticMcp,
   assertCodexUsageWithinCeiling
 } from '../semanticAssertions.js';
@@ -265,6 +266,65 @@ describe('agent dev Codex semantic harness mechanics', () => {
       { usage: { input_tokens: 1, output_tokens: 0.5 } }
     ]) {
       assert.throws(() => assertCodexUsageWithinCeiling(invalid));
+    }
+  });
+
+  it('grades the combined bug recommendation against saved votes rather than a second tool call', () => {
+    const expectedSkillPath = '/tmp/semantic-unit/.agents/skills/uclusion/SKILL.md';
+    const expectedSkillContent = '# Unit workflow\n<!-- /uclusion-skill:v1 -->\n';
+    const example = {
+      phase: 'bug-conversion',
+      expectedSkillPath,
+      expectedSkillContent,
+      parsed: {
+        skillEndSentinel: '<!-- /uclusion-skill:v1 -->',
+        sentinelEventIndexes: [1],
+        successfulReadEvidence: [{
+          name: 'Shell', input: { command: `cat ${expectedSkillPath}` },
+          eventIndex: 0, resultEventIndex: 1,
+          fragments: [{ eventIndex: 1, text: expectedSkillContent }]
+        }],
+        toolCalls: [
+          { name: 'mcp__Uclusion__get_job', input: { short_code_id: 'B-unit-1' },
+            eventIndex: 2, resultEventIndex: 3, success: true },
+          { name: 'mcp__Uclusion__ask_question', input: {
+            job_id: 'B-unit-1', name: 'Fix the reported bug', question: 'Which fix?',
+            options: [
+              { name: 'Broad fix', description: 'Change adjacent behavior too.' },
+              { name: 'Focused fix', description: 'Change the reported behavior only.' }
+            ],
+            initial_vote: { new_option_index: 1, certainty: 4, reason: 'The focused fix changes less.' }
+          }, eventIndex: 4, resultEventIndex: 5, success: true },
+          { name: 'mcp__Uclusion__get_job', input: { short_code_id: 'J-unit-2' },
+            eventIndex: 6, resultEventIndex: 7, success: true }
+        ]
+      },
+      targets: {
+        bugCode: 'B-unit-1', bugJobCode: 'J-unit-2', bugJobName: 'Fix the reported bug',
+        bugQuestionCode: 'Q-unit-3', bugQuestionAuthor: 'ai-unit',
+        bugOptionCodes: ['O-8', 'O-12'],
+        bugVotes: [{
+          option_id: 'actual-focused-id', option_code: 'O-12', option_name: 'Focused fix',
+          user_id: 'ai-unit', quantity: 75,
+          reason: { id: 'reason-id', created_by: 'ai-unit', comment_type: 'JUSTIFY',
+            investible_id: 'actual-focused-id', body: '<p>The focused fix changes less.</p>' }
+        }]
+      }
+    };
+    assert.doesNotThrow(() => assertSemanticTranscript(example));
+    for (const invalidate of [
+      (value) => { delete value.parsed.toolCalls[1].input.initial_vote; },
+      (value) => { value.targets.bugVotes = []; },
+      (value) => { value.targets.bugVotes[0].option_name = 'Broad fix'; },
+      (value) => { value.targets.bugVotes[0].quantity = 100; },
+      (value) => { value.targets.bugVotes[0].reason = null; },
+      (value) => { value.targets.bugVotes[0].reason.deleted = true; },
+      (value) => { value.targets.bugVotes[0].reason.investible_id = 'other-option'; },
+      (value) => { value.targets.bugVotes[0].reason.created_by = 'human-unit'; }
+    ]) {
+      const invalid = structuredClone(example);
+      invalidate(invalid);
+      assert.throws(() => assertSemanticTranscript(invalid));
     }
   });
 

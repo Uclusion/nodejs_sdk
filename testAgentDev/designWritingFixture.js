@@ -348,7 +348,9 @@ export class DesignWritingDevFixture {
         options: optionNames.map((name) => ({
           name,
           description: `${name}. This is fixture behavior for the capsule acceptance run.`
-        }))
+        })),
+        initial_vote: { new_option_index: 0, certainty: 4,
+          reason: 'The first fixture option supplies the settled choice for the design exercise.' }
       }
     );
     const returnedCodes = [...new Set(response.match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];

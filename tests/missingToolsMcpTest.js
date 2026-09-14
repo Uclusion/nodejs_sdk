@@ -4,10 +4,11 @@ import {
   getMessages,
   loginUserToAccountAndGetToken,
   loginUserToIdentity,
+  loginUserToMarket,
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, pollFor as pollRead, readOptionVotes, sleep } from './commonTestFunctions.js';
 
 // J-all-358: agent-window tools - add_task/add_bug run as the human, add_job accepts an AI
 // task list, and get_job supports scoped retrieval (sections, thread_only).
@@ -43,6 +44,12 @@ export default function (adminConfiguration) {
       const adminUser = await adminClient.users.get();
       adminId = adminUser.id;
       uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
+      const ready = await pollFor(async () => {
+        const versions = await accountClient.summaries.versions(accountToken, [marketId]);
+        return versions.signatures?.find((entry) => entry.market_id === marketId)?.signatures
+          ?.find((entry) => entry.type === 'market_capability')?.object_versions || [];
+      }, (capabilities) => capabilities.length >= 2);
+      assert(ready.length >= 2, 'The human and planning AI must be ready before one-shot writes');
     });
 
     // Backend effects propagate async so poll until the expected state or time runs out and the
@@ -434,15 +441,18 @@ export default function (adminConfiguration) {
       const jobName = `Converted bug ${marker}`;
       const optionOne = `Focused fix ${marker}`;
       const optionTwo = `Broader fix ${marker}`;
-      const converted = await pollMcp('ask_question', {
+      const voteReason = `The focused fix addresses the reported behavior with less change ${marker}`;
+      const converted = await mcpCall(adminConfiguration, uclusionToken, 'ask_question', {
         job_id: bugCode,
         name: jobName,
         question: questionMarker,
         options: [
           { name: optionOne, description: 'Change only the directly reported behavior.' },
           { name: optionTwo, description: 'Apply the same rule to adjacent behavior too.' }
-        ]
+        ],
+        initial_vote: { new_option_index: 0, certainty: 4, reason: voteReason }
       });
+      assert.notStrictEqual(JSON.parse(converted).result.isError, true, converted);
       const jobCodes = [...new Set(converted.match(/\bJ-[A-Za-z0-9-]+\b/g) || [])];
       const questionCodes = [...new Set(converted.match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];
       assert.strictEqual(jobCodes.length, 1,
@@ -501,6 +511,39 @@ export default function (adminConfiguration) {
         'The human invoking ask_question should be assigned to the converted job');
       assert.strictEqual(fullJobInfo?.stage, approvableStageId,
         'The converted Bugs job should be created in Approvable');
+
+      const savedVotes = await pollRead(async () => {
+        const inlineId = createdQuestion.inline_market_id;
+        const client = await loginUserToMarket(adminConfiguration, inlineId);
+        const versions = await accountClient.summaries.versions(accountToken, [inlineId]);
+        const signatures = versions.signatures?.find((entry) => entry.market_id === inlineId)?.signatures || [];
+        const infos = signatures.filter((entry) => entry.type === 'market_investible')
+          .flatMap((entry) => entry.object_versions || []);
+        const references = signatures.filter((entry) => entry.type === 'investible')
+          .flatMap((entry) => entry.object_versions || []).map((entry) => ({
+            investible: { id: entry.object_id_one, version: entry.version },
+            market_infos: infos.filter((info) => info.object_id_two === entry.object_id_one)
+              .map((info) => ({ id: info.object_id_one, version: info.version }))
+          })).filter((reference) => reference.market_infos.length);
+        if (references.length !== 2) {
+          return [];
+        }
+        const options = await client.markets.getMarketInvestibles(references);
+        return readOptionVotes(client, createdQuestion.created_by, options);
+      }, (votes) => votes.length === 1 && votes[0].reason?.body?.includes(voteReason));
+      assert.strictEqual(savedVotes.length, 1, 'Conversion must save one counted AI preference');
+      const [savedVote] = savedVotes;
+      assert.strictEqual(savedVote.option_name, optionOne);
+      assert.strictEqual(savedVote.quantity, 75);
+      assert.strictEqual(savedVote.user_id, createdQuestion.created_by);
+      assert.strictEqual(savedVote.reason?.comment_type, 'JUSTIFY');
+      assert.strictEqual(savedVote.reason?.created_by, createdQuestion.created_by);
+      assert.strictEqual(savedVote.reason?.investible_id, savedVote.option_id);
+      assert(!savedVote.reason.deleted && savedVote.reason.body.includes(voteReason));
+      const explained = await pollFor(() => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+        short_code_id: questionCode
+      }), (markdown) => markdown.includes(voteReason));
+      assert(explained.includes(voteReason), 'The converted question must expose its saved recommendation');
 
       // Human Resolve delegates the option choice to the AI without approving the job.
       await adminClient.investibles.updateComment(createdQuestion.id, undefined, true);

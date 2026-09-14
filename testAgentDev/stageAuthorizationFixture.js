@@ -213,7 +213,9 @@ export class StageAuthorizationDevFixture extends SemanticDevFixture {
             name: alternateName,
             description: 'Continuously mirror every update into follower memory.'
           }
-        ]
+        ],
+        initial_vote: { new_option_index: 0, certainty: 5,
+          reason: 'Reloading settled state preserves one writer without continuous mirroring.' }
       }
     );
     const returnedCodes = [...new Set(String(asked).match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];

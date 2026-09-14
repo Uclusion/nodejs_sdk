@@ -225,7 +225,9 @@ export async function executeSemanticHarness({
             ...fixture.targets(),
             bugJobCode: stateAfter.bug?.job_code,
             bugQuestionCode: stateAfter.bug?.question_code,
-            bugOptionCodes: stateAfter.bug?.option_codes
+            bugOptionCodes: stateAfter.bug?.option_codes,
+            bugVotes: stateAfter.bug?.votes,
+            bugQuestionAuthor: stateAfter.bug?.question_created_by
           },
           expectedSkillPath: coreSkill.path,
           expectedSkillContent: coreSkill.content,

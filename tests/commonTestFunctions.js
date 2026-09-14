@@ -124,3 +124,31 @@ export async function mcpCall(configuration, uclusionToken, toolName, args) {
     const result = await response.json();
     return JSON.stringify(result);
 }
+
+// Read counted For votes and their linked reason records, rather than treating
+// a successful tool response or an option's prose as evidence of a recommendation.
+export async function readOptionVotes(client, userId, options) {
+    if (!options.length) {
+        return [];
+    }
+    const investments = await client.markets.listInvestments(userId, options.map((option) => ({
+        type_object_id: `investible_${option.market_infos[0].id}`, version: 1
+    })));
+    const live = (investments || []).filter((vote) => !vote.deleted && vote.quantity > 0);
+    const reasonIds = [...new Set(live.map((vote) => vote.comment_id).filter(Boolean))];
+    const reasons = reasonIds.length
+        ? await client.investibles.getMarketComments(reasonIds.map((id) => ({ id, version: 1 })))
+        : [];
+    return live.map((vote) => {
+        const option = options.find((item) => item.investible.id === vote.investible_id);
+        assert(option, 'An investment must belong to one of the requested options');
+        return {
+            option_id: option.investible.id,
+            option_code: option.market_infos[0].ticket_code,
+            option_name: option.investible.name,
+            user_id: vote.user_id,
+            quantity: vote.quantity,
+            reason: reasons.find((comment) => comment.id === vote.comment_id) || null
+        };
+    });
+}

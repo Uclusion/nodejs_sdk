@@ -210,9 +210,10 @@ the exact parent `Q-` from their `Responded O-… of Q-…` lines. The standalon
 bug conversion must load the exact `B-` from its `Start B-…` line. The advisory
 check may not resolve or execute; the primary-answer phase must resolve that
 exact question and then its exact task; and the bug-conversion phase must issue
-exactly one two-option `ask_question` on the bug, reload the exact returned `J-`
-Bugs job, and cast exactly one explained AI vote on one of the two resulting
-options. Required audit calls and later read-only reloads are allowed and are
+exactly one two-option `ask_question` on the bug with its explained `initial_vote`,
+then reload the exact returned `J-` Bugs job. Its saved AI investment must match
+the requested option and certainty and link to a live reason on that option.
+Required audit calls and later read-only reloads are allowed and are
 graded separately. The authority phases may update one well-bound AI option
 vote before the primary-answer phase resolves the exact question and task.
 

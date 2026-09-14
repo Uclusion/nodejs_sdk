@@ -205,7 +205,9 @@ export default function (adminConfiguration, userConfiguration) {
         options: [
           { name: 'First direction', description: 'One way to go.' },
           { name: 'Second direction', description: 'Another way to go.' }
-        ]
+        ],
+        initial_vote: { new_option_index: 0, certainty: 3,
+          reason: 'The first direction is the narrower fixture choice.' }
       });
     }
 

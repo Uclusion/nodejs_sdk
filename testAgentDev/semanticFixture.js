@@ -13,7 +13,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, pollFor } from '../tests/commonTestFunctions.js';
+import { mcpCall, mcpLogin, pollFor, readOptionVotes } from '../tests/commonTestFunctions.js';
 import {
   canonicalMarketSignature,
   deleteIntegrationTestMarket,
@@ -372,7 +372,9 @@ export class SemanticDevFixture {
       options: [
         { name: `Conservative route ${marker}`, description: 'Use the narrow harmless route.' },
         { name: `Direct route ${marker}`, description: 'Use the direct harmless route.' }
-      ]
+      ],
+      initial_vote: { new_option_index: 0, certainty: 4,
+        reason: 'The conservative route keeps this fixture change narrow.' }
     });
     const questionCodes = [...new Set(asked.match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];
     assert.strictEqual(questionCodes.length, 1,
@@ -535,6 +537,13 @@ export class SemanticDevFixture {
     const bugOptions = bugQuestion?.inline_market_id
       ? await this.listInvestibles(bugQuestion.inline_market_id)
       : [];
+    const bugVotes = bugOptions.length
+      ? await readOptionVotes(
+        await loginUserToMarket(this.primaryConfiguration, bugQuestion.inline_market_id),
+        bugQuestion.created_by,
+        bugOptions
+      )
+      : [];
     const bugInfo = bugJob?.market_infos?.find((entry) => entry.market_id === this.marketId) ||
       bugJob?.market_infos?.[0];
     return {
@@ -570,7 +579,8 @@ export class SemanticDevFixture {
         option_names: bugOptions.map((option) => option.investible.name).sort(),
         option_codes: bugOptions.map((option) =>
           option.market_infos?.find((info) => info.ticket_code)?.ticket_code
-        ).filter(Boolean).sort()
+        ).filter(Boolean).sort(),
+        votes: bugVotes
       } : null
     };
   }
@@ -593,7 +603,8 @@ export class SemanticDevFixture {
           state.bug.job_stage_id === this.approvableStageId &&
           state.bug.question_code?.startsWith('Q-') &&
           state.bug.option_names.length === 2 &&
-          state.bug.option_codes.length === 2;
+          state.bug.option_codes.length === 2 &&
+          state.bug.votes.length === 1 && state.bug.votes[0].reason?.body;
       }
       return false;
     };
@@ -893,6 +904,17 @@ export class SemanticDevFixture {
         'Standalone-bug conversion must create two distinct durable option codes');
       assert(after.bug.option_codes.every((code) => code.startsWith('O-')),
         'Standalone-bug conversion durable choices must expose exact O- option codes');
+      assert.strictEqual(after.bug.votes.length, 1,
+        'Standalone-bug conversion must save exactly one counted AI preference');
+      const [vote] = after.bug.votes;
+      assert.strictEqual(vote.user_id, this.aiId);
+      assert(after.bug.option_codes.includes(vote.option_code));
+      assert([5, 25, 50, 75, 100].includes(vote.quantity));
+      assert(vote.reason && !vote.reason.deleted && vote.reason.body?.trim(),
+        'The saved preference must reference a live reason');
+      assert.strictEqual(vote.reason.comment_type, 'JUSTIFY');
+      assert.strictEqual(vote.reason.created_by, this.aiId);
+      assert.strictEqual(vote.reason.investible_id, vote.option_id);
       return;
     }
     assert.fail(`Unknown semantic assertion phase ${phase}`);

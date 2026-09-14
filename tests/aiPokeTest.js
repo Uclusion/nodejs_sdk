@@ -507,7 +507,9 @@ export default function (adminConfiguration) {
         options: [{
           name: `Option ${marker}`,
           description: 'Option whose discussion receives the nested human question.'
-        }]
+        }],
+        initial_vote: { new_option_index: 0, certainty: 3,
+          reason: 'Use this option while its nested question is clarified.' }
       });
       assert(mcpResult.includes('Added question with id'),
         `MCP ask_question response wrong: ${mcpResult}`);

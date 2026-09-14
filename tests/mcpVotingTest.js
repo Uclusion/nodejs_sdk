@@ -7,7 +7,7 @@ import {
   loginUserToMarket,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, readOptionVotes, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration, userConfiguration) {
   describe('#test mcp voting and author rights', () => {
@@ -44,6 +44,12 @@ export default function (adminConfiguration, userConfiguration) {
       const user = await userClient.users.get();
       userId = user.id;
       uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
+      const ready = await pollFor(async () => {
+        const versions = await accountClient.summaries.versions(accountToken, [marketId]);
+        return versions.signatures?.find((entry) => entry.market_id === marketId)?.signatures
+          ?.find((entry) => entry.type === 'market_capability')?.object_versions || [];
+      }, (capabilities) => capabilities.length >= 3);
+      assert(ready.length >= 3, 'Both humans and the planning AI must be ready before one-shot writes');
     });
 
     // Backend effects propagate async so poll until the expected state or time runs out and the
@@ -215,6 +221,190 @@ export default function (adminConfiguration, userConfiguration) {
       return currentInfo?.stage;
     }
 
+    function toolResult(response) {
+      const result = JSON.parse(response).result;
+      assert.notStrictEqual(result.isError, true, `MCP request was refused: ${response}`);
+      return result;
+    }
+
+    async function makeMcpQuestion(marker, initialVote) {
+      const job = await adminClient.investibles.create({
+        groupId: marketId, name: `Explained options ${marker}`,
+        description: 'A question whose initial recommendation is part of creation.'
+      });
+      const jobCode = await getTicketCode(adminClient, job.investible.id, job.market_infos[0].id);
+      const response = await mcpCall(adminConfiguration, uclusionToken, 'ask_question', {
+        job_id: jobCode, question: `Which approach ${marker}?`,
+        options: [
+          { name: `First ${marker}`, description: 'The established approach.' },
+          { name: `Second ${marker}`, description: 'The narrower alternative.' }
+        ],
+        initial_vote: initialVote
+      });
+      toolResult(response);
+      const question = await findCommentByMarker(`Which approach ${marker}?`);
+      assert(question?.inline_market_id, 'Creation must persist a question with options');
+      const client = await pollLogin(adminConfiguration, question.inline_market_id);
+      const options = await pollFor(() => listInlineInvestibles(question.inline_market_id, client),
+        (values) => values.length === 2 && values.every((option) => option.market_infos[0].ticket_code));
+      assert.strictEqual(options.length, 2);
+      return { jobCode, question, client, options };
+    }
+
+    async function assertRecommendation(context, optionName, certainty, reason) {
+      const votes = await pollFor(
+        () => readOptionVotes(context.client, context.question.created_by, context.options),
+        (values) => values.length === 1 && values[0].option_name === optionName &&
+          values[0].quantity === [0, 5, 25, 50, 75, 100][certainty] &&
+          values[0].reason?.body?.includes(reason));
+      assert.strictEqual(votes.length, 1, 'The AI must hold exactly one preferred For vote');
+      const [vote] = votes;
+      assert.strictEqual(vote.option_name, optionName, 'The vote must bind to the selected created option');
+      assert.strictEqual(vote.quantity, [0, 5, 25, 50, 75, 100][certainty]);
+      assert.strictEqual(vote.user_id, context.question.created_by);
+      assert(vote.reason && !vote.reason.deleted, 'The counted vote must reference a live reason');
+      assert.strictEqual(vote.reason.comment_type, 'JUSTIFY');
+      assert.strictEqual(vote.reason.created_by, context.question.created_by);
+      assert.strictEqual(vote.reason.investible_id, vote.option_id);
+      assert(vote.reason.body.includes(reason));
+      const markdown = await pollFor(() => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+        short_code_id: context.question.ticket_code
+      }), (text) => text.includes(reason));
+      assert(markdown.includes(reason), 'A reload must expose the saved vote reason');
+      return vote;
+    }
+
+    it('binds a combined question recommendation to the actual created option and reason', async () => {
+      const marker = randomUUID();
+      const reason = `Prefer the narrower second approach ${marker}`;
+      const context = await makeMcpQuestion(marker,
+        { new_option_index: 1, certainty: 3, reason });
+      assert.notStrictEqual(context.question.created_by, adminId);
+      assert(!context.question.resolved, 'The AI recommendation must leave the question open');
+      await assertRecommendation(context, `Second ${marker}`, 3, reason);
+    }).timeout(360000);
+
+    it('selects an added option by its index within the new batch', async () => {
+      const marker = randomUUID();
+      const context = await makeMcpQuestion(marker,
+        { new_option_index: 0, certainty: 3, reason: `Initial preference ${marker}` });
+      const originalIds = context.options.map((option) => option.investible.id).sort();
+      const reason = `The new fourth approach resolves the tradeoff ${marker}`;
+      toolResult(await mcpCall(adminConfiguration, uclusionToken, 'add_options', {
+        question_id: context.question.ticket_code,
+        options: [
+          { name: `Third ${marker}`, description: 'Another possibility.' },
+          { name: `Fourth ${marker}`, description: 'The newly preferred possibility.' }
+        ],
+        initial_vote: { new_option_index: 1, certainty: 4, reason }
+      }));
+      context.options = await pollFor(
+        () => listInlineInvestibles(context.question.inline_market_id, context.client),
+        (options) => options.length === 4);
+      assert.strictEqual(context.options.length, 4);
+      assert.deepStrictEqual(context.options.filter((option) => originalIds.includes(option.investible.id))
+        .map((option) => option.investible.id).sort(), originalIds);
+      await assertRecommendation(context, `Fourth ${marker}`, 4, reason);
+    }).timeout(360000);
+
+    it('reaffirms an existing preference with fresh reasoning when adding options', async () => {
+      const marker = randomUUID();
+      const context = await makeMcpQuestion(marker,
+        { new_option_index: 0, certainty: 3, reason: `Original preference ${marker}` });
+      const selected = context.options.find((option) => option.investible.name === `First ${marker}`);
+      const reason = `The established approach still costs less ${marker}`;
+      toolResult(await mcpCall(adminConfiguration, uclusionToken, 'add_options', {
+        question_id: context.question.ticket_code,
+        options: [{ name: `Alternative ${marker}`, description: 'A more expensive alternative.' }],
+        initial_vote: { existing_option_id: selected.market_infos[0].ticket_code, certainty: 5, reason }
+      }));
+      context.options = await pollFor(
+        () => listInlineInvestibles(context.question.inline_market_id, context.client),
+        (options) => options.length === 3);
+      assert.strictEqual(context.options.length, 3);
+      const vote = await assertRecommendation(context, `First ${marker}`, 5, reason);
+      assert.strictEqual(vote.option_id, selected.investible.id);
+    }).timeout(360000);
+
+    it('refuses invalid initial votes before creating questions, options or a converted job', async () => {
+      const marker = randomUUID();
+      const context = await makeMcpQuestion(marker,
+        { new_option_index: 0, certainty: 3, reason: `Valid baseline ${marker}` });
+      const inlineVersions = await accountClient.summaries.versions(
+        accountToken, [context.question.inline_market_id]);
+      const stageReferences = inlineVersions.signatures
+        .find((entry) => entry.market_id === context.question.inline_market_id).signatures
+        .filter((entry) => entry.type === 'stage').flatMap((entry) => entry.object_versions || [])
+        .map((entry) => ({ id: entry.object_id_one, version: entry.version }));
+      const stages = await context.client.markets.listStages(stageReferences);
+      const proposed = stages.find((stage) => stage.name === 'Proposed');
+      assert(proposed, 'The inline fixture must have a non-Approvable stage');
+      const unavailable = context.options.find((option) => option.investible.name === `Second ${marker}`);
+      await context.client.investibles.stateChange(unavailable.investible.id, {
+        current_stage_id: unavailable.market_infos[0].stage, stage_id: proposed.id
+      });
+      const demoted = await pollFor(
+        () => listInlineInvestibles(context.question.inline_market_id, context.client),
+        (options) => options.some((option) => option.investible.id === unavailable.investible.id &&
+          option.market_infos[0].stage === proposed.id));
+      assert(demoted.some((option) => option.investible.id === unavailable.investible.id &&
+        option.market_infos[0].stage === proposed.id));
+      toolResult(await mcpCall(adminConfiguration, uclusionToken, 'add_bug', {
+        bug: `Unconverted bug ${marker}`, severity: 'YELLOW'
+      }));
+      const bug = await findCommentByMarker(`Unconverted bug ${marker}`);
+      assert(bug?.ticket_code && !bug.investible_id);
+      const beforeComments = await listMarketComments(marketId);
+      const beforeJobIds = await listInlineInvestibleIds(marketId);
+      const beforeOptionIds = context.options.map((option) => option.investible.id).sort();
+      const invalidVotes = [
+        undefined,
+        { new_option_index: 0, certainty: 3, reason: '   ' },
+        { new_option_index: 1, certainty: 3, reason: 'Out of bounds' },
+        { new_option_index: true, certainty: 3, reason: 'Not an integer index' },
+        { new_option_index: 0, certainty: true, reason: 'Not an integer certainty' },
+        { new_option_index: 0, certainty: 6, reason: 'Certainty too high' },
+        { certainty: 3, reason: 'Missing selector' },
+        { new_option_index: 0, existing_option_id: context.options[0].market_infos[0].ticket_code,
+          certainty: 3, reason: 'Two selectors' },
+        { existing_option_id: unavailable.market_infos[0].ticket_code,
+          certainty: 3, reason: 'The existing option is not Approvable' }
+      ];
+      async function refuse(tool, args) {
+        const result = JSON.parse(await mcpCall(adminConfiguration, uclusionToken, tool, args)).result;
+        assert.strictEqual(result.isError, true, `${tool} must refuse invalid vote input`);
+      }
+      for (const initialVote of invalidVotes) {
+        const args = { options: [{ name: `Must not exist ${marker}`, description: 'Invalid request.' }],
+          ...(initialVote === undefined ? {} : { initial_vote: initialVote }) };
+        await refuse('ask_question', { ...args, job_id: context.jobCode, question: `Rejected ${marker}` });
+        await refuse('ask_question', { ...args, job_id: bug.ticket_code, question: `Rejected bug ${marker}` });
+        await refuse('add_options', { ...args, question_id: context.question.ticket_code });
+      }
+      await refuse('add_options', {
+        question_id: context.question.ticket_code,
+        options: [{ name: `Must not exist ${marker}`, description: 'Invalid existing preference.' }],
+        initial_vote: { existing_option_id: 'O-99999999', certainty: 3, reason: 'Missing option' }
+      });
+      for (const options of [undefined, []]) {
+        await refuse('ask_question', {
+          job_id: context.jobCode, question: `Rejected open question ${marker}`,
+          ...(options === undefined ? {} : { options }),
+          initial_vote: { new_option_index: 0, certainty: 3, reason: 'No option exists' }
+        });
+      }
+      const afterComments = await listMarketComments(marketId);
+      assert.deepStrictEqual(afterComments.map((comment) => comment.id).sort(),
+        beforeComments.map((comment) => comment.id).sort(), 'Refused inputs must create no comments');
+      const unchangedBug = afterComments.find((comment) => comment.id === bug.id);
+      assert(!unchangedBug.investible_id, 'Invalid conversion must leave the bug at view level');
+      assert.deepStrictEqual((await listInlineInvestibleIds(marketId)).sort(), beforeJobIds.sort(),
+        'Invalid conversion must not create a destination job');
+      assert.deepStrictEqual((await listInlineInvestibles(context.question.inline_market_id, context.client))
+        .map((option) => option.investible.id).sort(), beforeOptionIds);
+      await assertRecommendation(context, `First ${marker}`, 3, `Valid baseline ${marker}`);
+    }).timeout(600000);
+
     it('should mark non-primary question input advisory and keep the job blocked until resolve', async () => {
       const marker = randomUUID();
       const doableStage = planningStages.find((stage) => stage.name === 'Doable');
@@ -248,7 +438,9 @@ export default function (adminConfiguration, userConfiguration) {
         options: [
           { name: `First path ${marker}`, description: 'The first integration-test direction.' },
           { name: `Second path ${marker}`, description: 'The second integration-test direction.' }
-        ]
+        ],
+        initial_vote: { new_option_index: 0, certainty: 3,
+          reason: 'The first direction is the narrower integration change.' }
       });
       const questionCodeMatch = asked.match(/\bQ-[A-Za-z0-9-]+\b/);
       assert(questionCodeMatch, `ask_question should return a question code: ${asked}`);
@@ -334,7 +526,7 @@ export default function (adminConfiguration, userConfiguration) {
         'Does the AI vote move on second approval?');
       await pollMcp('approve_job_or_option',
         { job_or_option_id: optionA.ticketCode, parent_question_short_code_id: question.ticket_code,
-          certainty: 3 });
+          certainty: 3, reason: 'The first option is the initial preference.' });
       // The moderator's new vote notification carries the AI user id as its suffix
       const voteMessage = await pollFor(async () => {
         const messages = (await getMessages(adminConfiguration)) || [];
@@ -348,7 +540,7 @@ export default function (adminConfiguration, userConfiguration) {
       assert(isLiveInvestment(firstVote), 'MCP approval should invest the AI user in the first option');
       await pollMcp('approve_job_or_option',
         { job_or_option_id: optionB.ticketCode, parent_question_short_code_id: question.ticket_code,
-          certainty: 4 });
+          certainty: 4, reason: 'New evidence makes the second option preferable.' });
       const moved = await pollFor(async () => {
         return { a: await getInvestment(inlineAdminClient, aiUserId, optionA),
           b: await getInvestment(inlineAdminClient, aiUserId, optionB) };
@@ -356,6 +548,14 @@ export default function (adminConfiguration, userConfiguration) {
       assert(isLiveInvestment(moved.b), 'AI vote should be live on the second option');
       assert(!isLiveInvestment(moved.a),
         'MCP approval should move the AI vote off the first option instead of duplicating per C-all-1168');
+      assert(moved.b.comment_id, 'The changed preference must retain its explained reason');
+      const [reason] = await inlineAdminClient.investibles.getMarketComments([
+        { id: moved.b.comment_id, version: 1 }
+      ]);
+      assert.strictEqual(reason?.created_by, aiUserId);
+      assert.strictEqual(reason?.investible_id, optionB.id);
+      assert.strictEqual(reason?.comment_type, 'JUSTIFY');
+      assert(reason.body.includes('New evidence makes the second option preferable.'));
     }).timeout(240000);
 
     it('should update the existing option without consuming its human suggestion', async () => {
@@ -376,7 +576,9 @@ export default function (adminConfiguration, userConfiguration) {
         options: [
           { name: originalName, description: originalDescription },
           { name: `Unchanged option ${marker}`, description: 'The other canonical option.' }
-        ]
+        ],
+        initial_vote: { new_option_index: 0, certainty: 3,
+          reason: 'The original option is the preferred starting point for refinement.' }
       });
       const questionCodeMatch = asked.match(/\bQ-[A-Za-z0-9-]+\b/);
       assert(questionCodeMatch, `ask_question should return a question code: ${asked}`);
@@ -524,7 +726,9 @@ export default function (adminConfiguration, userConfiguration) {
       const mcpResult = await mcpCall(adminConfiguration, uclusionToken, 'ask_question',
         { job_id: jobTicket, question: marker,
           options: [{ name: 'First direction', description: 'One way to go.' },
-            { name: 'Second direction', description: 'Another way to go.' }] });
+            { name: 'Second direction', description: 'Another way to go.' }],
+          initial_vote: { new_option_index: 0, certainty: 3,
+            reason: 'The first direction is the preferred starting point.' } });
       assert(mcpResult.includes('Added question with id'), `MCP ask_question response wrong: ${mcpResult}`);
       // Discover the created comment through versions since MCP only returns short codes
       const questionComment = await pollFor(async () => {
