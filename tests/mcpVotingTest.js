@@ -558,6 +558,50 @@ export default function (adminConfiguration, userConfiguration) {
       assert(reason.body.includes('New evidence makes the second option preferable.'));
     }).timeout(240000);
 
+    it('should keep the same justification and its replies when MCP votes again on the same option', async () => {
+      const marker = randomUUID();
+      const firstReason = `Initial preference ${marker}`;
+      const secondReason = `Raised on new evidence ${marker}`;
+      const replyMarker = `Reply that must stay on the vote ${marker}`;
+      const { question, inlineAdminClient, inlineMarketId, optionA } = await makeVotingQuestion(
+        `Does a second MCP vote keep the reason thread ${marker}?`);
+      await pollMcp('approve_job_or_option',
+        { job_or_option_id: optionA.ticketCode, parent_question_short_code_id: question.ticket_code,
+          certainty: 3, reason: firstReason });
+      const voteMessage = await pollFor(async () => {
+        const messages = (await getMessages(adminConfiguration)) || [];
+        return messages.find((message) =>
+          message.type_object_id?.startsWith(`UNREAD_VOTE_${optionA.id}_`));
+      }, (message) => message);
+      assert(voteMessage, 'MCP approval should notify the question creator of the AI vote');
+      const aiUserId = voteMessage.type_object_id.substring(`UNREAD_VOTE_${optionA.id}_`.length);
+      const firstVote = await pollFor(() => getInvestment(inlineAdminClient, aiUserId, optionA),
+        (investment) => isLiveInvestment(investment) && investment.comment_id);
+      assert(isLiveInvestment(firstVote), 'MCP approval should invest the AI user in the option');
+      const firstCommentId = firstVote.comment_id;
+      await inlineAdminClient.investibles.createComment(optionA.id, inlineMarketId, replyMarker,
+        firstCommentId);
+      await pollFor(() => listMarketComments(inlineMarketId, inlineAdminClient),
+        (comments) => comments.some((comment) => comment.body?.includes(replyMarker)));
+      await pollMcp('approve_job_or_option',
+        { job_or_option_id: optionA.ticketCode, parent_question_short_code_id: question.ticket_code,
+          certainty: 4, reason: secondReason });
+      const secondVote = await pollFor(() => getInvestment(inlineAdminClient, aiUserId, optionA),
+        (investment) => isLiveInvestment(investment) && investment.comment_id === firstCommentId);
+      assert.strictEqual(secondVote.comment_id, firstCommentId,
+        'A second MCP vote on the same option must keep the original justification id');
+      const [reason] = await pollFor(
+        () => inlineAdminClient.investibles.getMarketComments([{ id: firstCommentId, version: 1 }]),
+        (comments) => comments[0]?.body?.includes(secondReason));
+      assert.strictEqual(reason?.id, firstCommentId);
+      assert(reason.body.includes(secondReason), 'The kept justification must show the new reason');
+      const markdown = await pollFor(
+        () => pollMcp('get_job', { short_code_id: question.ticket_code }),
+        (text) => text.includes(secondReason) && text.includes(replyMarker));
+      assert(markdown.includes(replyMarker),
+        'A reply on the original reason must still appear on the job after the second vote');
+    }).timeout(240000);
+
     it('should update the existing option without consuming its human suggestion', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
