@@ -148,6 +148,10 @@ export default function (adminConfiguration) {
       });
       assert(reviewResult.includes('Added report with id'),
         `MCP ask_for_review response wrong: ${reviewResult}`);
+      // B-all-659: the link must reach the structured result, not only the sentence.
+      const createdReview = JSON.parse(reviewResult).result?.structuredContent;
+      assert(createdReview?.link?.endsWith(createdReview.short_code_id),
+        `ask_for_review create must return its link in structuredContent: ${reviewResult}`);
       // ask_for_review files the report; moving a human-assigned job into
       // review is the human's explicit action, mirroring the UI's All Done.
       await adminClient.investibles.stateChange(job.investible.id, {
@@ -170,6 +174,10 @@ export default function (adminConfiguration) {
       });
       assert(questionResult.includes('Added question with id'),
         `MCP ask_question response wrong: ${questionResult}`);
+      // B-all-659: the link must reach the structured result, not only the sentence.
+      const askedQuestion = JSON.parse(questionResult).result?.structuredContent;
+      assert(askedQuestion?.link?.endsWith(askedQuestion.short_code_id),
+        `ask_question must return its link in structuredContent: ${questionResult}`);
       const requiresInputStage = await pollFor(currentStageId,
         (stage) => stage === stagesByName['Requires Input'].id);
       assert.strictEqual(requiresInputStage, stagesByName['Requires Input'].id,
@@ -200,6 +208,21 @@ export default function (adminConfiguration) {
       assert.notStrictEqual(reportAfterExcursion.resolved, true,
         'The restored review round must still have its open report');
     }).timeout(300000);
+
+    it('should return the rewritten report link when updating an open report', async () => {
+      assert(reportCode, 'The excursion test must have produced the report short code');
+      const rewritten = await pollMcp('ask_for_review', {
+        update_review_short_code_id: reportCode,
+        report: `Rewritten while still open ${randomUUID()}`
+      });
+      assert(rewritten.includes('Updated report with id'),
+        `MCP ask_for_review update response wrong: ${rewritten}`);
+      // B-all-659: the link must reach the structured result, not only the sentence.
+      // This path returned no structured result at all before B-all-659.
+      const updatedReview = JSON.parse(rewritten).result?.structuredContent;
+      assert(updatedReview?.link?.endsWith(updatedReview.short_code_id),
+        `ask_for_review update must return its link in structuredContent: ${rewritten}`);
+    }).timeout(240000);
 
     it('should refuse updating a resolved report with a descriptive tool error', async () => {
       assert(reportCode, 'The excursion test must have produced the report short code');

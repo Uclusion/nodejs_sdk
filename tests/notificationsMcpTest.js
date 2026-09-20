@@ -216,6 +216,10 @@ export default function (adminConfiguration, userConfiguration) {
         job_id: jobTicketCode,
         suggestion: `This non-votable suggestion must land in the inbox ${marker}.`
       });
+      // B-all-659: the link must reach the structured result, not only the sentence.
+      const addedSuggestion = JSON.parse(suggested).result?.structuredContent;
+      assert(addedSuggestion?.link?.endsWith(addedSuggestion.short_code_id),
+        `make_suggestion must return its link in structuredContent: ${suggested}`);
       const suggestionMatch = suggested.match(/Added suggestion with id (\S+) and link/);
       assert(suggestionMatch, `MCP make_suggestion response wrong: ${suggested}`);
       const suggestionTicketCode = suggestionMatch[1];

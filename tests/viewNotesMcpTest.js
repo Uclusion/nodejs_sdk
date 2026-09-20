@@ -161,6 +161,10 @@ export default function (adminConfiguration) {
         note: noteMarker
       });
       assert(created.includes('Added view note'), `Expected view note creation: ${created}`);
+      // B-all-659: the link must reach the structured result, not only the sentence.
+      const createdNote = JSON.parse(created).result?.structuredContent;
+      assert(createdNote?.link?.endsWith(createdNote.short_code_id),
+        `add_view_note create must return its link in structuredContent: ${created}`);
 
       // An unscoped read is the first read of a job and still carries the standing notes.
       const unscoped = await pollFor(
@@ -244,6 +248,10 @@ export default function (adminConfiguration) {
         note: revisedMarker
       });
       assert(updated.includes('Updated view note'), `Expected view note update: ${updated}`);
+      // B-all-659: the link must reach the structured result, not only the sentence.
+      const updatedNote = JSON.parse(updated).result?.structuredContent;
+      assert(updatedNote?.link?.endsWith(updatedNote.short_code_id),
+        `add_view_note update must return its link in structuredContent: ${updated}`);
       jobMarkdown = await pollFor(
         () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
         (markdown) => markdown.includes(revisedMarker)
@@ -284,11 +292,15 @@ export default function (adminConfiguration) {
 
       const jobNoteMarker = `Job note hidden from AI ${marker}`;
       const taskNoteMarker = `Task note hidden from AI ${marker}`;
-      await pollMcp('add_info', {
+      const jobNoteResult = await pollMcp('add_info', {
         short_code_id: jobTicketCode,
         info: jobNoteMarker,
         tz: 'America/Los_Angeles'
       });
+      // B-all-659: the link must reach the structured result, not only the sentence.
+      const addedInfo = JSON.parse(jobNoteResult).result?.structuredContent;
+      assert(addedInfo?.link?.endsWith(addedInfo.short_code_id),
+        `add_info must return its link in structuredContent: ${jobNoteResult}`);
       await pollMcp('add_info', {
         short_code_id: task.ticket_code,
         info: taskNoteMarker,
