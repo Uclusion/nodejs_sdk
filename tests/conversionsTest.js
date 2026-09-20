@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { loginUserToAccountAndGetToken, loginUserToIdentity, loginUserToMarketInvite } from '../src/utils.js';
-import { mcpCall, mcpLogin } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, pollFor } from './commonTestFunctions.js';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -220,6 +220,27 @@ export default function (adminConfiguration) {
       assert(root.comment_type === 'TODO', `task comment_type should be TODO but is ${root.comment_type}`);
       assert(root.resolved !== true, 'converting a resolved suggestion must reopen it');
       assert(root.investible_id === jobAId, `task investible_id should stay ${jobAId} but is ${root.investible_id}`);
+    }).timeout(240000);
+
+    // B-all-656: the replies list arrives flattened, so without naming the parent a
+    // reply to a reply reads exactly like a reply to the root and an agent cannot
+    // recover the shape of a discussion from the job read.
+    it('should render a reply naming the comment it answers', async () => {
+      const thread = await createThread(jobAId, 'QUESTION');
+      const withCodes = await pollFor(() => fetchThread(thread),
+        (fetched) => [thread.root.id, thread.reply.id, thread.childReply.id]
+          .every((id) => getComment(fetched, id)?.ticket_code));
+      const rootCode = getComment(withCodes, thread.root.id).ticket_code;
+      const replyCode = getComment(withCodes, thread.reply.id).ticket_code;
+      const childCode = getComment(withCodes, thread.childReply.id).ticket_code;
+      const uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
+      const markdown = await pollFor(() => mcpCall(adminConfiguration, uclusionToken, 'get_job',
+        { short_code_id: rootCode, thread_only: true }), (text) => text.includes(childCode));
+
+      assert(markdown.includes(`${replyCode}</a> to ${rootCode}`),
+        `first level reply must name the root: ${markdown}`);
+      assert(markdown.includes(`${childCode}</a> to ${replyCode}`),
+        `second level reply must name the reply it answers, not the root: ${markdown}`);
     }).timeout(240000);
 
     it('should convert suggestion at view level to bug', async () => {
