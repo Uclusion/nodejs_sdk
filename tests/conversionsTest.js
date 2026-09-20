@@ -202,6 +202,26 @@ export default function (adminConfiguration) {
       checkThreadReplies(comments, thread, thread.root.id, jobAId);
     }).timeout(240000);
 
+    // B-all-658: the UI offers this on a resolved suggestion and it failed with 403
+    // Comment resolved, because every update to a resolved comment is refused. The
+    // reopen now rides with the type change in one call and runs first, so the guard
+    // that stops one person's move clobbering another's resolve is untouched.
+    it('should reopen a resolved suggestion converted to a task', async () => {
+      const thread = await createThread(jobAId, 'SUGGEST');
+      await adminClient.investibles.updateComment(thread.root.id, undefined, true);
+      await pollThread(thread, (fetched) => getComment(fetched, thread.root.id).resolved === true);
+      await adminClient.investibles.updateComment(thread.root.id, undefined, false, undefined, undefined,
+        'TODO');
+      const comments = await pollThread(thread, (fetched) => {
+        const root = getComment(fetched, thread.root.id);
+        return root.comment_type === 'TODO' && root.resolved !== true;
+      });
+      const root = getComment(comments, thread.root.id);
+      assert(root.comment_type === 'TODO', `task comment_type should be TODO but is ${root.comment_type}`);
+      assert(root.resolved !== true, 'converting a resolved suggestion must reopen it');
+      assert(root.investible_id === jobAId, `task investible_id should stay ${jobAId} but is ${root.investible_id}`);
+    }).timeout(240000);
+
     it('should convert suggestion at view level to bug', async () => {
       const thread = await createThread(null, 'SUGGEST');
       await adminClient.investibles.alterComment(thread.root.id, 'BLUE');
