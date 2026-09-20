@@ -271,6 +271,16 @@ export default function (adminConfiguration, userConfiguration) {
         short_code_id: context.question.ticket_code
       }), (text) => text.includes(reason));
       assert(markdown.includes(reason), 'A reload must expose the saved vote reason');
+      // B-all-657: the reader must be able to tell which option the vote was cast on
+      // from the vote's own header, without parsing its reason prose.
+      const optionCode = context.options
+        .find((option) => option.investible.id === vote.option_id)?.market_infos[0]?.ticket_code;
+      assert(optionCode, 'The voted option must carry a ticket code to anchor on');
+      const optionAnchor = `${context.question.ticket_code}_${optionCode}`.toLowerCase();
+      assert(markdown.includes(`#### Option ${optionCode}<a name="${optionAnchor}"></a>`),
+        `The option header must carry its question qualified anchor: ${markdown}`);
+      assert(new RegExp(`Vote <a name="${optionAnchor}_\\d+"></a>`).test(markdown),
+        `The vote must render attached to option ${optionCode}: ${markdown}`);
       return vote;
     }
 
