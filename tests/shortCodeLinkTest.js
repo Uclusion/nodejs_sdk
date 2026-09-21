@@ -9,7 +9,7 @@ import {
 import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration) {
-  describe('#test short codes in AI content become internal-form links (B-all-528, C-all-1358, B-all-530)', () => {
+  describe('#test short codes in AI content become internal-form links (B-all-528, C-all-1358, B-all-530, S-all-321)', () => {
     let accountClient;
     let adminClient;
     let marketId;
@@ -74,7 +74,7 @@ export default function (adminConfiguration) {
       return ticketCode;
     }
 
-    it('turns a bare short code in an AI comment and an AI job description into a name link', async () => {
+    it('turns a bare short code in an AI comment and an AI job description into a short code link', async () => {
       const marker = randomUUID();
       const targetName = `Link target job ${marker}`;
       const job = await adminClient.investibles.create({
@@ -83,9 +83,13 @@ export default function (adminConfiguration) {
         description: 'Job whose short code other AI content will reference.'
       });
       const jobTicketCode = await getTicketCode(job);
-      // C-all-1358: internal-form hrefs round trip through get_job as [name](#code) -
-      // plain code text never produces the bracketed name, and the retired absolute
-      // ticket-code form could only export as a raw URL, never the #code anchor.
+      // C-all-1358: internal-form hrefs round trip through get_job as a bracketed link -
+      // plain code text never produces one, and the retired absolute ticket-code form
+      // could only export as a raw URL, never the #code anchor.
+      // S-all-321: the anchor keeps the code the author wrote, so that round trip is
+      // [CODE](#code). The target's title belongs on hover in the UI and is never copied
+      // into the body that referenced it.
+      const linkedCode = `[${jobTicketCode}](#${jobTicketCode})`;
       const linkedName = `[${targetName}](#${jobTicketCode})`;
       // B-all-530: a code inside a markdown code span must stay bare - only real markdown
       // conversion protects it, the old raw-text regex linkified straight through backticks.
@@ -103,13 +107,15 @@ export default function (adminConfiguration) {
         initial_vote: { new_option_index: 0, certainty: 4,
           reason: 'The dependency must finish before this work can proceed.' }
       });
-      const questionDone = (markdown) => markdown.split(linkedName).length > 2 && markdown.includes(codeSpan);
+      const questionDone = (markdown) => markdown.split(linkedCode).length > 2 && markdown.includes(codeSpan);
       const jobMarkdown = await pollFor(
         () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
         questionDone
       );
-      assert(jobMarkdown.split(linkedName).length > 2,
-        `Question body and option description should each link ${jobTicketCode} as the target job name: ${jobMarkdown}`);
+      assert(jobMarkdown.split(linkedCode).length > 2,
+        `Question body and option description should each link ${jobTicketCode} as the code itself: ${jobMarkdown}`);
+      assert(!jobMarkdown.includes(linkedName),
+        `The target job's title must not become link text: ${jobMarkdown}`);
       assert(jobMarkdown.includes(codeSpan),
         `Option description code span should keep ${jobTicketCode} bare: ${jobMarkdown}`);
 
@@ -122,10 +128,12 @@ export default function (adminConfiguration) {
       assert(addedCodeMatch, `add_job result should carry the new ticket code: ${added}`);
       const referencingMarkdown = await pollFor(
         () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: addedCodeMatch[1] }),
-        (markdown) => markdown.includes(linkedName) && markdown.includes(codeSpan)
+        (markdown) => markdown.includes(linkedCode) && markdown.includes(codeSpan)
       );
-      assert(referencingMarkdown.includes(linkedName),
-        `Job description should link ${jobTicketCode} as the target job name: ${referencingMarkdown}`);
+      assert(referencingMarkdown.includes(linkedCode),
+        `Job description should link ${jobTicketCode} as the code itself: ${referencingMarkdown}`);
+      assert(!referencingMarkdown.includes(linkedName),
+        `The target job's title must not become link text: ${referencingMarkdown}`);
       assert(referencingMarkdown.includes(codeSpan),
         `Job description code span should keep ${jobTicketCode} bare: ${referencingMarkdown}`);
     }).timeout(600000);
