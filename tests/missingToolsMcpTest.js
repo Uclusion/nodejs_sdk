@@ -176,6 +176,10 @@ export default function (adminConfiguration) {
       const taskResponse = await pollMcp('add_task', { job_id: jobCode, task: taskMarker });
       const taskCode = extractShortCode(taskResponse);
       assert(taskCode.startsWith('T-'), `add_task should mint a task code: ${taskCode}`);
+      // S-all-325: the link must reach the structured result, not only the sentence.
+      const addedTask = JSON.parse(taskResponse).result?.structuredContent;
+      assert(addedTask?.link?.endsWith(addedTask.short_code_id),
+        `add_task must return its link in structuredContent: ${taskResponse}`);
 
       const threadMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: taskCode, thread_only: true }),
@@ -195,6 +199,10 @@ export default function (adminConfiguration) {
       const blockerMarker = `Blocked until dependency ships ${randomUUID()}`;
       const response = await pollMcp('add_blocker', { job_id: jobCode, blocker: blockerMarker });
       const blockerCode = extractShortCode(response);
+      // S-all-325: the link must reach the structured result, not only the sentence.
+      const addedBlocker = JSON.parse(response).result?.structuredContent;
+      assert(addedBlocker?.link?.endsWith(addedBlocker.short_code_id),
+        `add_blocker must return its link in structuredContent: ${response}`);
       const jobMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: jobCode }),
         (markdown) => typeof markdown === 'string' && markdown.includes(blockerMarker));
@@ -266,6 +274,10 @@ export default function (adminConfiguration) {
       const response = await pollMcp('add_bug', { bug: bugMarker, severity: 'YELLOW' });
       const bugCode = extractShortCode(response);
       assert(bugCode.startsWith('B-'), `add_bug should mint a bug code: ${bugCode}`);
+      // S-all-325: the link must reach the structured result, not only the sentence.
+      const addedBug = JSON.parse(response).result?.structuredContent;
+      assert(addedBug?.link?.endsWith(addedBug.short_code_id),
+        `add_bug must return its link in structuredContent: ${response}`);
       const bugMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: bugCode }),
         (markdown) => typeof markdown === 'string' && markdown.includes(bugMarker));

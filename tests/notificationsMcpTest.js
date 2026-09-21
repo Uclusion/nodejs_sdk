@@ -342,6 +342,10 @@ export default function (adminConfiguration, userConfiguration) {
       const viewAdded = await pollFreshMcp('add_view', { name: 'Engineering', group_type: 'TEAM' });
       assert(viewAdded.includes('Added view Engineering'),
         `add_view should create and confirm the view: ${viewAdded}`);
+      // S-all-325: the link must reach the structured result, not only the sentence.
+      const addedView = JSON.parse(viewAdded).result?.structuredContent;
+      assert(addedView?.link?.includes(addedView.view_id),
+        `add_view must return its link in structuredContent: ${viewAdded}`);
       // T-all-2470: a later invited human can ask for their own single person view, so
       // AUTONOMOUS must work and default the name to the requesting human's
       const myViewAdded = await pollFreshMcp('add_view', { group_type: 'AUTONOMOUS' });
@@ -350,6 +354,11 @@ export default function (adminConfiguration, userConfiguration) {
       const inviteLink = await pollFreshMcp('get_invite_link', {});
       assert(inviteLink.includes('/invite/'),
         `get_invite_link should return a shareable invite link: ${inviteLink}`);
+      // S-all-325: the link must reach the structured result, not only the sentence.
+      // Handing back a link is this tool's entire purpose, so prose is not enough.
+      const invite = JSON.parse(inviteLink).result?.structuredContent;
+      assert(invite?.link?.includes('/invite/'),
+        `get_invite_link must return its link in structuredContent: ${inviteLink}`);
       // J-all-401: the human can hand the agent email addresses instead of sharing a link,
       // with optional placement into a view, matching the UI's Add collaborators action
       const collaboratorAdd = await pollFreshMcp('add_collaborators', {
