@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { loginUserToAccountAndGetToken, loginUserToIdentity, loginUserToMarketInvite } from '../src/utils.js';
-import { mcpCall, mcpLogin, pollFor } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, pollFor } from './commonTestFunctions.js';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -237,10 +237,14 @@ export default function (adminConfiguration) {
       const markdown = await pollFor(() => mcpCall(adminConfiguration, uclusionToken, 'get_job',
         { short_code_id: rootCode, thread_only: true }), (text) => text.includes(childCode));
 
-      assert(markdown.includes(`${replyCode}</a> to ${rootCode}`),
-        `first level reply must name the root: ${markdown}`);
-      assert(markdown.includes(`${childCode}</a> to ${replyCode}`),
-        `second level reply must name the reply it answers, not the root: ${markdown}`);
+      // get_comment_anchor renders CODE<a name="code"></a>, the code followed by an
+      // empty anchor, so the attribution sits after that anchor rather than after the
+      // code (S-all-330). The anchor's own value is not what these pin.
+      const rendered = mcpText(markdown);
+      assert(new RegExp(`${replyCode}<a name="[^"]+"></a> to ${rootCode}`).test(rendered),
+        `first level reply must name the root: ${rendered}`);
+      assert(new RegExp(`${childCode}<a name="[^"]+"></a> to ${replyCode}`).test(rendered),
+        `second level reply must name the reply it answers, not the root: ${rendered}`);
     }).timeout(240000);
 
     it('should convert suggestion at view level to bug', async () => {

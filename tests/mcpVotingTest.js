@@ -7,7 +7,7 @@ import {
   loginUserToMarket,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, readOptionVotes, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, readOptionVotes, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration, userConfiguration) {
   describe('#test mcp voting and author rights', () => {
@@ -277,10 +277,11 @@ export default function (adminConfiguration, userConfiguration) {
         .find((option) => option.investible.id === vote.option_id)?.market_infos[0]?.ticket_code;
       assert(optionCode, 'The voted option must carry a ticket code to anchor on');
       const optionAnchor = `${context.question.ticket_code}_${optionCode}`.toLowerCase();
-      assert(markdown.includes(`#### Option ${optionCode}<a name="${optionAnchor}"></a>`),
-        `The option header must carry its question qualified anchor: ${markdown}`);
-      assert(new RegExp(`Vote <a name="${optionAnchor}_\\d+"></a>`).test(markdown),
-        `The vote must render attached to option ${optionCode}: ${markdown}`);
+      const rendered = mcpText(markdown);
+      assert(rendered.includes(`#### Option ${optionCode}<a name="${optionAnchor}"></a>`),
+        `The option header must carry its question qualified anchor: ${rendered}`);
+      assert(new RegExp(`Vote <a name="${optionAnchor}_\\d+"></a>`).test(rendered),
+        `The vote must render attached to option ${optionCode}: ${rendered}`);
       return vote;
     }
 

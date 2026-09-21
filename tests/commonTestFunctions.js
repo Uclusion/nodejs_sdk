@@ -125,6 +125,14 @@ export async function mcpCall(configuration, uclusionToken, toolName, args) {
     return JSON.stringify(result);
 }
 
+// S-all-330: mcpCall returns the whole JSON-RPC envelope as a string, so every quote
+// in the rendered markdown arrives escaped and an assertion containing a literal quote
+// can never match. An assertion pinning rendered structure compares against this.
+export function mcpText(rawResult) {
+    const parsed = JSON.parse(rawResult);
+    return parsed?.result?.content?.[0]?.text ?? '';
+}
+
 // Read counted For votes and their linked reason records, rather than treating
 // a successful tool response or an option's prose as evidence of a recommendation.
 export async function readOptionVotes(client, userId, options) {
