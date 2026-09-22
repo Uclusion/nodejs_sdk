@@ -201,16 +201,9 @@ export default function (adminConfiguration) {
       return ticketCode;
     }
 
-    function currentCapsuleSection(markdown) {
-      const start = markdown.indexOf(CAPSULE_HEADING);
-      if (start < 0) {
-        return '';
-      }
-      const afterHeading = start + CAPSULE_HEADING.length;
-      const boundary = markdown.slice(afterHeading)
-        .search(/\n#### (?:Reports|Tasks|Assistance|Notes|Resolved)\b/);
-      const end = boundary < 0 ? markdown.length : afterHeading + boundary;
-      return markdown.slice(start, end);
+    function hasCapsuleReference(markdown, capsule) {
+      return markdown.includes(
+        `capsule: ${capsule.capsule_short_code_id} version ${capsule.capsule_version}.`);
     }
 
     async function readTarget(shortCode, expectedMarker, renderedStateIsReady = () => true) {
@@ -227,6 +220,23 @@ export default function (adminConfiguration) {
       const markdown = toolText(response);
       assert(hasExpectedState(markdown),
         `get_job ${shortCode} did not reach the expected state containing ${expectedMarker}: ${markdown}`);
+      return markdown;
+    }
+
+    async function readNamedNote(shortCode, version, bodyMarker) {
+      const response = await pollFor(
+        () => retryMcp('get_job', { short_code_id: shortCode, thread_only: true }),
+        (candidate) => {
+          const markdown = toolText(candidate);
+          return markdown.includes(bodyMarker) && markdown.includes(`Note version: ${version}.`);
+        },
+        20,
+        3000
+      );
+      const markdown = toolText(response);
+      assert(markdown.includes(bodyMarker), `Explicit ${shortCode} read lost its named body: ${markdown}`);
+      assert(markdown.includes(`Note version: ${version}.`),
+        `Explicit ${shortCode} read lost its current stored version: ${markdown}`);
       return markdown;
     }
 
@@ -353,6 +363,9 @@ export default function (adminConfiguration) {
       const task = await adminClient.investibles.createComment(
         job.investible.id, marketId, taskMarker, null, 'TODO');
       const taskTicketCode = await commentCode(task);
+      const missingTask = await adminClient.investibles.createComment(
+        job.investible.id, marketId, `Task without its own capsule ${marker}`, null, 'TODO');
+      const missingTaskCode = await commentCode(missingTask);
       const groupedMarker = `Grouped child target ${marker}`;
       const groupedTask = await adminClient.investibles.createComment(
         job.investible.id, marketId, groupedMarker, task.id);
@@ -399,7 +412,9 @@ export default function (adminConfiguration) {
       const capsuleReplyMarkdown = await readTarget(capsuleReplyCode, capsuleReplyMarker);
       assert(capsuleReplyMarkdown.includes(`Selected implementation target: Task ${taskTicketCode}.`),
         'A reply to a task capsule must retain that task capsule as its sole contract');
-      assert(capsuleReplyMarkdown.includes(`Task capsule selected through grouped child ${marker}`));
+      assert(capsuleReplyMarkdown.includes(createdTask.capsule_short_code_id));
+      assert(!capsuleReplyMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
+        'A capsule reply read must preserve discussion without repeating the root body');
       assert(!capsuleReplyMarkdown.includes(`Job capsule version one ${marker}`),
         'A task-capsule discussion must not inject the enclosing job capsule');
       const capsuleReplyThreadResponse = await retryMcp('get_job', {
@@ -408,12 +423,11 @@ export default function (adminConfiguration) {
       });
       const capsuleReplyThread = toolText(capsuleReplyThreadResponse);
       assert(capsuleReplyThread.includes(`Selected implementation target: Task ${taskTicketCode}.`));
-      assert(capsuleReplyThread.includes(`Task capsule selected through grouped child ${marker}`)
+      assert(capsuleReplyThread.includes(createdTask.capsule_short_code_id)
         && capsuleReplyThread.includes(capsuleReplyMarker));
       assert(!capsuleReplyThread.includes(`Job capsule version one ${marker}`));
-      assert.strictEqual(capsuleReplyThread
-        .split(`Task capsule selected through grouped child ${marker}`).length - 1, 1,
-        'A thread-only capsule discussion must render the selected capsule exactly once');
+      assert(!capsuleReplyThread.includes(`Task capsule selected through grouped child ${marker}`),
+        'A thread-only capsule discussion must omit the root capsule body');
 
       const jobCapsuleNotifications = await pollFor(
         async () => ((await getMessages(adminConfiguration)) || []).filter((message) =>
@@ -447,22 +461,48 @@ export default function (adminConfiguration) {
       });
       assertRefusal(removedTargetField, 'Unknown set_design_capsule fields', 'job_or_task_id');
 
-      const jobMarkdown = await readTarget(jobTicketCode, `Job capsule version one ${marker}`);
+      const jobMarkdown = await readTarget(jobTicketCode, createdJob.capsule_short_code_id,
+        (markdown) => hasCapsuleReference(markdown, createdJob)
+          && markdown.includes(`Task ${missingTaskCode} capsule: none.`)
+          && markdown.includes(`Task ${taskTicketCode} capsule: ${createdTask.capsule_short_code_id} version `));
       assert(jobMarkdown.includes(`Selected implementation target: Job ${jobTicketCode}.`));
-      assert(jobMarkdown.includes('Current capsule version: 1.'));
+      assert(hasCapsuleReference(jobMarkdown, createdJob));
+      assert(!jobMarkdown.includes(`Job capsule version one ${marker}`));
       assert(!jobMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
         'Job get_job must not merge in a task capsule');
-      const taskMarkdown = await readTarget(taskTicketCode,
-        `Task capsule selected through grouped child ${marker}`);
+      const taskMarkdown = await readTarget(taskTicketCode, createdTask.capsule_short_code_id);
       assert(taskMarkdown.includes(`Selected implementation target: Task ${taskTicketCode}.`));
       assert(!taskMarkdown.includes(`Job capsule version one ${marker}`),
         'Task get_job must not fall back to the job capsule');
-      const groupedMarkdown = await readTarget(groupedTicketCode,
-        `Task capsule selected through grouped child ${marker}`);
+      const groupedMarkdown = await readTarget(groupedTicketCode, createdTask.capsule_short_code_id);
       assert(groupedMarkdown.includes(`Selected implementation target: Task ${taskTicketCode}.`),
         'Grouped get_job must select the normalized top-level task capsule');
       assert(!groupedMarkdown.includes(`Job capsule version one ${marker}`),
         'Grouped get_job must not merge in or fall back to the job capsule');
+      for (const markdown of [taskMarkdown, groupedMarkdown]) {
+        assert(!markdown.includes(`Task capsule selected through grouped child ${marker}`));
+      }
+      const missingMarkdown = await readTarget(missingTaskCode, `Task ${missingTaskCode} capsule: none.`);
+      assert(missingMarkdown.includes(`Selected implementation target: Task ${missingTaskCode}.`));
+      assert(!missingMarkdown.includes(`Job capsule version one ${marker}`));
+      const explicitJob = await readNamedNote(createdJob.capsule_short_code_id, 1,
+        `Job capsule version one ${marker}`);
+      assert(explicitJob.includes(
+        `Requested note ${createdJob.capsule_short_code_id} is the current capsule for this target.`));
+      const taskCapsuleAfterReply = (await waitForComments((items) => items.some((comment) =>
+        comment.id === persistedTaskV1.id && (comment.children || []).includes(capsuleReply.id))))
+        .find((comment) => comment.id === persistedTaskV1.id);
+      assert(taskCapsuleAfterReply?.children?.includes(capsuleReply.id));
+      const explicitTask = await readNamedNote(createdTask.capsule_short_code_id,
+        taskCapsuleAfterReply.version, `Task capsule selected through grouped child ${marker}`);
+      assert(!explicitTask.includes(`Job capsule version one ${marker}`));
+      const scopedJob = toolText(await retryMcp('get_job', {
+        short_code_id: jobTicketCode, sections: ['tasks']
+      }));
+      assert(hasCapsuleReference(scopedJob, createdJob));
+      assert(scopedJob.includes(`Task ${taskTicketCode} capsule: ${createdTask.capsule_short_code_id} version `));
+      assert(!scopedJob.includes(`Job capsule version one ${marker}`));
+      assert(!scopedJob.includes(`Task capsule selected through grouped child ${marker}`));
 
       const jobV2 = `## Outcome\nAI-revised capsule version two ${marker}.`;
       const updatedJob = structuredResult(await retryMcp('set_design_capsule', {
@@ -548,10 +588,11 @@ export default function (adminConfiguration) {
       aiArchives = capsuleArchives(comments, createdJob.capsule_short_code_id, 1);
       assert.strictEqual(aiArchives.length, 1,
         'Async retries must not duplicate the deterministic AI revision archive');
-      const revisedMarkdown = await readTarget(jobTicketCode,
+      const revisedMarkdown = await readTarget(jobTicketCode, createdJob.capsule_short_code_id,
+        (markdown) => hasCapsuleReference(markdown, { ...createdJob, capsule_version: 3 }));
+      assert(!revisedMarkdown.includes(`Human-revised capsule version three ${marker}`));
+      await readNamedNote(createdJob.capsule_short_code_id, 3,
         `Human-revised capsule version three ${marker}`);
-      assert(revisedMarkdown.includes('Current capsule version: 3.'),
-        'get_job must expose the expected version needed for the next CAS update');
       assert(!revisedMarkdown.includes(`AI-revised capsule version two ${marker}`),
         'A prior body archived with Show AI off must not compete with the current capsule');
 
@@ -607,8 +648,13 @@ export default function (adminConfiguration) {
         `Identical concurrent upserts must persist one capsule row: ${JSON.stringify(raceRows)}`);
       assert.strictEqual(raceRows[0].pinned, true);
       const selectedRaceMarker = raceBody.split('\n')[1];
-      const raceMarkdown = await readTarget(raceTaskCode, selectedRaceMarker);
+      const raceMarkdown = await readTarget(raceTaskCode, stableRaceCode,
+        (markdown) => hasCapsuleReference(markdown, {
+          capsule_short_code_id: stableRaceCode, capsule_version: raceRows[0].version
+        }));
       assert(raceMarkdown.includes(`Selected implementation target: Task ${raceTaskCode}.`));
+      assert(!raceMarkdown.includes(selectedRaceMarker));
+      await readNamedNote(stableRaceCode, raceRows[0].version, selectedRaceMarker);
     }).timeout(900000);
 
     it('moves task-owned notes and capsule history to the task destination', async () => {
@@ -857,26 +903,37 @@ export default function (adminConfiguration) {
 
       const freshDestinationMarker = `Fresh destination task capsule version one ${marker}`;
       const movedTaskCapsuleMarker = `Movable task capsule version two ${marker}`;
-      const movedCapsuleIsHistory = (markdown) => {
-        const currentCapsule = currentCapsuleSection(markdown);
-        return currentCapsule.includes(freshDestinationMarker) &&
-          markdown.includes(movedTaskCapsuleMarker) &&
-          !currentCapsule.includes(movedTaskCapsuleMarker);
-      };
       const taskMarkdown = await readTarget(
-        taskCode, freshDestinationMarker, movedCapsuleIsHistory);
+        taskCode, createdDestinationCapsule.capsule_short_code_id,
+        (markdown) => hasCapsuleReference(markdown, {
+          ...createdDestinationCapsule, capsule_version: destinationCurrentBeforeUpdate.version
+        }));
       const groupedMarkdown = await readTarget(
-        groupedTaskCode, freshDestinationMarker, movedCapsuleIsHistory);
+        groupedTaskCode, createdDestinationCapsule.capsule_short_code_id,
+        (markdown) => hasCapsuleReference(markdown, {
+          ...createdDestinationCapsule, capsule_version: destinationCurrentBeforeUpdate.version
+        }));
       assert(taskMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
       assert(groupedMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
       [taskMarkdown, groupedMarkdown].forEach((markdown) => {
         assert(!markdown.includes(`Source job control capsule ${marker}`));
-        assert(markdown.includes(movedTaskCapsuleMarker),
-          'The demoted source capsule must remain visible as destination history');
-        assert(!currentCapsuleSection(markdown)
-          .includes(movedTaskCapsuleMarker),
-          'The demoted source capsule must not compete with the destination current capsule');
+        assert(!markdown.includes(movedTaskCapsuleMarker),
+          'The demoted source capsule must require an explicit history read');
+        assert(!markdown.includes(freshDestinationMarker));
       });
+      const history = toolText(await retryMcp('get_job', {
+        short_code_id: taskCode, sections: ['notes']
+      }));
+      assert(history.includes(movedTaskCapsuleMarker),
+        'An explicit Notes read must retain the demoted source capsule history');
+      assert(!history.includes(freshDestinationMarker),
+        'Requesting Notes must not embed the current pinned capsule body');
+      const movedCapsule = await readNamedNote(currentTaskCapsule.ticket_code,
+        afterMoveById.get(currentTaskCapsule.id).version, movedTaskCapsuleMarker);
+      assert(movedCapsule.includes(
+        `Requested note ${currentTaskCapsule.ticket_code} is not the current capsule for this target.`));
+      await readNamedNote(createdDestinationCapsule.capsule_short_code_id,
+        destinationCurrentBeforeUpdate.version, freshDestinationMarker);
       const destinationCapsuleV2Body =
         `## Outcome\nFresh destination task capsule version two ${marker}.`;
       const updatedDestinationCapsule = structuredResult(await retryMcp('set_design_capsule', {
@@ -925,11 +982,15 @@ export default function (adminConfiguration) {
         'Updating the destination capsule must not repin the older source R');
 
       const updatedTaskMarkdown = await readTarget(
-        taskCode, `Fresh destination task capsule version two ${marker}`);
+        taskCode, updatedDestinationCapsule.capsule_short_code_id,
+        (markdown) => hasCapsuleReference(markdown, updatedDestinationCapsule));
       const updatedGroupedMarkdown = await readTarget(
-        groupedTaskCode, `Fresh destination task capsule version two ${marker}`);
+        groupedTaskCode, updatedDestinationCapsule.capsule_short_code_id,
+        (markdown) => hasCapsuleReference(markdown, updatedDestinationCapsule));
       assert(updatedTaskMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
       assert(updatedGroupedMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
+      await readNamedNote(updatedDestinationCapsule.capsule_short_code_id,
+        updatedDestinationCapsule.capsule_version, `Fresh destination task capsule version two ${marker}`);
     }).timeout(900000);
 
     it('keeps reviews as freeform, explicit, agent-owned delta handoffs naming the stable capsule R', async () => {
@@ -993,8 +1054,11 @@ export default function (adminConfiguration) {
       assert.strictEqual(revisedCapsule.status, 'updated');
       assert.strictEqual(revisedCapsule.capsule_short_code_id,
         createdCapsule.capsule_short_code_id, 'Capsule revision must retain the R named by the review');
-      const revisedJob = await readTarget(jobTicketCode, `Review baseline version two ${marker}`);
-      assert(revisedJob.includes('Current capsule version: 2.'));
+      const revisedJob = await readTarget(jobTicketCode, revisedCapsule.capsule_short_code_id,
+        (markdown) => hasCapsuleReference(markdown, revisedCapsule));
+      assert(!revisedJob.includes(`Review baseline version two ${marker}`));
+      await readNamedNote(revisedCapsule.capsule_short_code_id, revisedCapsule.capsule_version,
+        `Review baseline version two ${marker}`);
       // Wait through the capsule's async archive path before ruling out an implicit review close.
       comments = await waitForComments((items) =>
         items.some((comment) => comment.ticket_code === createdCapsule.capsule_short_code_id &&

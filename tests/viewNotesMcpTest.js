@@ -96,7 +96,48 @@ export default function (adminConfiguration) {
         [...commentVersions].map(([id, version]) => ({ id, version })));
     }
 
-    it('defaults view notes to hidden and shows Show AI notes only in the note view', async () => {
+    function toolText(response) {
+      const result = JSON.parse(response).result;
+      assert(result && result.isError !== true, `MCP read failed: ${response}`);
+      return (result.content || []).map((item) => item.text || '').join('\n');
+    }
+
+    async function readJob(args) {
+      return toolText(await pollMcp('get_job', args));
+    }
+
+    function hasNoteReference(markdown, note) {
+      const code = note.ticket_code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`${code} version ${note.version}(?![0-9])`).test(markdown);
+    }
+
+    function assertView(markdown, groupId = marketId) {
+      assert(markdown.includes(`Workspace ID: ${marketId}. View ID: ${groupId}.`),
+        `The read must identify its stable workspace and view: ${markdown}`);
+      assert(markdown.includes('Standing view notes:'), `The read must inventory its view notes: ${markdown}`);
+    }
+
+    async function commentState(codeOrId, bodyMarker) {
+      const matches = (comment) => (comment.id === codeOrId || comment.ticket_code === codeOrId)
+        && comment.ticket_code && (!bodyMarker || comment.body?.includes(bodyMarker));
+      const comments = await pollFor(listHumanMarketComments, (items) => items.some(matches));
+      const comment = comments.find(matches);
+      assert(comment, `Comment ${codeOrId} did not reach its expected stored state`);
+      return comment;
+    }
+
+    async function readNote(note, bodyMarker) {
+      const markdown = await pollFor(
+        () => readJob({ short_code_id: note.ticket_code, thread_only: true }),
+        (text) => text.includes(bodyMarker) && text.includes(`Note version: ${note.version}.`)
+      );
+      assert(markdown.includes(bodyMarker), `Explicit note read lost its body: ${markdown}`);
+      assert(markdown.includes(`Note version: ${note.version}.`),
+        `Explicit note read lost its actual stored version: ${markdown}`);
+      return markdown;
+    }
+
+    it('inventories Show AI notes only in their view and fetches their bodies explicitly', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -112,24 +153,28 @@ export default function (adminConfiguration) {
       assert(note.is_visible === false,
         `View note should default is_visible false: ${JSON.stringify(note)}`);
 
-      let jobMarkdown = await pollMcp('get_job', { short_code_id: jobTicketCode });
+      const hiddenNote = await commentState(note.id, noteMarker);
+      let jobMarkdown = await readJob({ short_code_id: jobTicketCode });
+      assertView(jobMarkdown);
+      assert(jobMarkdown.includes('Standing view notes: none.'));
+      assert(!jobMarkdown.includes(hiddenNote.ticket_code));
       assert(!jobMarkdown.includes(noteMarker),
         'get_job must not include a view note that is not marked Show AI');
 
       // Flip Show AI on - only body-less update of is_visible, exactly what the UI checkbox does.
-      await adminClient.investibles.updateComment(note.id, undefined, undefined, undefined,
+      const shownNote = await adminClient.investibles.updateComment(note.id, undefined, undefined, undefined,
         undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
         true, note.version);
 
-      // T-all-2434: get_job now carries the note in a View Notes section.
+      const visibleNote = { ...hiddenNote, version: shownNote.version };
       jobMarkdown = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
-        (markdown) => markdown.includes(noteMarker)
+        () => readJob({ short_code_id: jobTicketCode }),
+        (markdown) => hasNoteReference(markdown, visibleNote)
       );
-      assert(jobMarkdown.includes('#### View Notes'),
-        'get_job should render a View Notes section for Show AI view notes');
-      assert(jobMarkdown.includes(noteMarker),
-        'get_job should include the Show AI view note body');
+      assertView(jobMarkdown);
+      assert(hasNoteReference(jobMarkdown, visibleNote), 'Show AI must add the note code and version');
+      assert(!jobMarkdown.includes(noteMarker), 'The inventory must omit the standing-note body');
+      await readNote(visibleNote, noteMarker);
 
       // T-all-2435: a job only gets the notes of the view it is in. The group name feeds
       // the ticket sub code, so keep it short - the market is fresh per run anyway.
@@ -141,12 +186,25 @@ export default function (adminConfiguration) {
         description: 'Job in a different view that must not receive the first view notes.'
       });
       const otherTicketCode = await getTicketCode(otherJob);
-      const otherMarkdown = await pollMcp('get_job', { short_code_id: otherTicketCode });
+      const otherMarkdown = await readJob({ short_code_id: otherTicketCode });
+      assertView(otherMarkdown, otherGroupId);
+      assert(otherMarkdown.includes('Standing view notes: none.'));
+      assert(!otherMarkdown.includes(visibleNote.ticket_code));
       assert(!otherMarkdown.includes(noteMarker),
         'A job in another view must not receive notes from the first view');
+
+      await adminClient.investibles.updateComment(note.id, undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+        false, shownNote.version);
+      const removed = await pollFor(
+        () => readJob({ short_code_id: jobTicketCode }),
+        (markdown) => !markdown.includes(visibleNote.ticket_code)
+      );
+      assert(removed.includes('Standing view notes: none.'),
+        'Removing Show AI must remove the inventory entry, so an agent drops the cached note');
     }).timeout(600000);
 
-    it('omits view notes from a scoped read but still renders the job header (J-all-443)', async () => {
+    it('retains view identity and note versions on scoped and narrow reads without bodies', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -166,25 +224,23 @@ export default function (adminConfiguration) {
       assert(createdNote?.link?.endsWith(createdNote.short_code_id),
         `add_view_note create must return its link in structuredContent: ${created}`);
 
-      // An unscoped read is the first read of a job and still carries the standing notes.
+      const note = await commentState(createdNote.short_code_id, noteMarker);
       const unscoped = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
-        (markdown) => markdown.includes(noteMarker)
+        () => readJob({ short_code_id: jobTicketCode }),
+        (markdown) => hasNoteReference(markdown, note)
       );
-      assert(unscoped.includes('#### View Notes'),
-        'An unscoped get_job must still render the View Notes section');
+      assertView(unscoped);
+      assert(hasNoteReference(unscoped, note));
+      assert(!unscoped.includes(noteMarker));
 
-      // A scoped read asserts the caller already holds the job, so the note is not re-sent.
-      const scoped = await mcpCall(adminConfiguration, uclusionToken, 'get_job',
+      const scoped = await readJob(
         { short_code_id: jobTicketCode, sections: ['tasks'] });
       assert(!scoped.includes(noteMarker),
         `A scoped get_job must not re-send the view note body: ${scoped}`);
-      assert(!scoped.includes('#### View Notes'),
-        'A scoped get_job must not render the View Notes section at all');
+      assertView(scoped);
+      assert(hasNoteReference(scoped, note), 'Scoped reads must still reveal changed view-note versions');
 
-      // The point of the contract: scoping hides the notes and nothing else. A bare
-      // "Updated <job>" event can only mean a job-level change, and all of those still
-      // render, so answering it with a scoped reload cannot miss the change.
+      // Scoping still preserves job-level changes as well as the view inventory.
       assert(scoped.includes(jobTicketCode),
         'A scoped get_job must still identify the job');
       assert(scoped.includes(`Scoped read job ${marker}`),
@@ -193,6 +249,27 @@ export default function (adminConfiguration) {
         'A scoped get_job must still render the description, so an edited description is visible');
       assert(/This job is in stage /.test(scoped),
         'A scoped get_job must still render the stage, so a stage change is visible');
+
+      const task = await adminClient.investibles.createComment(
+        job.investible.id, marketId, `Narrow view-context task ${marker}`, null, 'TODO');
+      const taskRow = await commentState(task.id);
+      const reply = await adminClient.investibles.createComment(
+        job.investible.id, marketId, `Narrow view-context reply ${marker}`, task.id);
+      const replyRow = await commentState(reply.id);
+      for (const row of [taskRow, replyRow]) {
+        const narrow = await readJob({ short_code_id: row.ticket_code, thread_only: true });
+        assertView(narrow);
+        assert(hasNoteReference(narrow, note), 'Narrow job-child reads must carry the same version inventory');
+        assert(!narrow.includes(noteMarker));
+        assert(/This job is in stage /.test(narrow));
+      }
+      const sameViewJob = await adminClient.investibles.create({
+        groupId: marketId, name: `Another same-view job ${marker}`, description: 'Reuse current view-note bodies.'
+      });
+      const sameView = await readJob({ short_code_id: await getTicketCode(sameViewJob) });
+      assertView(sameView);
+      assert(hasNoteReference(sameView, note));
+      assert(!sameView.includes(noteMarker));
     }).timeout(600000);
 
     it('creates and updates an AI view note with add_view_note and notifies the view (T-all-2459)', async () => {
@@ -222,13 +299,16 @@ export default function (adminConfiguration) {
       assert(noteTicketCode && noteTicketCode.startsWith('R-'),
         `Expected an R- ticket code in: ${created}`);
 
-      // Born Show AI: the AI note rides along in get_job with no is_visible flip
+      // Born Show AI: the AI note enters the inventory without a visibility flip.
+      const originalNote = await commentState(noteTicketCode, lessonMarker);
       let jobMarkdown = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
-        (markdown) => markdown.includes(lessonMarker)
+        () => readJob({ short_code_id: jobTicketCode }),
+        (markdown) => hasNoteReference(markdown, originalNote)
       );
-      assert(jobMarkdown.includes(lessonMarker),
-        'get_job should include the AI view note without a Show AI flip');
+      assertView(jobMarkdown);
+      assert(hasNoteReference(jobMarkdown, originalNote));
+      assert(!jobMarkdown.includes(lessonMarker));
+      await readNote(originalNote, lessonMarker);
 
       // Q-all-406: unlike the human note above, the AI note notifies the view humans
       const messages = await pollFor(
@@ -252,24 +332,33 @@ export default function (adminConfiguration) {
       const updatedNote = JSON.parse(updated).result?.structuredContent;
       assert(updatedNote?.link?.endsWith(updatedNote.short_code_id),
         `add_view_note update must return its link in structuredContent: ${updated}`);
+      const revisedNote = await commentState(noteTicketCode, revisedMarker);
+      assert(revisedNote.version > originalNote.version, 'Editing the note must change its advertised version');
       jobMarkdown = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
-        (markdown) => markdown.includes(revisedMarker)
+        () => readJob({ short_code_id: jobTicketCode, sections: ['tasks'] }),
+        (markdown) => hasNoteReference(markdown, revisedNote)
       );
-      assert(jobMarkdown.includes(revisedMarker), 'get_job should carry the revised note text');
-      assert(!jobMarkdown.includes(lessonMarker),
-        'The update must revise the existing note, not add a second one');
+      assert(hasNoteReference(jobMarkdown, revisedNote), 'A scoped reload must advertise the revised version');
+      assert(!hasNoteReference(jobMarkdown, originalNote));
+      assert(!jobMarkdown.includes(revisedMarker) && !jobMarkdown.includes(lessonMarker));
+      const revisedBody = await readNote(revisedNote, revisedMarker);
+      assert(!revisedBody.includes(lessonMarker), 'Fetching the changed R-code must return its current body');
 
       // C-all-1458: no targeting code at all lands the note in the default view
       const defaultMarker = `Default view lesson ${marker}`;
       const defaulted = await pollMcp('add_view_note', { note: defaultMarker });
       assert(defaulted.includes('Added view note'), `Expected default view creation: ${defaulted}`);
+      const defaultCode = JSON.parse(defaulted).result?.structuredContent?.short_code_id;
+      assert(defaultCode, `Default view note must return its code: ${defaulted}`);
+      const defaultNote = await commentState(defaultCode, defaultMarker);
       jobMarkdown = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: jobTicketCode }),
-        (markdown) => markdown.includes(defaultMarker)
+        () => readJob({ short_code_id: jobTicketCode }),
+        (markdown) => hasNoteReference(markdown, defaultNote)
       );
-      assert(jobMarkdown.includes(defaultMarker),
+      assert(hasNoteReference(jobMarkdown, defaultNote),
         'A note created with no code should land in the default view');
+      assert(!jobMarkdown.includes(defaultMarker));
+      await readNote(defaultNote, defaultMarker);
     }).timeout(600000);
 
     it('keeps AI-created job and task notes out of get_job (B-all-584)', async () => {
@@ -328,7 +417,7 @@ export default function (adminConfiguration) {
         `Task note association missing: ${JSON.stringify(taskNote)}`);
 
       const fullJobMarkdown = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+        () => readJob({
           short_code_id: jobTicketCode,
           include_all_resolved: true
         }),
@@ -336,12 +425,45 @@ export default function (adminConfiguration) {
       );
       assert(fullJobMarkdown.includes(jobNoteMarker) && fullJobMarkdown.includes(taskNoteMarker),
         'Full get_job did not reach both AI note barriers');
-      const jobMarkdown = await pollMcp('get_job', { short_code_id: jobTicketCode });
+      const jobMarkdown = await readJob({ short_code_id: jobTicketCode });
       assert(jobMarkdown.includes(taskMarker), 'get_job must retain the ordinary task');
       assert(!jobMarkdown.includes(jobNoteMarker),
         'get_job must omit a regular AI-created job note by default');
       assert(!jobMarkdown.includes(taskNoteMarker),
         'get_job must omit a regular AI-created task note by default');
+      const explicitNotes = await readJob({ short_code_id: jobTicketCode, sections: ['notes'] });
+      assert(explicitNotes.includes(jobNoteMarker) && explicitNotes.includes(taskNoteMarker),
+        'An explicit Notes section must include ordinary notes even with Show AI off');
+      await readNote(jobNote, jobNoteMarker);
+
+      const shownJobNote = await adminClient.investibles.updateComment(jobNote.id,
+        undefined, undefined, undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined, undefined, true, jobNote.version);
+      const replyMarker = `Ordinary note reply must not opt its body in ${marker}`;
+      await adminClient.investibles.createComment(job.investible.id, marketId, replyMarker, jobNote.id);
+      const explicitWithReply = await pollFor(
+        () => readJob({ short_code_id: jobNote.ticket_code, thread_only: true }),
+        (markdown) => markdown.includes(replyMarker)
+      );
+      assert(explicitWithReply.includes(replyMarker));
+      assert(explicitWithReply.includes(jobNoteMarker));
+      const afterReply = await readJob({ short_code_id: jobTicketCode });
+      assert(!afterReply.includes(jobNoteMarker),
+        'Show AI and a reply must not inject an ordinary note body into a default read');
+      assert(!afterReply.includes(replyMarker));
+      assert(shownJobNote.is_visible, 'The fixture must exercise the Show AI override');
+
+      await adminClient.investibles.updateComment(jobNote.id, undefined, true);
+      const resolvedHistory = await pollFor(
+        () => readJob({ short_code_id: jobTicketCode, include_all_resolved: true }),
+        (markdown) => markdown.includes(`Resolved Note ${jobNote.ticket_code}`)
+          && markdown.includes(jobNoteMarker)
+      );
+      assert(resolvedHistory.includes(`Resolved Note ${jobNote.ticket_code}`));
+      assert(resolvedHistory.includes(jobNoteMarker));
+      const afterResolve = await readJob({ short_code_id: jobTicketCode });
+      assert(!afterResolve.includes(jobNoteMarker),
+        'Resolved status must not expose even a compressed ordinary note body by default');
     }).timeout(600000);
   });
 }
