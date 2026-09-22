@@ -456,6 +456,12 @@ export default function (adminConfiguration, userConfiguration) {
       const questionCodeMatch = asked.match(/\bQ-[A-Za-z0-9-]+\b/);
       assert(questionCodeMatch, `ask_question should return a question code: ${asked}`);
       const questionCode = questionCodeMatch[0];
+      const openedThread = await pollMcp('get_job', {
+        short_code_id: questionCode,
+        thread_only: true
+      });
+      assert(openedThread.includes('This job is in stage Requires Input.'),
+        'A thread reload of a new question should report Requires Input before the stage write');
       const question = await findCommentByMarker(questionMarker);
       assert(question?.inline_market_id, 'AI question should have an inline decision market');
 
@@ -521,15 +527,19 @@ export default function (adminConfiguration, userConfiguration) {
       // Resolve is intentionally performed by the now non-primary admin: any human may delegate
       // an AI-authored question back to the AI, and that closes the stage lock without choosing.
       await adminClient.investibles.updateComment(question.id, undefined, true);
+      const restoredMarkdown = await pollMcp('get_job', { short_code_id: jobTicket });
+      assert(restoredMarkdown.includes('This job is in stage Doable.'),
+        'get_job should report the restored executable stage after Resolve without waiting for the stage write');
+      const restoredThread = await pollMcp('get_job', {
+        short_code_id: questionCode,
+        thread_only: true
+      });
+      assert(restoredThread.includes('This job is in stage Doable.'),
+        'A thread reload should name the same restored stage');
       const restoredStage = await pollFor(() => getJobStage(job),
         (stageId) => stageId === doableStage.id);
       assert.strictEqual(restoredStage, doableStage.id,
         'Human Resolve should delegate the answer and restore the prior Doable stage');
-      const restoredMarkdown = await pollFor(
-        () => pollMcp('get_job', { short_code_id: jobTicket }),
-        (markdown) => markdown.includes('This job is in stage Doable.'));
-      assert(restoredMarkdown.includes('This job is in stage Doable.'),
-        'get_job should report the restored executable stage after Resolve');
     }).timeout(600000);
 
     it('should move AI vote via MCP approval on single vote question', async () => {
@@ -613,7 +623,7 @@ export default function (adminConfiguration, userConfiguration) {
         'A reply on the original reason must still appear on the job after the second vote');
     }).timeout(240000);
 
-    it('should update the existing option without consuming its human suggestion', async () => {
+    it('should update the existing option and resolve only an explicitly named human suggestion', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -703,6 +713,89 @@ export default function (adminConfiguration, userConfiguration) {
         'The human suggestion should remain attached to the updated option');
       assert(preservedSuggestion?.body?.includes(suggestionMarker) && !preservedSuggestion.resolved,
         'Updating the option must not rewrite or resolve its human suggestion');
+
+      const otherSuggestion = await inlineUserClient.investibles.createComment(
+        optionId, inlineMarketId, `Another human suggestion ${marker}`, null, 'SUGGEST');
+      const beforeCombinedComments = await pollFor(
+        () => listMarketComments(inlineMarketId, inlineUserClient),
+        (fetched) => [suggestion.id, otherSuggestion.id].every((id) =>
+          fetched.some((comment) => comment.id === id && comment.ticket_code)));
+      const suggestionBefore = beforeCombinedComments.find((comment) => comment.id === suggestion.id);
+      const otherSuggestionBefore = beforeCombinedComments.find((comment) =>
+        comment.id === otherSuggestion.id);
+      assert(suggestionBefore?.ticket_code && otherSuggestionBefore?.ticket_code,
+        'Both human suggestions must be readable before the combined update');
+      const votesBefore = await pollFor(
+        () => readOptionVotes(inlineAdminClient, question.created_by, afterOptions),
+        (votes) => votes.length === 1 && votes[0].reason?.comment_type === 'JUSTIFY');
+      assert.strictEqual(votesBefore.length, 1,
+        'The option must have its counted AI recommendation before the combined update');
+      const voteBefore = votesBefore[0];
+      assert.strictEqual(voteBefore.option_id, optionId);
+      assert(voteBefore.reason?.comment_type === 'JUSTIFY' && !voteBefore.reason.deleted,
+        'The counted recommendation must have a live justification before the combined update');
+
+      const acceptedName = `Accepted option ${marker}`;
+      const acceptedDescription = `Option incorporating the named suggestion ${marker}.`;
+      toolResult(await mcpCall(adminConfiguration, uclusionToken, 'update_option', {
+        parent_question_short_code_id: questionCode,
+        option_id: optionCode,
+        name: acceptedName,
+        description: acceptedDescription,
+        resolve_suggestion_short_code_id: suggestionBefore.ticket_code
+      }));
+
+      const combinedOptions = await pollFor(
+        () => listInlineInvestibles(inlineMarketId, inlineAdminClient),
+        (options) => options.some((option) => option.investible.id === optionId &&
+          option.investible.name === acceptedName &&
+          option.investible.description?.includes(acceptedDescription)));
+      assert.deepStrictEqual(combinedOptions.map((option) => option.investible.id).sort(),
+        beforeOptions.map((option) => option.investible.id).sort(),
+        'The combined update must preserve every option identity and the option count');
+      const acceptedOption = combinedOptions.find((option) => option.investible.id === optionId);
+      assert.strictEqual(acceptedOption?.investible.name, acceptedName);
+      assert(acceptedOption.investible.description?.includes(acceptedDescription) &&
+        !acceptedOption.investible.description.includes(updatedDescription),
+        'The combined update must replace the existing option body');
+      const acceptedInfo = acceptedOption.market_infos.find((info) =>
+        info.market_id === inlineMarketId);
+      assert.strictEqual(acceptedInfo?.id, optionInfoBefore.id,
+        'The combined update must preserve the option market-info identity');
+      assert.strictEqual(acceptedInfo.ticket_code, optionCode,
+        'The combined update must preserve the option O-code');
+      const votesAfter = await pollFor(
+        () => readOptionVotes(inlineAdminClient, question.created_by, combinedOptions),
+        (votes) => votes.length === 1 && votes[0].reason);
+      assert.strictEqual(votesAfter.length, 1,
+        'The combined update must preserve the counted AI recommendation');
+      for (const field of ['option_id', 'option_code', 'user_id', 'quantity']) {
+        assert.strictEqual(votesAfter[0][field], voteBefore[field],
+          `The combined update must preserve the recommendation's ${field}`);
+      }
+      assert(votesAfter[0].reason, 'The combined update must preserve the linked justification');
+      for (const field of ['id', 'body', 'comment_type', 'created_by', 'investible_id', 'deleted']) {
+        assert.strictEqual(votesAfter[0].reason[field], voteBefore.reason[field],
+          `The combined update must preserve the justification's ${field}`);
+      }
+
+      const combinedComments = await pollFor(
+        () => listMarketComments(inlineMarketId, inlineUserClient),
+        (fetched) => fetched.some((comment) => comment.id === suggestion.id && comment.resolved));
+      for (const before of [suggestionBefore, otherSuggestionBefore]) {
+        const after = combinedComments.find((comment) => comment.id === before.id);
+        assert(after, `The combined update must preserve suggestion ${before.ticket_code}`);
+        for (const field of ['id', 'ticket_code', 'comment_type', 'created_by', 'body',
+          'market_id', 'investible_id', 'deleted']) {
+          assert.strictEqual(after[field], before[field],
+            `The combined update must preserve ${before.ticket_code}'s ${field}`);
+        }
+        assert.strictEqual(after.resolved, before.id === suggestion.id,
+          'Only the explicitly named suggestion should be resolved');
+      }
+      assert(!combinedComments.some((comment) => comment.id !== suggestion.id && !comment.deleted &&
+        (comment.reply_id === suggestion.id || comment.root_comment_id === suggestion.id)),
+        'The combined update must not create an acceptance reply on the suggestion');
     }).timeout(600000);
 
     it('should vote against then for a suggestion via MCP', async () => {
