@@ -33,10 +33,9 @@ export const COGNITO = Object.freeze({
   region: 'us-west-2'
 });
 export const INTEGRATION_TEST_SUB_TYPE = 'INTEGRATION_TEST';
-const ADVISORY_REPLY =
-  '##### Advisory response from non-primary human: does not answer this question.';
-const ADVISORY_VOTE =
-  '#### Advisory vote from non-primary human: does not answer this question.';
+// T-all-2548: the reply and vote headers differ only in level, so match whole lines.
+const ADVISORY_REPLY = /^##### From advisory human:$/m;
+const ADVISORY_VOTE = /^#### From advisory human:$/m;
 
 export function seedCodexAuth({ env, sessionHome, registerSensitiveValues }) {
   if (env.TEST_AGENT_DEV_USE_LOCAL_AUTH !== '1') {
@@ -638,13 +637,13 @@ export class SemanticDevFixture {
       () => this.snapshotSemantic(),
       (value) => value.authority.advisory_reply_created_by === this.advisoryId &&
         value.authority.markdown.includes(this.advisoryReplyMarker) &&
-        value.authority.markdown.includes(ADVISORY_REPLY) &&
-        value.authority.markdown.includes(ADVISORY_VOTE),
+        ADVISORY_REPLY.test(value.authority.markdown) &&
+        ADVISORY_VOTE.test(value.authority.markdown),
       20,
       1000
     );
-    assert(prepared.authority.markdown.includes(ADVISORY_REPLY) &&
-      prepared.authority.markdown.includes(ADVISORY_VOTE),
+    assert(ADVISORY_REPLY.test(prepared.authority.markdown) &&
+      ADVISORY_VOTE.test(prepared.authority.markdown),
       'Non-primary reply and vote did not converge as explicitly advisory');
   }
 
@@ -829,8 +828,8 @@ export class SemanticDevFixture {
       assert.strictEqual(after.authority.primary_reply_created_by, null,
         'Advisory-only authority check must run before primary input exists');
       assert(after.authority.markdown.includes(this.advisoryReplyMarker) &&
-        after.authority.markdown.includes(ADVISORY_REPLY) &&
-        after.authority.markdown.includes(ADVISORY_VOTE),
+        ADVISORY_REPLY.test(after.authority.markdown) &&
+        ADVISORY_VOTE.test(after.authority.markdown),
       'Advisory-only authority check snapshot must retain the authoritative advisory rendering');
       return;
     }

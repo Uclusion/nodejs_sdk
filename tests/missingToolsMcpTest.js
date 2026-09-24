@@ -190,6 +190,8 @@ export default function (adminConfiguration) {
       // Created as the human, so no AI attribution
       assert(!threadMarkdown.includes('From AI user'),
         'add_task must create the task as the human token owner');
+      assert(threadMarkdown.includes('#### From authoritative human:'),
+        'A human task must carry its own author header');
     }).timeout(240000);
 
     it('adds a blocker as the human that takes the job out of doable flow', async () => {
@@ -209,6 +211,8 @@ export default function (adminConfiguration) {
       assert(jobMarkdown.includes(blockerMarker), `Blocker ${blockerCode} should render on the job`);
       assert(!jobMarkdown.includes('From AI user'),
         'add_blocker must create the blocker as the human token owner');
+      assert(jobMarkdown.includes('#### From authoritative human:'),
+        'A human blocker must carry its own author header');
     }).timeout(240000);
 
     it('uploads via presigned post and attaches the file to info', async () => {
@@ -284,6 +288,8 @@ export default function (adminConfiguration) {
       assert(bugMarkdown.includes(bugMarker), 'get_job should render the created bug');
       assert(!bugMarkdown.includes('From AI user'),
         'add_bug must create the bug as the human token owner');
+      assert(bugMarkdown.includes('#### From authoritative human:'),
+        'A human bug must carry its own author header');
     }).timeout(240000);
 
     it('creates a job from existing bugs and preserves their threads while exposing priority', async () => {

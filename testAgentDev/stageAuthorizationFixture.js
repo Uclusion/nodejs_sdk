@@ -142,7 +142,7 @@ export class StageAuthorizationDevFixture extends SemanticDevFixture {
         `${label} stage-authorization job must be assigned only to its primary human`);
       assert.strictEqual(job.resolved, false,
         `${label} stage-authorization job must begin unresolved`);
-      assert(!job.markdown.includes('Advisory response from non-primary human'),
+      assert(!job.markdown.includes('From advisory human:'),
         `${label} stage request must not render as advisory input`);
     }
     assert(ready.negative.markdown.includes(this.negativeApprovalMarker),

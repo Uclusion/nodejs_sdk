@@ -482,23 +482,22 @@ export default function (adminConfiguration, userConfiguration) {
         userReplyMarker, question.id);
       await inlineUserClient.markets.updateInvestment(optionIds[0], 100, 0);
 
-      const advisoryReply =
-        '##### Advisory response from non-primary human: does not answer this question.';
-      const advisoryVote =
-        '#### Advisory vote from non-primary human: does not answer this question.';
+      // T-all-2548: the reply and vote headers differ only in level, so match whole lines.
+      const advisoryReply = /^##### From advisory human:$/m;
+      const advisoryVote = /^#### From advisory human:$/m;
       const advisoryMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: questionCode }),
         (markdown) => markdown.includes(userReplyMarker) &&
-          markdown.includes(advisoryReply) && markdown.includes(advisoryVote));
-      assert(advisoryMarkdown.includes(advisoryReply),
+          advisoryReply.test(markdown) && advisoryVote.test(markdown));
+      assert(advisoryReply.test(advisoryMarkdown),
         'A non-assignee reply should be explicitly marked advisory');
-      assert(advisoryMarkdown.includes(advisoryVote),
+      assert(advisoryVote.test(advisoryMarkdown),
         'A non-assignee option vote should be explicitly marked advisory');
       const advisoryThread = await pollFor(
         () => pollMcp('get_job', { short_code_id: questionCode, thread_only: true }),
         (markdown) => markdown.includes(userReplyMarker) &&
-          markdown.includes(advisoryReply) && markdown.includes(advisoryVote));
-      assert(advisoryThread.includes(advisoryReply) && advisoryThread.includes(advisoryVote),
+          advisoryReply.test(markdown) && advisoryVote.test(markdown));
+      assert(advisoryReply.test(advisoryThread) && advisoryVote.test(advisoryThread),
         'A targeted thread reload must preserve advisory reply and vote labels');
       assert.strictEqual(await getJobStage(job), requiresInputStage.id,
         'Advisory replies and votes must not unblock the job');
@@ -507,9 +506,11 @@ export default function (adminConfiguration, userConfiguration) {
       const primaryMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: questionCode }),
         (markdown) => markdown.includes(userReplyMarker) &&
-          !markdown.includes(advisoryReply) && !markdown.includes(advisoryVote));
-      assert(!primaryMarkdown.includes(advisoryReply) && !primaryMarkdown.includes(advisoryVote),
+          !advisoryReply.test(markdown) && !advisoryVote.test(markdown));
+      assert(!advisoryReply.test(primaryMarkdown) && !advisoryVote.test(primaryMarkdown),
         'Reassignment should immediately make the new assignee\'s existing input primary');
+      assert(/^##### From authoritative human:$/m.test(primaryMarkdown),
+        'The new assignee\'s reply should be labelled authoritative, not merely unmarked');
       assert.strictEqual(await getJobStage(job), requiresInputStage.id,
         'The open question should remain blocking across assignment changes');
 
@@ -520,8 +521,8 @@ export default function (adminConfiguration, userConfiguration) {
       const reassignedMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: questionCode }),
         (markdown) => markdown.includes(adminReplyMarker) &&
-          markdown.includes(advisoryReply) && markdown.includes(advisoryVote));
-      assert(reassignedMarkdown.includes(advisoryReply) && reassignedMarkdown.includes(advisoryVote),
+          advisoryReply.test(markdown) && advisoryVote.test(markdown));
+      assert(advisoryReply.test(reassignedMarkdown) && advisoryVote.test(reassignedMarkdown),
         'The former assignee\'s new reply and vote should render as advisory');
 
       // Resolve is intentionally performed by the now non-primary admin: any human may delegate
