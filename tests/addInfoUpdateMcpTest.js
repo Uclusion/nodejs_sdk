@@ -88,7 +88,13 @@ export default function (adminConfiguration) {
       }));
       assert.strictEqual(info.status, 'created');
       assert(Number.isInteger(info.version) && info.version > 0);
-      assert(info.link.endsWith(`/${info.short_code_id}`));
+      // S-all-331: a code inside a question is named Q-1_T-1, while its web UI link ends in T-1
+      const qualified = extra.parent_question_short_code_id;
+      if (qualified) {
+        assert(info.short_code_id.startsWith(`${qualified}_`), `Expected a prefixed code: ${info.short_code_id}`);
+      }
+      assert(info.link.endsWith(`/${qualified ? info.short_code_id.slice(qualified.length + 1)
+        : info.short_code_id}`));
       return info;
     }
 
