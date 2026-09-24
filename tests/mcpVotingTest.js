@@ -276,9 +276,11 @@ export default function (adminConfiguration, userConfiguration) {
       const optionCode = context.options
         .find((option) => option.investible.id === vote.option_id)?.market_infos[0]?.ticket_code;
       assert(optionCode, 'The voted option must carry a ticket code to anchor on');
-      const optionAnchor = `${context.question.ticket_code}_${optionCode}`.toLowerCase();
+      const qualifiedOptionCode = `${context.question.ticket_code}_${optionCode}`;
+      const optionAnchor = qualifiedOptionCode.toLowerCase();
       const rendered = mcpText(markdown);
-      assert(rendered.includes(`#### Option ${optionCode}<a name="${optionAnchor}"></a>`),
+      // T-all-2547: the option's rendered name carries its question's code, like its anchor
+      assert(rendered.includes(`#### Option ${qualifiedOptionCode}<a name="${optionAnchor}"></a>`),
         `The option header must carry its question qualified anchor: ${rendered}`);
       assert(new RegExp(`Vote <a name="${optionAnchor}_\\d+"></a>`).test(rendered),
         `The vote must render attached to option ${optionCode}: ${rendered}`);
