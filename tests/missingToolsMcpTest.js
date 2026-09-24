@@ -240,6 +240,34 @@ export default function (adminConfiguration) {
         `The moved task should keep its code: ${destination}`);
     }).timeout(300000);
 
+    it('turns a suggestion on a job into a task only for the human (S-Marketing-76)', async () => {
+      // The person's "move to task", through their agent, keeping the suggestion's code and thread.
+      const marker = randomUUID();
+      const jobCode = extractShortCode(await pollMcp('add_job', {
+        name: `Suggestion move job ${marker}`, description: 'A job whose suggestion becomes its task.'
+      }));
+      const suggestionMarker = `Follow up on the partner read capability ${marker}`;
+      const suggestionCode = extractShortCode(await pollMcp('make_suggestion',
+        { job_id: jobCode, suggestion: suggestionMarker }));
+
+      const refused = JSON.parse(await pollMcp('move_suggestion_to_task',
+        { suggestion_short_code_id: suggestionCode }));
+      assert.strictEqual(refused.result?.isError, true,
+        `Without for_human the conversion must be refused: ${JSON.stringify(refused)}`);
+
+      const moved = await pollMcp('move_suggestion_to_task',
+        { suggestion_short_code_id: suggestionCode, for_human: true });
+      const result = JSON.parse(moved).result;
+      assert.notStrictEqual(result?.isError, true, moved);
+      assert.strictEqual(result?.structuredContent?.short_code_id, suggestionCode, moved);
+      assert.strictEqual(result?.structuredContent?.status, 'moved', moved);
+      const tasks = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: jobCode, sections: ['tasks'] })),
+        (markdown) => markdown.includes(`Task ${suggestionCode}<a`));
+      assert(tasks.includes(`Task ${suggestionCode}<a`) && tasks.includes(suggestionMarker),
+        `The suggestion should now be a task of its job under the same code: ${tasks}`);
+    }).timeout(300000);
+
     it('adds a blocker as the human that takes the job out of doable flow', async () => {
       const created = await pollMcp('add_job', { name: 'Missing tools blocker job',
         description: `Blocker job ${randomUUID()}` });
