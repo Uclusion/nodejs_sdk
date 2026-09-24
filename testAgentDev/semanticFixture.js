@@ -375,7 +375,8 @@ export class SemanticDevFixture {
       initial_vote: { new_option_index: 0, certainty: 4,
         reason: 'The conservative route keeps this fixture change narrow.' }
     });
-    const questionCodes = [...new Set(asked.match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];
+    // T-all-2551: the result also lists option codes like Q-1_O-1, which are not question codes
+    const questionCodes = [...new Set(asked.match(/\bQ-[A-Za-z0-9-]*[A-Za-z0-9](?![\w-])/g) || [])];
     assert.strictEqual(questionCodes.length, 1,
       `Semantic ask_question must return exactly one question code: ${asked}`);
     this.authorityQuestion = await this.findComment(this.authorityQuestionMarker);

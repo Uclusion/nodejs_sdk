@@ -472,7 +472,8 @@ export default function (adminConfiguration) {
       });
       assert.notStrictEqual(JSON.parse(converted).result.isError, true, converted);
       const jobCodes = [...new Set(converted.match(/\bJ-[A-Za-z0-9-]+\b/g) || [])];
-      const questionCodes = [...new Set(converted.match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];
+      // T-all-2551: the result also lists option codes like Q-1_O-1, which are not question codes
+      const questionCodes = [...new Set(converted.match(/\bQ-[A-Za-z0-9-]*[A-Za-z0-9](?![\w-])/g) || [])];
       assert.strictEqual(jobCodes.length, 1,
         `Bug conversion should return one job code and link: ${converted}`);
       assert.strictEqual(questionCodes.length, 1,

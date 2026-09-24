@@ -218,7 +218,8 @@ export class StageAuthorizationDevFixture extends SemanticDevFixture {
           reason: 'Reloading settled state preserves one writer without continuous mirroring.' }
       }
     );
-    const returnedCodes = [...new Set(String(asked).match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];
+    // T-all-2551: the result also lists option codes like Q-1_O-1, which are not question codes
+    const returnedCodes = [...new Set(String(asked).match(/\bQ-[A-Za-z0-9-]*[A-Za-z0-9](?![\w-])/g) || [])];
     assert.strictEqual(returnedCodes.length, 1,
       `Planning question must return one exact Q- code: ${asked}`);
     const question = await this.findComment(this.negativePlanningQuestionMarker);

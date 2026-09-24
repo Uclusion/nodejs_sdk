@@ -353,7 +353,8 @@ export class DesignWritingDevFixture {
           reason: 'The first fixture option supplies the settled choice for the design exercise.' }
       }
     );
-    const returnedCodes = [...new Set(response.match(/\bQ-[A-Za-z0-9-]+\b/g) || [])];
+    // T-all-2551: the result also lists option codes like Q-1_O-1, which are not question codes
+    const returnedCodes = [...new Set(response.match(/\bQ-[A-Za-z0-9-]*[A-Za-z0-9](?![\w-])/g) || [])];
     assert.strictEqual(returnedCodes.length, 1,
       `Design-writing ask_question must return one Q- code: ${response}`);
     const question = await this.findComment(questionMarker);
