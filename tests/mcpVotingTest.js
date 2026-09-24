@@ -560,8 +560,9 @@ export default function (adminConfiguration, userConfiguration) {
       const firstVote = await pollFor(() => getInvestment(inlineAdminClient, aiUserId, optionA),
         isLiveInvestment);
       assert(isLiveInvestment(firstVote), 'MCP approval should invest the AI user in the first option');
+      // T-all-2547: the qualified code names its question, so no parent is passed.
       await pollMcp('approve_job_or_option',
-        { job_or_option_id: optionB.ticketCode, parent_question_short_code_id: question.ticket_code,
+        { job_or_option_id: `${question.ticket_code}_${optionB.ticketCode}`,
           certainty: 4, reason: 'New evidence makes the second option preferable.' });
       const moved = await pollFor(async () => {
         return { a: await getInvestment(inlineAdminClient, aiUserId, optionA),
@@ -578,6 +579,14 @@ export default function (adminConfiguration, userConfiguration) {
       assert.strictEqual(reason?.investible_id, optionB.id);
       assert.strictEqual(reason?.comment_type, 'JUSTIFY');
       assert(reason.body.includes('New evidence makes the second option preferable.'));
+      // T-all-2547: get_job names every option with its question's code in front.
+      const qualifiedA = `Option ${question.ticket_code}_${optionA.ticketCode}<a`;
+      const qualifiedB = `Option ${question.ticket_code}_${optionB.ticketCode}<a`;
+      const questionMarkdown = await pollFor(
+        () => pollMcp('get_job', { short_code_id: question.ticket_code, thread_only: true }),
+        (markdown) => markdown.includes(qualifiedA) && markdown.includes(qualifiedB));
+      assert(questionMarkdown.includes(qualifiedA) && questionMarkdown.includes(qualifiedB),
+        `get_job must render qualified option codes: ${questionMarkdown}`);
     }).timeout(240000);
 
     it('should keep the same justification and its replies when MCP votes again on the same option', async () => {

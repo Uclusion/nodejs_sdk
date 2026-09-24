@@ -43,6 +43,16 @@ function workflowToolName(call) {
   return null;
 }
 
+// T-all-2547: an option may be named by its qualified code alone, or by the bare code
+// plus its question. Both name the same target, so grade the target, not the shape.
+function optionVoteTarget(input) {
+  const qualified = /^(.+)_(O-\d+)$/.exec(input?.job_or_option_id || '');
+  if (qualified) {
+    return { question: qualified[1], option: qualified[2] };
+  }
+  return { question: input?.parent_question_short_code_id, option: input?.job_or_option_id };
+}
+
 function isRecoveredPermissionOptionLookup(
   call,
   calls,
@@ -52,8 +62,8 @@ function isRecoveredPermissionOptionLookup(
   if (call.success !== false ||
       call.malformed ||
       workflowToolName(call) !== 'approve_job_or_option' ||
-      call.input?.parent_question_short_code_id !== questionCode ||
-      !/^O-/.test(call.input?.job_or_option_id || '') ||
+      optionVoteTarget(call.input).question !== questionCode ||
+      !/^O-/.test(optionVoteTarget(call.input).option || '') ||
       typeof call.id !== 'string' || !call.id ||
       !Number.isSafeInteger(call.eventIndex) ||
       !Number.isSafeInteger(call.resultEventIndex) ||
@@ -77,8 +87,8 @@ function isRecoveredPermissionOptionLookup(
     calls.some((candidate) =>
       candidate.success === true &&
       workflowToolName(candidate) === 'approve_job_or_option' &&
-      candidate.input?.parent_question_short_code_id === questionCode &&
-      /^O-/.test(candidate.input?.job_or_option_id || '') &&
+      optionVoteTarget(candidate.input).question === questionCode &&
+      /^O-/.test(optionVoteTarget(candidate.input).option || '') &&
       reload.resultEventIndex < candidate.eventIndex
     )
   );
@@ -308,11 +318,11 @@ export function assertStageAuthorizationTranscript({
       assert(questionCall.resultEventIndex < optionApproval.eventIndex,
         'The stage-permission question must exist before its optional AI vote');
       assert.strictEqual(
-        optionApproval.input?.parent_question_short_code_id,
+        optionVoteTarget(optionApproval.input).question,
         targets.negativePermissionQuestionCode,
         'Optional stage-permission vote must remain bound to the new exact question'
       );
-      assert.match(optionApproval.input?.job_or_option_id || '', /^O-/,
+      assert.match(optionVoteTarget(optionApproval.input).option || '', /^O-/,
         'Optional stage-permission vote must target an option');
     }
     return;

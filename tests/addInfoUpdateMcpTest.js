@@ -71,8 +71,9 @@ export default function (adminConfiguration) {
       // Local codes are addressed through their question, never globally.
       const args = { short_code_id: parentQuestion || info.short_code_id, thread_only: true };
       const escapedCode = info.short_code_id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // T-all-2547: a code inside a question renders with its question's code in front.
       const versionPattern = new RegExp(
-        `(?:Note|Reply|Info) ${escapedCode}<a[^\n]*\n(?:Note|Reply|Info) version: (\\d+)\\.`);
+        `(?:Note|Reply|Info) (?:\\S+_)?${escapedCode}<a[^\n]*\n(?:Note|Reply|Info) version: (\\d+)\\.`);
       const markdown = await pollFor(async () => text(await call('get_job', args)),
         (body) => body.includes(marker) && versionPattern.test(body));
       assert(markdown.includes(marker), `Missing info body: ${markdown}`);
@@ -158,8 +159,8 @@ export default function (adminConfiguration) {
       const inlineClient = inlineLogin.client;
       const questionMarkdown = await pollFor(
         async () => text(await call('get_job', { short_code_id: question.short_code_id, thread_only: true })),
-        (body) => /Option O-\d+/.test(body));
-      const optionCode = questionMarkdown.match(/Option (O-\d+)/)?.[1];
+        (body) => /Option \S+_O-\d+<a/.test(body));
+      const optionCode = questionMarkdown.match(/Option \S+_(O-\d+)<a/)?.[1];
       assert(optionCode);
       const parent = { parent_question_short_code_id: question.short_code_id };
       const note = await createInfo(jobCode, `Job note ${marker}`);

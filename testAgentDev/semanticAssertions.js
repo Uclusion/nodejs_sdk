@@ -447,23 +447,35 @@ function exactTargetReloads(calls, shortCode, label) {
   return exact;
 }
 
+// T-all-2547: an option may be named by its qualified code alone, or by the bare code
+// plus its question. Both name the same target, so grade the target, not the shape.
+function optionVoteTarget(input) {
+  const qualified = /^(.+)_(O-\d+)$/.exec(input?.job_or_option_id || '');
+  if (qualified) {
+    return { question: qualified[1], option: qualified[2] };
+  }
+  return { question: input?.parent_question_short_code_id, option: input?.job_or_option_id };
+}
+
 function assertExplainedOptionVote(call, { optionCodes, questionCode, label }) {
   const approval = call.input;
   assert(approval && typeof approval === 'object' && !Array.isArray(approval),
     `${label} option approval input must be an object`);
-  assert.deepStrictEqual(Object.keys(approval).sort(), [
-    'certainty',
-    'job_or_option_id',
-    'parent_question_short_code_id',
-    'reason'
-  ], `${label} option approval must contain the exact explained-vote fields`);
+  const fields = Object.keys(approval).filter((key) => key !== 'parent_question_short_code_id').sort();
+  assert.deepStrictEqual(fields, ['certainty', 'job_or_option_id', 'reason'],
+    `${label} option approval must contain the exact explained-vote fields`);
+  const target = optionVoteTarget(approval);
   assert(Array.isArray(optionCodes) && optionCodes.length === 2 &&
     new Set(optionCodes).size === 2,
   `${label} is missing the two exact durable option codes`);
-  assert(optionCodes.includes(approval.job_or_option_id),
+  assert(optionCodes.includes(target.option),
     `${label} must vote on one of the exact question options`);
-  assert.strictEqual(approval.parent_question_short_code_id, questionCode,
+  assert.strictEqual(target.question, questionCode,
     `${label} option vote must name the exact parent question`);
+  if (approval.parent_question_short_code_id !== undefined) {
+    assert.strictEqual(approval.parent_question_short_code_id, questionCode,
+      `${label} option vote must not name a different parent question`);
+  }
   assert(Number.isInteger(approval.certainty) && approval.certainty >= 1 &&
     approval.certainty <= 5,
   `${label} option vote certainty must be an integer from one through five`);
