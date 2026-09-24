@@ -178,6 +178,9 @@ export default function (adminConfiguration) {
       const askedQuestion = JSON.parse(questionResult).result?.structuredContent;
       assert(askedQuestion?.link?.endsWith(askedQuestion.short_code_id),
         `ask_question must return its link in structuredContent: ${questionResult}`);
+      // T-all-2551: the result names the stage the question moved the job to, without a reload.
+      assert.strictEqual(askedQuestion.job_stage, 'Requires Input',
+        `ask_question must name the job's new stage: ${questionResult}`);
       const requiresInputStage = await pollFor(currentStageId,
         (stage) => stage === stagesByName['Requires Input'].id);
       assert.strictEqual(requiresInputStage, stagesByName['Requires Input'].id,

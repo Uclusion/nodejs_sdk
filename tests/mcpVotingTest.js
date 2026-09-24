@@ -456,6 +456,18 @@ export default function (adminConfiguration, userConfiguration) {
       const questionCodeMatch = asked.match(/\bQ-[A-Za-z0-9-]+\b/);
       assert(questionCodeMatch, `ask_question should return a question code: ${asked}`);
       const questionCode = questionCodeMatch[0];
+      // T-all-2551: the result names what the call created, so no get_job is needed to learn it.
+      const askedResult = JSON.parse(asked).result;
+      const askedText = askedResult.content.map((part) => part.text || '').join('\n');
+      assert(askedText.includes(`Options, in the order given: ${questionCode}_O-1 = First path ${marker}; `
+        + `${questionCode}_O-2 = Second path ${marker}.`),
+      `ask_question must return each option's qualified code with its name in order: ${askedText}`);
+      assert(askedText.includes(`Initial vote: For ${questionCode}_O-1 at certainty 3.`),
+        `ask_question must return the initial vote: ${askedText}`);
+      assert(askedText.includes(`Job ${jobTicket} is now in stage Requires Input.`),
+        `ask_question must name the job's new stage: ${askedText}`);
+      assert.deepStrictEqual(askedResult.structuredContent.options.map((option) => option.short_code_id),
+        [`${questionCode}_O-1`, `${questionCode}_O-2`]);
       const openedThread = await pollMcp('get_job', {
         short_code_id: questionCode,
         thread_only: true
