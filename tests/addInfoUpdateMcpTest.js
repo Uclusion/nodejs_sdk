@@ -244,5 +244,19 @@ export default function (adminConfiguration) {
       const humanState = await persisted(human);
       assert(humanState.body.includes(`Human record ${marker}`));
     });
+
+    it('stores a list written directly under a line and keeps the space before a linked code', async function () {
+      this.timeout(300000);
+      const marker = randomUUID();
+      // T-all-2549: the demo's handoff note lost both of these on the way into storage.
+      const info = await createInfo(jobCode,
+        `**Why ${marker}**\n- **Policy-compliant.** ${jobCode} permits it.\n- Second reason.`);
+      const expected = `**Why ${marker}**\n\n- **Policy-compliant.** [${jobCode}](#${jobCode}) permits it.\n`
+        + '- Second reason.';
+      const markdown = await pollFor(
+        async () => text(await call('get_job', { short_code_id: info.short_code_id, thread_only: true })),
+        (body) => body.includes(`Why ${marker}`));
+      assert(markdown.includes(expected), `List or linked-code spacing was not stored as written: ${markdown}`);
+    });
   });
 }
