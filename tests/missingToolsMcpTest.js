@@ -8,7 +8,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, pollFor as pollRead, readOptionVotes, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, pollFor as pollRead, readOptionVotes, sleep } from './commonTestFunctions.js';
 
 // J-all-358: agent-window tools - add_task/add_bug run as the human, add_job accepts an AI
 // task list, and get_job supports scoped retrieval (sections, thread_only).
@@ -21,6 +21,7 @@ export default function (adminConfiguration) {
     let accountToken;
     let adminId;
     let approvableStageId;
+    let doableStageId;
 
     before(async function () {
       this.timeout(300000);
@@ -38,6 +39,8 @@ export default function (adminConfiguration) {
       marketId = result.market.id;
       approvableStageId = result.stages.find((stage) => stage.name === 'Approvable')?.id;
       assert(approvableStageId, 'Planning market creation should return its Approvable stage');
+      doableStageId = result.stages.find((stage) => stage.name === 'Doable')?.id;
+      assert(doableStageId, 'Planning market creation should return its Doable stage');
       await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const marketLogin = await loginUserToMarketAndGetToken(adminConfiguration, marketId);
       adminClient = marketLogin.client;
@@ -193,6 +196,49 @@ export default function (adminConfiguration) {
       assert(threadMarkdown.includes('#### From authoritative human:'),
         'A human task must carry its own author header');
     }).timeout(240000);
+
+    it('moves a task out of a Doable job into a new job in the same stage (B-all-670)', async () => {
+      // A finished task that is unrelated to the rest of its job moves out to get its own review,
+      // and keeps the permission it already had: the new job starts in the stage it came from.
+      const marker = randomUUID();
+      const source = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Task move source ${marker}`,
+        description: 'The job a finished, unrelated task leaves.',
+        assignments: [adminId]
+      });
+      const sourceInfo = await pollFor(async () => (await getFullInvestible(source.investible.id))
+        ?.market_infos?.find((info) => info.market_id === marketId), (info) => info?.ticket_code);
+      if (sourceInfo.stage !== doableStageId) {
+        await adminClient.investibles.stateChange(source.investible.id, {
+          current_stage_id: sourceInfo.stage,
+          stage_id: doableStageId
+        });
+      }
+      const sourceStage = await pollFor(async () => (await getFullInvestible(source.investible.id))
+        ?.market_infos?.find((info) => info.market_id === marketId)?.stage,
+      (stage) => stage === doableStageId);
+      assert.strictEqual(sourceStage, doableStageId, 'The source job must be Doable before the move');
+
+      const taskMarker = `Finished unrelated task ${marker}`;
+      const taskCode = extractShortCode(await pollMcp('add_task',
+        { job_id: sourceInfo.ticket_code, task: taskMarker }));
+      const moved = await pollMcp('add_job', {
+        name: `Task move destination ${marker}`,
+        description: 'Its own job so it gets its own review.',
+        task_short_code_ids: [taskCode]
+      });
+      const result = JSON.parse(moved).result?.structuredContent;
+      assert.deepStrictEqual(result?.task_moves?.map((move) => [move.short_code_id, move.status]),
+        [[taskCode, 'moved']], `add_job should move the task: ${moved}`);
+      const destination = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: result.short_code_id })),
+        (markdown) => markdown.includes(taskMarker));
+      assert(destination.includes('This job is in stage Doable.'),
+        `The new job should start in the moved task's stage: ${destination}`);
+      assert(destination.includes(`Task ${taskCode}<a`),
+        `The moved task should keep its code: ${destination}`);
+    }).timeout(300000);
 
     it('adds a blocker as the human that takes the job out of doable flow', async () => {
       const created = await pollMcp('add_job', { name: 'Missing tools blocker job',
