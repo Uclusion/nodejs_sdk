@@ -265,5 +265,24 @@ export default function (adminConfiguration) {
         (body) => body.includes(`Why ${marker}`));
       assert(markdown.includes(expected), `List or linked-code spacing was not stored as written: ${markdown}`);
     });
+
+    it('preserves a completion menu starting at three through storage and Markdown read-back', async function () {
+      this.timeout(300000);
+      const marker = randomUUID();
+      const info = await createInfo(jobCode,
+        `Completion menu ${marker}\n\n3. Clear notifications.\n    - Include this review.\n`
+        + '4. Move the job to review.\n\nReply 3,4.');
+      const markdown = await pollFor(
+        async () => text(await call('get_job', { short_code_id: info.short_code_id, thread_only: true })),
+        (body) => body.includes(`Completion menu ${marker}`));
+
+      const actions = [...markdown.matchAll(/^(\d+)\. (Clear notifications\.|Move the job to review\.)$/gm)]
+        .map((match) => [Number(match[1]), match[2]]);
+      assert.deepStrictEqual(actions, [[3, 'Clear notifications.'], [4, 'Move the job to review.']],
+        `Stored completion actions must retain their selection numbers: ${markdown}`);
+      assert.match(markdown, /^ {4}- Include this review\.$/m,
+        'The nested detail must remain under its numbered action');
+      assert(markdown.includes('Reply 3,4.'), 'The reply example must still match the action numbers');
+    });
   });
 }

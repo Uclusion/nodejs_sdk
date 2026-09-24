@@ -273,6 +273,50 @@ export default function (adminConfiguration) {
       return envelope.result.tools;
     }
 
+    it('advertises complete composed argument declarations before a tool call', async () => {
+      const tools = await listMcpTools();
+      const schemaFor = (name) => {
+        const tool = tools.find((candidate) => candidate.name === name);
+        assert(tool, `Missing MCP tool ${name}`);
+        return tool.inputSchema;
+      };
+      const assertFields = (schema, required, label) => {
+        assert.strictEqual(schema.type, 'object', `${label} must declare an object`);
+        for (const name of required) {
+          assert(schema.properties?.[name]?.type, `${label} must describe ${name}`);
+          assert(schema.required?.includes(name), `${label} must require ${name}`);
+        }
+      };
+
+      const info = schemaFor('add_info');
+      assertFields(info.oneOf[0], ['info', 'tz', 'short_code_id'], 'Create info');
+      assertFields(info.oneOf[1],
+        ['info', 'tz', 'update_info_short_code_id', 'update_info_version'], 'Update info');
+      for (const mode of info.oneOf) {
+        assert(mode.properties.tz.description, 'Every info mode must explain the timezone argument');
+      }
+
+      for (const [name, required] of [
+        ['ask_question', ['job_id', 'question']],
+        ['make_suggestion', ['suggestion']],
+        ['approve_job_or_option', ['job_or_option_id', 'certainty']]
+      ]) {
+        const schema = schemaFor(name);
+        const declaration = schema.allOf
+          ? schema.allOf.find((branch) => branch.properties) : schema;
+        assert(declaration, `${name} must expose a complete object declaration`);
+        assertFields(declaration, required, name);
+      }
+
+      const vote = schemaFor('add_options').properties.initial_vote;
+      assertFields(vote.oneOf[0], ['certainty', 'reason', 'new_option_index'], 'Vote for a new option');
+      assertFields(vote.oneOf[1], ['certainty', 'reason', 'existing_option_id'], 'Vote for an existing option');
+      for (const selector of ['new_option_index', 'existing_option_id']) {
+        assert(vote.oneOf.some((mode) => mode.properties[selector]?.description),
+          `Vote declarations must explain ${selector}`);
+      }
+    }).timeout(300000);
+
     function allCapsuleArchives(comments, sourceCode) {
       const prefix = `Former intent/design capsule ${sourceCode}, version `;
       return comments.filter((comment) => comment.body?.includes(prefix));
@@ -337,7 +381,7 @@ export default function (adminConfiguration) {
       );
       assert.deepStrictEqual(
         capsuleTool.inputSchema.oneOf.map((choice) => choice.required),
-        [['job_id'], ['update_capsule_short_code_id', 'update_capsule_version']],
+        [['capsule', 'job_id'], ['capsule', 'update_capsule_short_code_id', 'update_capsule_version']],
         'A task-only target must not satisfy either capsule write mode'
       );
       assert.deepStrictEqual(
