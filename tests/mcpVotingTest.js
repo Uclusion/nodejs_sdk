@@ -497,10 +497,11 @@ export default function (adminConfiguration, userConfiguration) {
       await inlineUserClient.markets.updateInvestment(optionIds[0], 100, 0);
 
       // T-all-2548: the reply and vote headers differ only in level, so match whole lines.
+      // Lines only exist in the rendered markdown, not the JSON frame that escapes its newlines.
       const advisoryReply = /^##### From advisory human:$/m;
       const advisoryVote = /^#### From advisory human:$/m;
       const advisoryMarkdown = await pollFor(
-        () => pollMcp('get_job', { short_code_id: questionCode }),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode })),
         (markdown) => markdown.includes(userReplyMarker) &&
           advisoryReply.test(markdown) && advisoryVote.test(markdown));
       assert(advisoryReply.test(advisoryMarkdown),
@@ -508,7 +509,7 @@ export default function (adminConfiguration, userConfiguration) {
       assert(advisoryVote.test(advisoryMarkdown),
         'A non-assignee option vote should be explicitly marked advisory');
       const advisoryThread = await pollFor(
-        () => pollMcp('get_job', { short_code_id: questionCode, thread_only: true }),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode, thread_only: true })),
         (markdown) => markdown.includes(userReplyMarker) &&
           advisoryReply.test(markdown) && advisoryVote.test(markdown));
       assert(advisoryReply.test(advisoryThread) && advisoryVote.test(advisoryThread),
@@ -518,7 +519,7 @@ export default function (adminConfiguration, userConfiguration) {
 
       await adminClient.investibles.updateAssignments(job.investible.id, [userId]);
       const primaryMarkdown = await pollFor(
-        () => pollMcp('get_job', { short_code_id: questionCode }),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode })),
         (markdown) => markdown.includes(userReplyMarker) &&
           !advisoryReply.test(markdown) && !advisoryVote.test(markdown));
       assert(!advisoryReply.test(primaryMarkdown) && !advisoryVote.test(primaryMarkdown),
@@ -533,7 +534,7 @@ export default function (adminConfiguration, userConfiguration) {
         adminReplyMarker, question.id);
       await inlineAdminClient.markets.updateInvestment(optionIds[1], 100, 0);
       const reassignedMarkdown = await pollFor(
-        () => pollMcp('get_job', { short_code_id: questionCode }),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode })),
         (markdown) => markdown.includes(adminReplyMarker) &&
           advisoryReply.test(markdown) && advisoryVote.test(markdown));
       assert(advisoryReply.test(reassignedMarkdown) && advisoryVote.test(reassignedMarkdown),
