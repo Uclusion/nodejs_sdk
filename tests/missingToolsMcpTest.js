@@ -268,6 +268,43 @@ export default function (adminConfiguration) {
         `The suggestion should now be a task of its job under the same code: ${tasks}`);
     }).timeout(300000);
 
+    it('gathers view level suggestions into a new job as suggestions (J-all-477)', async () => {
+      const marker = randomUUID();
+      const viewCodes = [];
+      for (const index of [1, 2]) {
+        viewCodes.push(extractShortCode(await pollMcp('make_suggestion',
+          { suggestion: `View level follow up ${index} ${marker}` })));
+      }
+      const sourceJob = extractShortCode(await pollMcp('add_job', {
+        name: `Suggestion source job ${marker}`, description: 'Holds a suggestion that stays put.'
+      }));
+      const onJobCode = extractShortCode(await pollMcp('make_suggestion',
+        { job_id: sourceJob, suggestion: `Job suggestion ${marker}` }));
+
+      // Each add_job call creates a new job; never retry a creation through pollMcp.
+      const response = await mcpCall(adminConfiguration, uclusionToken, 'add_job', {
+        name: `Gathered suggestions ${marker}`, description: 'Suggestions to convert or resolve.',
+        suggestion_short_code_ids: [viewCodes[0], onJobCode, viewCodes[1], viewCodes[0]]
+      });
+      const created = JSON.parse(response).result?.structuredContent;
+      assert(created?.suggestion_moves, `Expected a structured tool result: ${response}`);
+      assert.deepStrictEqual(created.suggestion_moves.map((move) => [move.short_code_id, move.status]),
+        [[viewCodes[0], 'moved'], [onJobCode, 'failed'], [viewCodes[1], 'moved']],
+        `Each view level suggestion moves once and one on a job stays put: ${JSON.stringify(created)}`);
+
+      const report = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: created.short_code_id })),
+        (markdown) => viewCodes.every((code) => markdown.includes(`Suggestion ${code}<a`)));
+      assert(viewCodes.every((code) => report.includes(`Suggestion ${code}<a`)),
+        `The new job should hold both suggestions under their codes, still as suggestions: ${report}`);
+      assert(!report.includes(onJobCode), `The job's own suggestion must not move: ${report}`);
+
+      const converted = JSON.parse(await pollMcp('move_suggestion_to_task',
+        { suggestion_short_code_id: viewCodes[0], for_human: true })).result;
+      assert.strictEqual(converted?.structuredContent?.status, 'moved',
+        `A gathered suggestion should convert to a task of its new job: ${JSON.stringify(converted)}`);
+    }).timeout(300000);
+
     it('adds a blocker as the human that takes the job out of doable flow', async () => {
       const created = await pollMcp('add_job', { name: 'Missing tools blocker job',
         description: `Blocker job ${randomUUID()}` });
