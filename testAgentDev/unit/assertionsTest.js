@@ -199,6 +199,35 @@ describe('agent dev semantic assertions', () => {
     }
   });
 
+  it('accepts a Claude listener armed with a timeout where persistence is not offered', () => {
+    const scenario = (monitorInput) => () => assertScenario({
+      client: 'claude',
+      scenario: 'idle-find-work',
+      parsed: {
+        toolCalls: [
+          call('TaskList', {}, 0),
+          call('Monitor', { command: `${command} listen`, ...monitorInput }, 1),
+          call('Skill', { skill: 'uclusion' }, 3),
+          call('mcp__Uclusion__find_work', {}, 5)
+        ],
+        sentinelEventIndexes: [],
+        skillEndSentinel: '<!-- /uclusion-skill:v1 -->'
+      },
+      expectedCommand: command,
+      stateBefore: stableState,
+      stateAfter: stableState
+    });
+    const monitorRefusal = /Claude Monitor must be persistent or carry a timeout/;
+    for (const input of [{ persistent: true }, { timeout_ms: 1800000 }]) {
+      try {
+        scenario(input)();
+      } catch (error) {
+        assert.doesNotMatch(error.message, monitorRefusal);
+      }
+    }
+    assert.throws(scenario({}), monitorRefusal);
+  });
+
   it('accepts Claude native Skill success as platform-confirmed skill loading', () => {
     const parsed = {
       toolCalls: [

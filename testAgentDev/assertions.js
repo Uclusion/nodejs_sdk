@@ -96,8 +96,11 @@ function assertDelivery(parsed, client, expectedCommand) {
   );
   const delivery = found[0];
   if (client === 'claude') {
-    assert.strictEqual(delivery.input.persistent, true,
-      'Claude Monitor must be persistent');
+    // T-Marketing-287: Claude Code offers `persistent` only behind a flag it
+    // controls. Without it the bootstrap asks for the largest timeout, and a
+    // re-arm when the expiry notice arrives.
+    assert(delivery.input.persistent === true || Number.isInteger(delivery.input.timeout_ms),
+      'Claude Monitor must be persistent or carry a timeout to re-arm on');
     // TaskList, pgrep, and ps pipelines are all real listener prechecks;
     // newer Claude builds defer TaskList, making shell process checks common.
     // The uclusion pattern tolerates the grep self-exclusion idiom [u]clusion.
