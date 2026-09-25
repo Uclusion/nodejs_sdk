@@ -111,9 +111,10 @@ export default function (adminConfiguration) {
       return new RegExp(`${code} version ${note.version}(?![0-9])`).test(markdown);
     }
 
-    function assertView(markdown, groupId = marketId) {
-      assert(markdown.includes(`Workspace ID: ${marketId}. View ID: ${groupId}.`),
-        `The read must identify its stable workspace and view: ${markdown}`);
+    function assertView(markdown) {
+      // T-Marketing-281: the note inventory identifies the notes; reads carry no workspace or view ids.
+      assert(!markdown.includes('Workspace ID') && !markdown.includes('View ID'),
+        `The read must not repeat the workspace and view ids: ${markdown}`);
       assert(markdown.includes('Standing view notes:'), `The read must inventory its view notes: ${markdown}`);
     }
 
