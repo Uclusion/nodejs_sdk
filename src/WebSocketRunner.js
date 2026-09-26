@@ -16,6 +16,7 @@ class WebSocketRunner {
         this.previouslyQueued = [];
         this.reconnectTimeout = undefined;
         this.keepaliveInterval = undefined;
+        this.awaitingKeepaliveResponse = false;
         this.terminated = false;
     }
 
@@ -23,6 +24,7 @@ class WebSocketRunner {
         const handler = (event) => {
             //console.log(event);
             const payload = JSON.parse(event.data);
+            this.awaitingKeepaliveResponse = false;
             //we're going to filter the messagehandlers at each run
             //and if they return true assume they want to go away
             let consumed = false;
@@ -94,11 +96,19 @@ class WebSocketRunner {
 
     startKeepalive() {
         clearInterval(this.keepaliveInterval);
+        this.awaitingKeepaliveResponse = false;
         // AWS API Gateway closes websockets with no traffic for ~10 minutes and
         // events sent while reconnecting are lost, so keep the connection out of
-        // the idle regime. The server answers each ping with a pong event.
+        // the idle regime. A socket can also stay open after its server subscription
+        // disappears. No reply to a ping means we must reconnect and subscribe again.
         this.keepaliveInterval = setInterval(() => {
             if (this.socket && this.socket.readyState === this.socket.OPEN) {
+                if (this.awaitingKeepaliveResponse) {
+                    console.log('Websocket heartbeat timed out; closing to restore subscriptions');
+                    this.socket.close();
+                    return;
+                }
+                this.awaitingKeepaliveResponse = true;
                 this.send('ping');
             }
         }, this.keepaliveMilliseconds);

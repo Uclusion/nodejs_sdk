@@ -22,6 +22,7 @@ export default function (adminConfiguration) {
     let adminId;
     let approvableStageId;
     let doableStageId;
+    let requiresInputStageId;
 
     before(async function () {
       this.timeout(300000);
@@ -41,6 +42,8 @@ export default function (adminConfiguration) {
       assert(approvableStageId, 'Planning market creation should return its Approvable stage');
       doableStageId = result.stages.find((stage) => stage.name === 'Doable')?.id;
       assert(doableStageId, 'Planning market creation should return its Doable stage');
+      requiresInputStageId = result.stages.find((stage) => stage.name === 'Requires Input')?.id;
+      assert(requiresInputStageId, 'Planning market creation should return its Requires Input stage');
       await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const marketLogin = await loginUserToMarketAndGetToken(adminConfiguration, marketId);
       adminClient = marketLogin.client;
@@ -596,13 +599,14 @@ export default function (adminConfiguration) {
         () => pollMcp('get_job', { short_code_id: jobCode }),
         (markdown) => markdown.includes(bugMarker) && markdown.includes(replyMarker) &&
           markdown.includes(questionMarker) && markdown.includes(optionOne) &&
-          markdown.includes(optionTwo) && markdown.includes('This job is in stage Approvable.'));
+          markdown.includes(optionTwo) && markdown.includes('This job is in stage Requires Input.'));
       assert(jobMarkdown.includes(bugMarker) && jobMarkdown.includes(replyMarker),
         'The original bug and its reply thread should render on the converted job');
       assert(jobMarkdown.includes(questionMarker) && jobMarkdown.includes(optionOne) &&
         jobMarkdown.includes(optionTwo), 'The converted job should hold the optioned question');
-      assert(jobMarkdown.includes('This job is in stage Approvable.'),
-        'The converted Bugs job should wait for human approval');
+      // B-all-673: an open AI question now locks Approvable jobs too.
+      assert(jobMarkdown.includes('This job is in stage Requires Input.'),
+        `The converted Bugs job should wait for its question to be resolved: ${jobMarkdown}`);
 
       const movedComments = await pollFor(
         () => listMarketComments(),
@@ -630,7 +634,8 @@ export default function (adminConfiguration) {
 
       const fullJob = await pollFor(
         () => getFullInvestible(movedBug.investible_id),
-        (investible) => investible?.market_infos?.some((info) => info.ticket_code === jobCode));
+        (investible) => investible?.market_infos?.some((info) =>
+          info.ticket_code === jobCode && info.stage === requiresInputStageId));
       assert(fullJob, 'The converted Bugs job should be readable through its source task');
       assert.strictEqual(fullJob.investible.created_by, adminId,
         'The converted Bugs job should be human-owned');
@@ -639,8 +644,10 @@ export default function (adminConfiguration) {
       const fullJobInfo = fullJob.market_infos.find((info) => info.ticket_code === jobCode);
       assert(fullJobInfo?.assigned?.includes(adminId),
         'The human invoking ask_question should be assigned to the converted job');
-      assert.strictEqual(fullJobInfo?.stage, approvableStageId,
-        'The converted Bugs job should be created in Approvable');
+      assert.strictEqual(fullJobInfo?.stage, requiresInputStageId,
+        'The converted Bugs job should be locked while its AI question is open');
+      assert.strictEqual(fullJobInfo?.former_stage_id, approvableStageId,
+        'The converted Bugs job should retain Approvable as its approval stage');
 
       const savedVotes = await pollRead(async () => {
         const inlineId = createdQuestion.inline_market_id;
