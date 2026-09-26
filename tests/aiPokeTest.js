@@ -723,7 +723,7 @@ export default function (adminConfiguration) {
       if (currentMarketInfo.stage !== doableStage.id) {
         const updatedPromise = aiWebSocketRunner.waitForReceivedMessage({
           event_type: 'poke_ai',
-          message: `Updated ${jobTicketCode}`
+          message: `Updated ${jobTicketCode} stage is now Doable`
         }, MESSAGE_TIMEOUT_MS);
         await adminClient.investibles.stateChange(job.investible.id, {
           current_stage_id: currentMarketInfo.stage,
@@ -789,14 +789,14 @@ export default function (adminConfiguration) {
         DUPLICATE_QUIET_WINDOW_MS,
         'Derived stage processing should not deliver the blocker Added twice'
       );
-      await assertNoPoke(
-        {
-          event_type: 'poke_ai',
-          message: `Updated ${jobTicketCode}`
-        },
+      await Promise.all([
+        `Updated ${jobTicketCode}`,
+        `Updated ${jobTicketCode} stage is now Blocked`
+      ].map((message) => assertNoPoke(
+        { event_type: 'poke_ai', message },
         DUPLICATE_QUIET_WINDOW_MS,
         'The blocker-derived stage change should not emit a second job event'
-      );
+      )));
     }).timeout(360000);
 
     it('should emit Updated when a human edits a collaborated job description', async () => {
