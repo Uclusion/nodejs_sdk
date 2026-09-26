@@ -14,6 +14,7 @@ import conversionsTest from '../tests/conversionsTest.js';
 import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
 import listsTest from '../tests/listsTest.js';
+import exportTest from '../tests/exportTest.js';
 
 const Amplify = awsAmplify.default;
 
@@ -56,4 +57,5 @@ describe('uclusion', () => {
   marketInvestiblesTest(adminConfiguration, userConfiguration);
   investmentsTest(adminConfiguration, userConfiguration, 2);
   listsTest(adminConfiguration, userConfiguration);
+  exportTest(adminConfiguration);
 });

@@ -29,6 +29,7 @@ import jobAuditMcpTest from '../tests/jobAuditMcpTest.js';
 import designCapsuleMcpTest from '../tests/designCapsuleMcpTest.js';
 import addInfoUpdateMcpTest from '../tests/addInfoUpdateMcpTest.js';
 import aiDemoPoolTest from '../tests/aiDemoPoolTest.js';
+import exportTest from '../tests/exportTest.js';
 
 const Amplify = awsAmplify.default;
 
@@ -86,4 +87,5 @@ describe('uclusion', () => {
   designCapsuleMcpTest(adminConfiguration);
   addInfoUpdateMcpTest(adminConfiguration);
   aiDemoPoolTest(adminConfiguration);
+  exportTest(adminConfiguration);
 });
