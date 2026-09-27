@@ -218,7 +218,7 @@ export default function (adminConfiguration) {
     it('rejects protected targets and stale races without replacing other records', async function () {
       this.timeout(600000);
       const marker = randomUUID();
-      const human = await createInfo(jobCode, `Human record ${marker}`, { for_human: true });
+      const human = await createInfo(jobCode, `Human record ${marker}`, { for_human: true, is_my_lane: true });
       refusal(await updateInfo(human, human.version, 'Must not overwrite human text'));
       const capsule = success(await call('set_design_capsule', {
         job_id: jobCode, capsule: `## Summary\nProtected capsule ${marker}`
@@ -230,7 +230,7 @@ export default function (adminConfiguration) {
       const note = await createInfo(jobCode, `Race source ${marker}`);
       const version = await readInfo(note, `Race source ${marker}`);
       refusal(await updateInfo(note, version, 'Mixed mode', { short_code_id: jobCode }));
-      refusal(await updateInfo(note, version, 'Human impersonation', { for_human: true }));
+      refusal(await updateInfo(note, version, 'Human impersonation', { for_human: true, is_my_lane: true }));
       const bodies = [`First racer ${marker}`, `Second racer ${marker}`];
       const responses = await Promise.all(bodies.map((body) => updateInfo(note, version, body)));
       assert.strictEqual(responses.filter((response) => !response.isError).length, 1,

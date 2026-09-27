@@ -259,7 +259,7 @@ export default function (adminConfiguration) {
         `Without for_human the conversion must be refused: ${JSON.stringify(refused)}`);
 
       const moved = await pollMcp('move_suggestion_to_task',
-        { suggestion_short_code_id: suggestionCode, for_human: true });
+        { suggestion_short_code_id: suggestionCode, for_human: true, is_my_lane: true });
       const result = JSON.parse(moved).result;
       assert.notStrictEqual(result?.isError, true, moved);
       assert.strictEqual(result?.structuredContent?.short_code_id, suggestionCode, moved);
@@ -303,7 +303,7 @@ export default function (adminConfiguration) {
       assert(!report.includes(onJobCode), `The job's own suggestion must not move: ${report}`);
 
       const converted = JSON.parse(await pollMcp('move_suggestion_to_task',
-        { suggestion_short_code_id: viewCodes[0], for_human: true })).result;
+        { suggestion_short_code_id: viewCodes[0], for_human: true, is_my_lane: true })).result;
       assert.strictEqual(converted?.structuredContent?.status, 'moved',
         `A gathered suggestion should convert to a task of its new job: ${JSON.stringify(converted)}`);
     }).timeout(300000);
