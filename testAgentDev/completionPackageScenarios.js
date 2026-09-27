@@ -1,33 +1,13 @@
 export const COMPLETION_PACKAGE_CODEX_TOKEN_CEILING = 1000000;
 
+// T-Marketing-295: the package explains what `all` does and takes any other
+// reply as ordinary words, so only `all` is tested (Q-Marketing-226 O-3).
 const DEFINITIONS = Object.freeze([
-  Object.freeze({
-    id: 'completion-package-declined',
-    phase: 'completion-package-declined',
-    description: 'an agent-chat none reply declines every post-review completion action',
-    target: 'declined',
-    selection: 'none',
-    selectionSource: 'agent',
-    codexSandbox: 'read-only'
-  }),
-  Object.freeze({
-    id: 'completion-package-partial',
-    phase: 'completion-package-partial',
-    description: 'an earlier review 1 reply defeats a later agent 1,2 reply',
-    target: 'partial',
-    selection: '1',
-    selectionSource: 'review',
-    laterAgentSelection: '1,2',
-    codexSandbox: 'workspace-write',
-    codexReportedTokenCeiling: COMPLETION_PACKAGE_CODEX_TOKEN_CEILING
-  }),
   Object.freeze({
     id: 'completion-package-full',
     phase: 'completion-package-full',
     description: 'an agent-chat all reply performs the ordered completion package and sweep',
     target: 'full',
-    selection: 'all',
-    selectionSource: 'agent',
     codexSandbox: 'workspace-write',
     codexNetworkAccess: true,
     codexReportedTokenCeiling: COMPLETION_PACKAGE_CODEX_TOKEN_CEILING
@@ -52,50 +32,17 @@ export function completionPackagePrompt(session, targets) {
   if (!target?.jobCode?.startsWith('J-') || !target?.taskCode?.startsWith('T-')) {
     throw new Error(`${session.key} is missing its exact completion-package target`);
   }
-  if (!['all', 'none', '1'].includes(session.selection)) {
-    throw new Error(`${session.key} is missing its exact completion selection`);
-  }
-  if (!['agent', 'review'].includes(session.selectionSource)) {
-    throw new Error(`${session.key} is missing its exact completion response channel`);
-  }
-  if (!target?.reviewCode?.startsWith('R-') || !target?.completionMenu) {
+  if (!target?.reviewCode?.startsWith('R-') || !target?.completionPackage) {
     throw new Error(`${session.key} is missing its auto-opened completion review`);
   }
-  if (session.selectionSource === 'review' &&
-    (!target.reviewReplyCode?.startsWith('C-') || !session.laterAgentSelection)) {
-    throw new Error(`${session.key} is missing its first review reply or later agent reply`);
-  }
-  const priorPrompt = `The immediately preceding agent message linked review ` +
-    `${target.reviewCode} and printed this same menu:\n\n${target.completionMenu}`;
-  const agentSelection = session.laterAgentSelection || session.selection;
-  const responseSource = session.selectionSource === 'review' ? 'review' : 'agent chat';
-  const terminalTarget = session.selectionSource === 'review'
-    ? `the first human review reply ${target.reviewReplyCode}`
-    : `the review root ${target.reviewCode}`;
-  const interruptionRule = session.selectionSource === 'agent'
-    ? ' If processing stops before that terminal reply, the agent-chat response has no ' +
-      'durable record and the human must repeat it; do not reconstruct it from partial actions.'
-    : '';
-  const reply = `${agentSelection}\n\nThis is my direct reply in the agent to the four numbered ` +
-    `completion actions for exact ${target.jobCode}.`;
-  return `${reply}\n\n${priorPrompt}\n\n` +
+  return 'all\n\n' +
+    `The immediately preceding agent message linked review ${target.reviewCode} and ` +
+    `printed this same completion package:\n\n${target.completionPackage}\n\n` +
     `The primary human explicitly retains exact ${target.jobCode} as this session's assigned ` +
-    'lane. Handle this selection using the installed Uclusion workflow. Do not create or ' +
-    'resolve a Uclusion question for this completion permission, and do not open or update ' +
-    'another review. ' +
+    'lane. Handle this reply using the installed Uclusion workflow. ' +
     `All implementation and approved testing for exact ${target.taskCode} are already complete ` +
     `and testable; only ${target.taskFile} belongs to that task. Preserve its prepared diff and ` +
-    'every unrelated diff unchanged, and do not run tests, builds, or security work. Reload ' +
-    `the exact ${target.reviewCode} review thread and the exact job with assistance, then perform ` +
-    'only the package actions the first valid selection ' +
-    'authorizes, in their required order. Do not ask again ' +
-    'for individual package actions. Do not write an AI acknowledgement, receipt, status, or ' +
-    'other selection record before attempting the authorized actions. After all selected actions ' +
-    'succeed, immediately after the first selected action fails, or immediately for `none`, add ' +
-    `exactly one terminal reply to ${terminalTarget}. Record response source ` +
-    `\`${responseSource}\`, canonical selection \`${session.selection}\`, completed actions, ` +
-    'the failed action if any, and remaining selected actions.' + interruptionRule +
-    ' Do not deploy, force-push, mutate ' +
-    'another Uclusion item, clear unrelated notifications, offer a context clear, or switch ' +
-    'lanes before any authorized completion sweep finishes.';
+    'every unrelated diff unchanged, and do not run tests, builds, or security work. Do not ' +
+    'deploy, force-push, mutate another Uclusion item, clear unrelated notifications, or ' +
+    'offer a context clear.';
 }

@@ -111,21 +111,17 @@ process mutates the other job. Its scenario, fixture, and grader are
 `stageAuthorizationScenarios.js`, `stageAuthorizationFixture.js`, and
 `stageAuthorizationAssertions.js`.
 
-`npm run testAgentDevCompletionPackage` runs three fresh Codex processes in
-fail-fast order against separate completed, human-owned jobs: declined,
-partial, then full completion authorization. Every target begins Doable with
-one open AI review whose capsule-delta report ends in the four-action menu. The
-same menu is carried as the immediately preceding agent prompt without adding a
-second paid turn or a resume harness. The declined phase accepts `none` in the
-agent and performs no post-review action. The partial phase persists an earlier
-review reply of `1`, supplies a later conflicting agent reply of `1,2`, and
-must create only the task-coded local commit selected by the first response.
-The full phase accepts `all` in the agent and must order commit, local push,
-fresh exact-job notification check and clear, Reviewable transition, and the
-established completion sweep before any lane discovery. Every valid response
-reloads both the exact review thread and the exact job with assistance. Durable
-grading forbids a second review or menu prompt and preserves unrelated changes,
-notifications, and jobs. The catalog is defined by
+`npm run testAgentDevCompletionPackage` runs one fresh Codex process against a
+completed, human-owned job that begins Doable with one open AI review whose
+capsule-delta report ends in its completion package. The same package is
+carried as the immediately preceding agent prompt without adding a second paid
+turn or a resume harness. Only `all` is tested: any other reply is an ordinary
+instruction in the human's own words. The agent must order commit, local push,
+a fresh notification check, the Reviewable transition from Doable with its
+completion sweep, and last the exact-job clear carrying the terminal record,
+before any lane discovery. Durable grading forbids a second review or package
+prompt and preserves unrelated changes, notifications, and jobs. The catalog is
+defined by
 `completionPackageScenarios.js`, `completionPackageFixture.js`, and
 `completionPackageAssertions.js`.
 
@@ -165,16 +161,15 @@ process.
 Every semantic invocation uses an isolated temporary HOME, config, workspace,
 and fresh ephemeral thread. It passes `--ignore-user-config` and configures the
 fresh market's Uclusion MCP server as required. Semantic catalogs use the
-`read-only` sandbox except the completion-package partial and full phases,
-which use `workspace-write` solely against their disposable workspace. Those
-phases keep their working repository metadata in an ignored directory inside
+`read-only` sandbox except the completion-package phase, which uses
+`workspace-write` solely against its disposable workspace. That phase keeps their working repository metadata in an ignored directory inside
 that workspace so real local commits remain sandbox-writable, and initialize
 an ignored bare origin and export directory beside it. No Git-hosting or SSH
 credential, real remote, or external workspace path is passed to the child.
 Model and reasoning effort are managed defaults: the command and child
-environment contain no model or effort override. The longer partial and full
-completion phases have a 1,000,000-reported-token process ceiling; every other
-semantic process retains the 500,000-token ceiling. Only the full phase enables
+environment contain no model or effort override. The longer completion
+phase has a 1,000,000-reported-token process ceiling; every other semantic
+process retains the 500,000-token ceiling. Only the completion phase enables
 workspace-write command networking, because its required fresh DEV export must
 reach Uclusion before the completion scan can run.
 

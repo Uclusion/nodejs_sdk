@@ -188,47 +188,6 @@ function resultTexts(parsed, call) {
   return mcpResultTexts(item.result?.content);
 }
 
-function assertActionState(info, label, expected, context, optionalWhenEmpty = false) {
-  const line = String(info).split('\n').find((candidate) =>
-    new RegExp(`\\b${label}(?:\\s+actions?)?\\b`, 'i').test(candidate));
-  if (!line && optionalWhenEmpty && expected.length === 0) {
-    return;
-  }
-  assert(line, `${context} must name its ${label} actions`);
-  if (expected.length === 0) {
-    assert(/\b(?:none|empty|no actions?)\b|\[\s*\]/i.test(line),
-      `${context} must record no ${label} actions`);
-    return;
-  }
-  const numbers = [...new Set((line.match(/\b[1-4]\b/g) || []).map(Number))].sort();
-  if (expected.length === 4 && /\b1\s*(?:-|through|to)\s*4\b/i.test(line)) {
-    numbers.splice(0, numbers.length, 1, 2, 3, 4);
-  }
-  assert.deepStrictEqual(numbers, expected,
-    `${context} must record the exact ${label} action numbers`);
-}
-
-function assertPackageState(call, {
-  source,
-  selection,
-  completed,
-  failed,
-  remaining,
-  label
-}) {
-  const info = call.input?.info;
-  assert.strictEqual(typeof info, 'string', `${label} must contain durable package state`);
-  const sourcePattern = source === 'review' ? /\breview\b/i : /\b(?:agent|chat)\b/i;
-  const sourceLine = info.split('\n').find((line) => /\bsource\b/i.test(line));
-  assert(sourceLine && sourcePattern.test(sourceLine),
-    `${label} must identify its ${source} response source`);
-  assert(new RegExp(`canonical\\s+selection[^\\n]*\\b${selection.replace(',', '\\s*,\\s*')}\\b`, 'i')
-    .test(info), `${label} must record canonical selection ${selection}`);
-  assertActionState(info, 'completed', completed, label);
-  assertActionState(info, 'failed', failed, label, true);
-  assertActionState(info, 'remaining', remaining, label);
-}
-
 function visibleAgentText(parsed) {
   return (parsed?.events || [])
     .filter((event) => event?.type === 'item.completed' &&
@@ -257,57 +216,10 @@ function assertNoUnauthorizedShellActions(shellCalls) {
   }
 }
 
-function assertCompletionMenu(target) {
-  const menu = target.completionMenu;
-  assert.strictEqual(typeof menu, 'string',
-    'Completion fixture must expose its exact review/chat menu');
-  assert.deepStrictEqual([...menu.matchAll(/^(\d+)\. /gm)].map((match) => match[1]),
-    ['1', '2', '3', '4'], 'Completion menu must contain exactly actions 1 through 4');
-  assert(menu.includes('1. Commit only its reviewed changes'),
-    'Completion menu must make commit the first selectable action');
-  assert(menu.includes('2. Push only those commits.'),
-    'Completion menu must make push the second selectable action');
-  assert(menu.includes(`3. Clear only the notifications produced by ${target.jobCode}.`),
-    'Completion menu must describe the exact-job notification clear in user language');
-  assert(menu.includes(
-    `4. Move ${target.jobCode} from Doable to Reviewable and immediately run its completion sweep.`
-  ), 'Completion menu must couple the exact Reviewable transition and sweep');
-  assert(menu.includes('Reply `all`, `none`, or numbers such as `1,2,4`.'),
-    'Completion menu must expose all, none, and numbered-subset responses');
-  assert(menu.includes('respond on this review or in the agent'),
-    'Completion menu must expose both valid response channels');
-  assert(menu.includes('Action 4 is indivisible.'),
-    'Completion menu must preserve the indivisible transition and sweep');
-  assert(!/required fresh check|get_notifications|^5\. /im.test(menu),
-    'Completion menu must not expose internal check language or a fifth action');
-}
-
-function assertTargetReload(parsed, workflowCalls, target, label) {
-  const reviewLoads = exactCalls(workflowCalls, 'get_job').filter((call) =>
-    call.input?.short_code_id === target.reviewCode && call.input?.thread_only === true);
-  assert(reviewLoads.length > 0,
-    `${label} must reload the exact completion review thread`);
-  assert(reviewLoads.some((call) => resultTexts(parsed, call).some((text) =>
-    text.includes(target.reviewCode))),
-    `${label} review-thread reload must observe the exact review`);
-  if (target.reviewReplyCode) {
-    assert(reviewLoads.some((call) => resultTexts(parsed, call).some((text) =>
-      text.includes(target.reviewReplyCode))),
-      `${label} must observe the first valid review-thread reply`);
-  }
-  const targetLoads = exactCalls(workflowCalls, 'get_job').filter((call) =>
-    call.input?.short_code_id === target.jobCode);
-  assert(targetLoads.length > 0,
-    `${label} must reload the exact job after its valid selection`);
-  const assistanceReloads = targetLoads.filter((call) =>
-    !Array.isArray(call.input?.sections) || call.input.sections.includes('assistance'));
-  assert(assistanceReloads.length > 0,
-    `${label} must include assistance in its post-selection exact-job reload`);
-  const doableReloads = assistanceReloads.filter((call) =>
-    resultTexts(parsed, call).some((text) => text.includes('This job is in stage Doable.')));
-  assert(doableReloads.length > 0,
-    `${label} must observe the exact job still Doable before package actions`);
-  return { targetLoads, doableReloads, reviewLoads };
+function assertCompletionPackage(target) {
+  assert(typeof target.completionPackage === 'string' &&
+    target.completionPackage.includes('Reply `all`, or tell me in your own words'),
+  'Completion fixture must expose its review/chat completion package');
 }
 
 function assertNoPrematureLaneSwitch(workflowCalls, allowedCodes, afterEventIndex = null) {
@@ -340,27 +252,13 @@ export function assertCompletionPackageTranscript({
   });
   const targetName = phase.replace('completion-package-', '');
   const target = targets?.[targetName];
-  assert(target?.jobCode && target?.taskCode,
+  assert(target?.jobCode && target?.taskCode && target?.reviewCode,
     `Unknown or incomplete completion-package phase ${phase}`);
-  const expectedSelection = {
-    declined: { selection: 'none', source: 'agent', later: null },
-    partial: { selection: '1', source: 'review', later: '1,2' },
-    full: { selection: 'all', source: 'agent', later: null }
-  }[targetName];
-  assert.deepStrictEqual({
-    selection: target.selection,
-    source: target.selectionSource,
-    later: target.laterAgentSelection
-  }, expectedSelection, `${targetName} completion response fixture has the wrong channel or order`);
-  assert.strictEqual(target.reviewReplyCode !== null, targetName === 'partial',
-    'Only the partial phase should begin with a valid review-thread reply');
-  assertCompletionMenu(target);
+  assertCompletionPackage(target);
   const calls = (parsed?.toolCalls || []).filter(isUclusionMcp);
   assert.deepStrictEqual(calls.filter((call) => call.success !== true), [],
     'Completion-package transcript contains a failed or incomplete Uclusion call');
-  const auditCalls = calls.filter((call) =>
-    WORKFLOW_AUDIT_TOOLS.has(workflowToolName(call)));
-  for (const call of auditCalls) {
+  for (const call of calls.filter((entry) => WORKFLOW_AUDIT_TOOLS.has(workflowToolName(entry)))) {
     assert.strictEqual(call.input?.job_id, target.jobCode,
       `${workflowToolName(call)} must remain bound to the exact package job`);
   }
@@ -368,18 +266,7 @@ export function assertCompletionPackageTranscript({
     !WORKFLOW_AUDIT_TOOLS.has(workflowToolName(call)));
   const mutations = workflowCalls.filter((call) =>
     !READ_ONLY_WORKFLOW_TOOLS.has(workflowToolName(call)));
-  const { doableReloads, reviewLoads } = assertTargetReload(
-    parsed,
-    workflowCalls,
-    target,
-    `${targetName} completion package`
-  );
-  const allowedCodes = new Set([
-    target.jobCode,
-    target.taskCode,
-    target.reviewCode,
-    target.reviewReplyCode
-  ]);
+  const allowedCodes = new Set([target.jobCode, target.taskCode, target.reviewCode]);
   const shellCalls = (parsed?.toolCalls || [])
     .map((call) => ({ call, command: shellCommand(call) }))
     .filter((entry) => entry.command !== null);
@@ -387,211 +274,81 @@ export function assertCompletionPackageTranscript({
   const agentText = visibleAgentText(parsed);
   assert(!/(?:^|\s)\/clear(?:\s|$)|\bcontext clear\b/i.test(agentText),
     'Completion package must not offer or perform a context clear');
-  assert(!agentText.includes('Choose completion actions:'),
-    'A valid response must not re-offer the completion menu');
+  assert(!agentText.includes('Reply `all`, or tell me in your own words'),
+    'A reply of `all` must not re-offer the completion package');
+
+  // T-Marketing-295: commit, push, the stage move with its sweep, then the
+  // clear last, carrying the terminal record.
+  assert.deepStrictEqual(mutations.map(workflowToolName),
+    ['change_job_stage', 'add_info', 'clear_notifications'],
+    'Completion package performed an unauthorized or misordered mutation');
+  const [stage, sweep, clear] = mutations;
 
   const commitCalls = shellCalls.filter((entry) => gitOperation(entry.command, 'commit'));
   const pushCalls = shellCalls.filter((entry) => gitOperation(entry.command, 'push'));
-  const exportCalls = shellCalls.filter((entry) =>
-    isCompletionPackageExportCommand(entry.command, target.cliCommand));
-  const notificationChecks = exactCalls(workflowCalls, 'get_notifications');
-
-  if (targetName === 'declined') {
-    assert.deepStrictEqual(mutations.map(workflowToolName), ['add_info'],
-      'A none selection may only create its terminal package reply');
-    const terminalStatus = mutations[0];
-    assert.strictEqual(terminalStatus.input?.short_code_id, target.reviewCode,
-      'Declined terminal reply must target the exact review root');
-    assertPackageState(terminalStatus, {
-      source: 'agent',
-      selection: 'none',
-      completed: [],
-      failed: [],
-      remaining: [],
-      label: 'Declined terminal package reply'
-    });
-    assert(reviewLoads.some((call) => call.resultEventIndex < terminalStatus.eventIndex),
-      'Declined package must inspect the review before recording its terminal reply');
-    assertReferenceLoaded(
-      parsed,
-      expectedSkillFiles,
-      'references/operations.md',
-      terminalStatus.eventIndex,
-      'Declined completion operations reference'
-    );
-    assert.deepStrictEqual(commitCalls, [], 'Declined completion package must not commit');
-    assert.deepStrictEqual(pushCalls, [], 'Declined completion package must not push');
-    assert.deepStrictEqual(exportCalls, [], 'Declined completion package must not export');
-    assert.deepStrictEqual(notificationChecks, [],
-      'Declined completion package has no completion action requiring an inbox check');
-    assertNoPrematureLaneSwitch(
-      workflowCalls,
-      allowedCodes,
-      terminalStatus.resultEventIndex
-    );
-    return;
-  }
-
-  const expectedMutations = targetName === 'partial'
-    ? ['add_info']
-    : ['clear_notifications', 'change_job_stage', 'add_info', 'add_info'];
-  assert.deepStrictEqual(mutations.map(workflowToolName), expectedMutations,
-    `${targetName} completion package performed an unauthorized or misordered mutation`);
-  assert.strictEqual(commitCalls.length, 1,
-    `${targetName} completion package must issue one commit command`);
+  assert.strictEqual(commitCalls.length, 1, 'Completion package must issue one commit command');
+  assert.strictEqual(pushCalls.length, 1, 'Completion package must issue one push command');
   const commit = commitCalls[0];
-  assert.strictEqual(commit.call.success, true,
-    `${targetName} task-owned commit command must succeed`);
-
-  if (targetName === 'partial') {
-    assert(doableReloads.some((call) => call.resultEventIndex < commit.call.eventIndex),
-      'Partial package must reload the exact job and assistance before committing');
-    assert(reviewLoads.some((call) => call.resultEventIndex < commit.call.eventIndex &&
-      resultTexts(parsed, call).some((text) => text.includes(target.reviewReplyCode))),
-    'Partial package must observe the earlier human review reply before committing');
-    assertReferenceLoaded(
-      parsed,
-      expectedSkillFiles,
-      'references/operations.md',
-      commit.call.eventIndex,
-      'Partial completion operations reference'
-    );
-    assert.deepStrictEqual(pushCalls, [], 'Partial completion package must not push');
-    assert.deepStrictEqual(exportCalls, [], 'Partial completion package must not export');
-    const lateChecks = notificationChecks.filter((call) =>
-      commit.call.resultEventIndex < call.eventIndex);
-    assert(lateChecks.length > 0,
-      'Partial completion package must perform a fresh inbox check after its commit');
-    assert(commit.call.resultEventIndex < lateChecks[0].eventIndex,
-      'Partial completion package must check notifications after its authorized commit');
-    assert(resultTexts(parsed, lateChecks[0]).some((text) =>
-      text.includes(target.notificationCode) && text.includes(target.reviewCode)),
-      'Partial completion package must list its exact nested and review notifications');
-    const terminalStatus = mutations[0];
-    assert.strictEqual(terminalStatus.input?.short_code_id, target.reviewReplyCode,
-      'Partial terminal status must use the human review reply as its state root');
-    assertPackageState(terminalStatus, {
-      source: 'review',
-      selection: '1',
-      completed: [1],
-      failed: [],
-      remaining: [],
-      label: 'Partial terminal package reply'
-    });
-    assert(lateChecks[0].resultEventIndex < terminalStatus.eventIndex,
-      'Partial package must record terminal status after its final required check');
-    assert.deepStrictEqual(exactCalls(workflowCalls, 'clear_notifications'), [],
-      'Partial completion package must not clear notifications without authorization');
-    assertNoPrematureLaneSwitch(
-      workflowCalls,
-      allowedCodes,
-      terminalStatus.resultEventIndex
-    );
-    return;
-  }
-
-  assert(reviewLoads.some((call) => call.resultEventIndex < commit.call.eventIndex),
-    'Full package must inspect the review before committing');
-  assert(doableReloads.some((call) => call.resultEventIndex < commit.call.eventIndex),
-    'Full package must reload the exact job and assistance before committing');
+  const push = pushCalls[0];
+  assert.strictEqual(commit.call.success, true, 'Task-owned commit command must succeed');
+  assert.strictEqual(push.call.success, true, 'Completion package push command must succeed');
   assertReferenceLoaded(
     parsed,
     expectedSkillFiles,
     'references/operations.md',
     commit.call.eventIndex,
-    'Full completion operations reference'
+    'Completion operations reference'
   );
-  assert.strictEqual(pushCalls.length, 1,
-    'Full completion package must issue one push command');
-  const push = pushCalls[0];
-  assert.strictEqual(push.call.success, true,
-    'Full completion package push command must succeed');
   if (push.call === commit.call) {
     assert(gitOperationIndex(commit.command, 'commit') <
       gitOperationIndex(push.command, 'push'),
-      'Combined full-package shell command must place commit before push');
+      'Combined shell command must place commit before push');
   } else {
     assert(commit.call.resultEventIndex < push.call.eventIndex,
-      'Full completion package must finish commit before push');
+      'Completion package must finish commit before push');
   }
-  const clear = mutations[0];
-  const stage = mutations[1];
-  const sweep = mutations[2];
-  const terminalStatus = mutations[3];
-  const lateChecks = notificationChecks.filter((call) =>
-    push.call.resultEventIndex < call.eventIndex && call.resultEventIndex < clear.eventIndex);
-  assert(lateChecks.length > 0,
-    'Full completion package must freshly check notifications after push and before clear');
-  const freshCheck = lateChecks.at(-1);
-  assert(resultTexts(parsed, freshCheck).some((text) =>
-    text.includes(target.notificationCode)),
-    'Full completion package must list its seeded nested notification before clearing');
-  if (target.reviewCode) {
-    assert(resultTexts(parsed, freshCheck).some((text) => text.includes(target.reviewCode)),
-      'Full completion package must list its auto-opened review notification before clearing');
-  }
-  assertExactInput(clear, { short_code_id: target.jobCode },
-    'Full completion package notification clear');
-  assert(freshCheck.resultEventIndex < clear.eventIndex,
-    'Full completion package must finish listing notifications before clearing');
-  assertExactInput(stage, { job_id: target.jobCode, stage: 'Reviewable' },
-    'Full completion package stage transition');
-  assert(clear.resultEventIndex < stage.eventIndex,
-    'Full completion package must clear exact-job notifications before Reviewable');
-  const preStageReloads = exactCalls(workflowCalls, 'get_job').filter((call) =>
-    call.input?.short_code_id === target.jobCode &&
-    clear.resultEventIndex < call.eventIndex && call.resultEventIndex < stage.eventIndex);
-  assert(preStageReloads.length > 0,
-    'Full completion package must freshly reload the exact job after clear and before Reviewable');
-  assert(preStageReloads.some((call) => resultTexts(parsed, call).some((text) =>
-    text.includes('This job is in stage Doable.'))),
-    'Full completion package pre-stage reload must still observe exact-job Doable state');
-  assert.strictEqual(exportCalls.length, 1,
-    'Full completion package must run one fresh workspace export');
+
+  const freshChecks = exactCalls(workflowCalls, 'get_notifications').filter((call) =>
+    push.call.resultEventIndex < call.eventIndex && call.resultEventIndex < stage.eventIndex);
+  assert(freshChecks.length > 0,
+    'Completion package must freshly check notifications after push and before the stage move');
+  const freshCheck = freshChecks.at(-1);
+  assert(resultTexts(parsed, freshCheck).some((text) => text.includes(target.notificationCode)),
+    'Fresh notification check must list the seeded nested notification');
+
+  assertExactInput(stage, { job_id: target.jobCode, from_stage: 'Doable', stage: 'Reviewable' },
+    'Completion package stage transition');
+
+  const exportCalls = shellCalls.filter((entry) =>
+    isCompletionPackageExportCommand(entry.command, target.cliCommand));
+  assert.strictEqual(exportCalls.length, 1, 'Completion sweep must run one fresh workspace export');
   const exportCall = exportCalls[0];
-  assert.strictEqual(exportCall.call.success, true,
-    'Full completion-package workspace export must succeed');
+  assert.strictEqual(exportCall.call.success, true, 'Completion-sweep workspace export must succeed');
   assert(!/(?:^|\s)(?:-o|--output)(?:\s|=|$)/.test(exportCall.command),
     'Completion sweep must use the configured export destination without an output override');
   assert(stage.resultEventIndex < exportCall.call.eventIndex,
-    'Full completion package must enter Reviewable before running its sweep export');
+    'Completion package must enter Reviewable before running its sweep export');
   assertReferenceLoaded(
     parsed,
     expectedSkillFiles,
     'references/completion.md',
     exportCall.call.eventIndex,
-    'Full completion-sweep reference'
+    'Completion-sweep reference'
   );
-  const relativeExportPath = target.exportFile.slice(
-    target.exportFile.lastIndexOf('/.agent-dev-export/') + 1
-  );
-  const exportReads = shellCalls.filter(({ call, command }) =>
-    call.success === true &&
-    exportCall.call.resultEventIndex < call.eventIndex &&
-    call.resultEventIndex < sweep.eventIndex &&
-    (command.includes(target.exportFile) || command.includes(relativeExportPath)) &&
-    /\b(?:awk|cat|grep|head|rg|sed|tail)\b/.test(command));
-  assert(exportReads.length > 0,
-    'Completion sweep must read or search the newly written export before recording results');
   assert.strictEqual(sweep.input?.short_code_id, target.jobCode,
     'Completion sweep result must be recorded on the exact triggering job');
-  assert.strictEqual(typeof sweep.input?.info, 'string',
-    'Completion sweep result must contain durable evidence');
-  assert(sweep.input.info.includes(target.noCandidates),
+  assert(String(sweep.input?.info || '').includes(target.noCandidates),
     'Completion sweep must record the explicit no-candidate result');
   assert(exportCall.call.resultEventIndex < sweep.eventIndex,
     'Completion sweep must finish its fresh export before recording the result');
-  assert.strictEqual(terminalStatus.input?.short_code_id, target.reviewCode,
-    'Full terminal reply must target the exact review root');
-  assertPackageState(terminalStatus, {
-    source: 'agent',
-    selection: 'all',
-    completed: [1, 2, 3, 4],
-    failed: [],
-    remaining: [],
-    label: 'Full terminal package reply'
-  });
-  assert(sweep.resultEventIndex < terminalStatus.eventIndex,
-    'Full package must record terminal status only after its completion sweep');
-  assertNoPrematureLaneSwitch(workflowCalls, allowedCodes, terminalStatus.resultEventIndex);
+
+  assert.strictEqual(clear.input?.short_code_id, target.jobCode,
+    'Completion package must clear only the exact job');
+  assert.strictEqual(clear.input?.record?.short_code_id, target.reviewCode,
+    'The clear must carry the terminal record for the exact review');
+  assert(String(clear.input?.record?.info || '').trim(),
+    'The terminal record must state what completed');
+  assert(sweep.resultEventIndex < clear.eventIndex,
+    'The clear and its record must come after the completion sweep');
+  assertNoPrematureLaneSwitch(workflowCalls, allowedCodes, clear.resultEventIndex);
 }

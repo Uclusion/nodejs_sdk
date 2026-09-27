@@ -25,7 +25,7 @@ import {
 import { isCompletionPackageExportCommand } from '../completionPackageAssertions.js';
 
 describe('agent dev Codex semantic harness mechanics', () => {
-  it('plans exactly three independent Codex phases with unique keys and traces', () => {
+  it('plans the semantic, standalone-bug and completion-package Codex phases', () => {
     const plan = buildSemanticPlan();
     const standaloneBugPlan = buildStandaloneBugConversionPlan();
     const completionPackagePlan = buildCompletionPackagePlan();
@@ -51,91 +51,42 @@ describe('agent dev Codex semantic harness mechanics', () => {
     }]);
     assert.strictEqual(new Set(standaloneBugPlan.map((session) => session.key)).size, 1);
     assert.strictEqual(new Set(standaloneBugPlan.map((session) => session.traceName)).size, 1);
-    assert.deepStrictEqual(completionPackagePlan.map((session) => session.phase), [
-      'completion-package-declined',
-      'completion-package-partial',
-      'completion-package-full'
-    ]);
-    assert.deepStrictEqual(completionPackagePlan.map((session) => session.codexSandbox), [
-      'read-only',
-      'workspace-write',
-      'workspace-write'
-    ]);
-    assert.deepStrictEqual(completionPackagePlan.map((session) => session.selection), [
-      'none',
-      '1',
-      'all'
-    ]);
-    assert.deepStrictEqual(completionPackagePlan.map((session) => session.selectionSource), [
-      'agent',
-      'review',
-      'agent'
-    ]);
-    assert.deepStrictEqual(completionPackagePlan.map((session) => session.laterAgentSelection), [
-      undefined,
-      '1,2',
-      undefined
-    ]);
-    assert.deepStrictEqual(
-      completionPackagePlan.map((session) => session.codexReportedTokenCeiling),
-      [undefined, COMPLETION_PACKAGE_CODEX_TOKEN_CEILING,
-        COMPLETION_PACKAGE_CODEX_TOKEN_CEILING]
-    );
-    assert.deepStrictEqual(completionPackagePlan.map((session) => session.codexNetworkAccess),
-      [undefined, undefined, true]);
-    assert.strictEqual(new Set(completionPackagePlan.map((session) => session.key)).size, 3);
-    assert.strictEqual(new Set(completionPackagePlan.map((session) => session.traceName)).size, 3);
+    assert.deepStrictEqual(completionPackagePlan.map((session) => ({
+      phase: session.phase,
+      codexSandbox: session.codexSandbox,
+      codexNetworkAccess: session.codexNetworkAccess,
+      codexReportedTokenCeiling: session.codexReportedTokenCeiling
+    })), [{
+      phase: 'completion-package-full',
+      codexSandbox: 'workspace-write',
+      codexNetworkAccess: true,
+      codexReportedTokenCeiling: COMPLETION_PACKAGE_CODEX_TOKEN_CEILING
+    }]);
 
     const completionTarget = {
       jobCode: 'J-unit-1',
       taskCode: 'T-unit-1',
       reviewCode: 'R-unit-1',
-      reviewReplyCode: 'C-unit-1',
       taskFile: 'completion-unit.txt',
-      completionMenu: 'J-unit-1 has been reviewed. Choose completion actions:\n\n' +
+      completionPackage: 'J-unit-1 has been reviewed. `all` does this, in order:\n\n' +
         '1. Commit only its reviewed changes.\n' +
         '2. Push only those commits.\n' +
-        '3. Clear only the notifications produced by J-unit-1.\n' +
-        '4. Move J-unit-1 from Doable to Reviewable and immediately run its completion sweep.'
+        '3. Move J-unit-1 from Doable to Reviewable and immediately run its completion sweep.\n' +
+        '4. Clear only the notifications for J-unit-1, carrying the terminal record.\n\n' +
+        'Reply `all`, or tell me in your own words what you want, here or on this review.'
     };
-    for (const session of completionPackagePlan) {
-      const prompt = completionPackagePrompt(session, { [session.target]: completionTarget });
-      assert(prompt.includes(completionTarget.completionMenu),
-        `${session.phase} must carry the exact menu shown in the prior agent prompt`);
-      assert.strictEqual(
-        prompt.indexOf(completionTarget.completionMenu),
-        prompt.lastIndexOf(completionTarget.completionMenu),
-        `${session.phase} must carry the prior agent menu exactly once`
-      );
-      assert(prompt.includes(completionTarget.reviewCode),
-        `${session.phase} must name its already-open review`);
-      assert(prompt.startsWith(`${session.laterAgentSelection || session.selection}\n\n`),
-        `${session.phase} must expose the configured agent-channel reply first`);
-      assert(prompt.includes(
-        'Do not write an AI acknowledgement, receipt, status, or other selection record before'
-      ), `${session.phase} must prohibit a pre-action AI receipt`);
-      assert(prompt.includes('exactly one terminal reply'),
-        `${session.phase} must require one terminal package reply`);
-      const responseSource = session.selectionSource === 'review' ? 'review' : 'agent chat';
-      assert(prompt.includes(`response source \`${responseSource}\``),
-        `${session.phase} must carry its terminal response source`);
-      assert(prompt.includes(`canonical selection \`${session.selection}\``),
-        `${session.phase} must carry its canonical terminal selection`);
-      assert(prompt.includes('completed actions, the failed action if any, and remaining'),
-        `${session.phase} must carry the complete terminal result fields`);
-      const terminalTarget = session.selectionSource === 'review'
-        ? completionTarget.reviewReplyCode
-        : completionTarget.reviewCode;
-      assert(prompt.includes(`terminal reply to ${session.selectionSource === 'review'
-        ? 'the first human review reply'
-        : 'the review root'} ${terminalTarget}`),
-      `${session.phase} must bind its terminal reply to the response thread`);
-      assert.strictEqual(
-        prompt.includes('the human must repeat it'),
-        session.selectionSource === 'agent',
-        `${session.phase} must apply interruption replay only to agent-chat input`
-      );
-    }
+    const [session] = completionPackagePlan;
+    const prompt = completionPackagePrompt(session, { [session.target]: completionTarget });
+    assert(prompt.startsWith('all\n\n'), 'The human reply `all` must come first');
+    assert.strictEqual(
+      prompt.indexOf(completionTarget.completionPackage),
+      prompt.lastIndexOf(completionTarget.completionPackage),
+      'The prompt must carry the prior agent package exactly once'
+    );
+    assert(prompt.includes(completionTarget.completionPackage),
+      'The prompt must carry the package shown in the prior agent message');
+    assert(prompt.includes(completionTarget.reviewCode),
+      'The prompt must name the already-open review');
   });
 
   it('launches semantic Codex read-only with isolated defaults and no model or effort override', () => {

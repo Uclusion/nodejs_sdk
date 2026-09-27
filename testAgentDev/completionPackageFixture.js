@@ -10,18 +10,17 @@ export const NO_COMPLETION_CANDIDATES =
   'No completion-sweep candidates: no open dependency blocker matched the triggering work, ' +
   'and no unresolved job or bug became duplicate, obsolete, or in need of modification.';
 
-const PHASES = Object.freeze(['declined', 'partial', 'full']);
+// T-Marketing-295: only `all` is tested (Q-Marketing-226 O-3).
+const PHASES = Object.freeze(['full']);
 
-function completionMenu(jobCode, taskFile) {
-  return `${jobCode} has been reviewed. Choose completion actions:\n\n` +
+function completionPackage(jobCode, taskFile) {
+  return `${jobCode} has been reviewed. \`all\` does this, in order:\n\n` +
     `1. Commit only its reviewed changes in the completion fixture repository:\n` +
     `   - \`${taskFile}\`.\n` +
     '2. Push only those commits.\n' +
-    `3. Clear only the notifications produced by ${jobCode}.\n` +
-    `4. Move ${jobCode} from Doable to Reviewable and immediately run its completion sweep.\n\n` +
-    'Reply `all`, `none`, or numbers such as `1,2,4`. You may respond on this review ' +
-    'or in the agent. Selected actions run in numeric order and stop at the first failure. ' +
-    'Action 4 is indivisible.';
+    `3. Move ${jobCode} from Doable to Reviewable and immediately run its completion sweep.\n` +
+    `4. Clear only the notifications for ${jobCode}, carrying the terminal record.\n\n` +
+    'Reply `all`, or tell me in your own words what you want, here or on this review.';
 }
 
 function marketInfo(job, marketId) {
@@ -76,23 +75,6 @@ function referencesCode(message, code) {
       String(message?.type_object_id || '').includes(code));
 }
 
-function jobCore(snapshot) {
-  return {
-    stage_id: snapshot.stage_id,
-    job_resolved: snapshot.job_resolved,
-    assignments: snapshot.assignments,
-    task_resolved: snapshot.task_resolved,
-    question_codes: snapshot.question_codes,
-    review_count: snapshot.review_reports.length,
-    review_reply: snapshot.review_reply,
-    package_records: snapshot.package_records,
-    sweep_count: snapshot.sweep_notes.length,
-    capsule_codes: snapshot.capsule_codes,
-    target_notification_present: snapshot.target_notification_present,
-    review_notification_present: snapshot.review_notification_present
-  };
-}
-
 export class CompletionPackageDevFixture extends SemanticDevFixture {
   async initializeScenario() {
     this.reviewableStageId = this.stages.find((stage) =>
@@ -130,9 +112,8 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
         `${phase} target must not create a Uclusion completion question`);
       assert.strictEqual(snapshot.review_reports.length, 1,
         `${phase} target must begin with one auto-opened completion review`);
-      assert(snapshot.review_reports[0].body.trimEnd().endsWith(
-        this.completionPhases[phase].completionMenu),
-        `${phase} completion review must end with the four-action menu`);
+      assert(snapshot.review_reports[0].body.includes('Reply `all`, or tell me in your own words'),
+        `${phase} completion review must end with its completion package`);
       assert.strictEqual(snapshot.target_notification_present, true,
         `${phase} target must begin with its nested unread notification`);
       assert.strictEqual(snapshot.review_notification_present, true,
@@ -174,11 +155,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
   }
 
   async createCompletionTarget(phase) {
-    const outcome = {
-      declined: 'produce an amber compatibility ledger',
-      partial: 'produce a cobalt command inventory',
-      full: 'produce a violet handoff manifest'
-    }[phase];
+    const outcome = 'produce a violet handoff manifest';
     const taskFile = `completion-${phase}.txt`;
     const job = await this.adminClient.investibles.create({
       groupId: this.marketId,
@@ -187,8 +164,8 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       name: `Completion package ${phase} ${this.marker}`,
       description: `The completed task must ${outcome}. Its code and approved testing are ` +
         'complete and testable. Its files, dependencies, assumptions, and actor outcome are ' +
-        'independent from every other fixture job. Completion actions require the dedicated ' +
-        'review-first completion menu.'
+        'independent from every other fixture job. Completion actions require the ' +
+        'review-first completion package.'
     });
     const jobCode = await this.jobCodeFor(job);
     assert(jobCode.startsWith('J-'), `${phase} completion target is missing a J- code`);
@@ -222,7 +199,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
     assert(capsule?.ticket_code?.startsWith('R-'),
       `${phase} completion target is missing its current R- capsule`);
 
-    const menu = completionMenu(jobCode, taskFile);
+    const packageText = completionPackage(jobCode, taskFile);
     const reviewMarker = `Completion ${phase} review ${this.marker}`;
     await pollMcp(this.primaryConfiguration, this.uclusionToken, 'ask_for_review', {
       job_id: jobCode,
@@ -230,8 +207,8 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
         `Current intent/design capsule: ${capsule.ticket_code}.\n\n` +
         '## Deltas\n\nNo implementation deltas.\n\n' +
         'The prepared task-owned fixture file is complete and testable.\n\n' +
-        'AI product: Codex; model/version: AgentDev fixture; effort level: test.\n\n' +
-        menu
+        'AI product: Codex; model/version: AgentDev fixture.\n\n' +
+        packageText
     });
     const review = await pollFor(
       async () => (await this.listComments()).find((comment) =>
@@ -273,7 +250,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       taskFile,
       review,
       reviewCode: review.ticket_code,
-      completionMenu: menu
+      completionPackage: packageText
     };
   }
 
@@ -404,32 +381,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
   async preparePhase(session) {
     const phase = session.target;
     assert(PHASES.includes(phase), `Unknown completion-package phase ${session.phase}`);
-    const target = this.completionPhases[phase];
-    assert(['all', 'none', '1'].includes(session.selection),
-      `Unknown completion-package selection ${session.selection}`);
-    assert(['agent', 'review'].includes(session.selectionSource),
-      `Unknown completion-package response channel ${session.selectionSource}`);
-    target.selection = session.selection;
-    target.selectionSource = session.selectionSource;
-    target.laterAgentSelection = session.laterAgentSelection || null;
-    if (session.selectionSource === 'review') {
-      assert(!target.reviewReply,
-        `${phase} completion review already has a prepared first reply`);
-      const createdReply = await this.createHumanComment(
-        target.job,
-        session.selection,
-        target.review.id
-      );
-      target.reviewReply = await pollFor(
-        async () => (await this.listComments()).find((comment) =>
-          comment.id === createdReply.id),
-        Boolean,
-        20,
-        1000
-      );
-    }
-    const expectedEvent = session.laterAgentSelection || session.selection;
-    const phaseFixture = this.createPhaseFixture(session, expectedEvent);
+    const phaseFixture = this.createPhaseFixture(session, 'all');
     this.prepareRepository(phase, phaseFixture);
     this.activePhase = phase;
     phaseFixture.snapshot = () => this.snapshotCompletion(phase);
@@ -445,11 +397,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
         capsuleCode: target.capsuleCode,
         notificationCode: target.notificationCode,
         reviewCode: target.reviewCode,
-        reviewReplyCode: target.reviewReply?.ticket_code || null,
-        selection: target.selection,
-        selectionSource: target.selectionSource,
-        laterAgentSelection: target.laterAgentSelection,
-        completionMenu: target.completionMenu,
+        completionPackage: target.completionPackage,
         cliCommand: target.cliCommand,
         taskFile: target.taskFile,
         unrelatedFile: target.unrelatedFile,
@@ -550,9 +498,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       if (reviewCodes.length === 1) {
         target.reviewCode = reviewCodes[0];
       }
-      const reviewReply = target.reviewReply
-        ? jobComments.find((comment) => comment.id === target.reviewReply.id)
-        : null;
       const review = reviewReports.find((comment) => comment.id === target.review.id);
       const packageRecords = jobComments.filter((comment) =>
         comment.id !== review?.id &&
@@ -577,12 +522,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
           code: comment.ticket_code,
           body: comment.body || ''
         })),
-        review_reply: reviewReply ? {
-          id: reviewReply.id,
-          code: reviewReply.ticket_code,
-          body: reviewReply.body || '',
-          created_by: reviewReply.created_by
-        } : null,
         package_records: packageRecords.map((comment) => ({
           id: comment.id,
           code: comment.ticket_code,
@@ -618,18 +557,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
     const phase = phaseName.replace('completion-package-', '');
     const settled = (state) => {
       const job = state.jobs[phase];
-      if (phase === 'declined') {
-        return job.stage_id === this.doableStageId &&
-          job.package_records.length === 1;
-      }
-      if (phase === 'partial') {
-        return job.stage_id === this.doableStageId &&
-          job.review_reports.length === 1 &&
-          job.review_reports[0].code?.startsWith('R-') &&
-          job.review_notification_present === true &&
-          job.package_records.length === 1 &&
-          state.git?.commit_count === 1;
-      }
       return job.stage_id === this.reviewableStageId &&
         job.review_reports.length === 1 &&
         job.review_reports[0].code?.startsWith('R-') &&
@@ -667,24 +594,12 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       `${phase} phase must begin with one auto-opened review`);
     assert.strictEqual(beforeJob.review_reports[0].code, target.reviewCode,
       `${phase} phase must begin with the exact auto-opened review`);
-    assert(beforeJob.review_reports[0].body.trimEnd().endsWith(target.completionMenu),
-      `${phase} phase review must end with its exact four-action menu`);
+    assert(beforeJob.review_reports[0].body.trimEnd().endsWith(target.completionPackage),
+      `${phase} phase review must end with its completion package`);
     assert(beforeJob.review_reports[0].body.includes(target.capsuleCode),
       `${phase} phase review must name its current capsule`);
     assert.match(beforeJob.review_reports[0].body, /\bDeltas\b/i,
       `${phase} phase review must retain the capsule-delta report shape`);
-    const expectedReviewReply = target.reviewReply ? {
-      id: target.reviewReply.id,
-      code: target.reviewReply.ticket_code,
-      body: target.reviewReply.body || '',
-      created_by: this.adminId
-    } : null;
-    assert.deepStrictEqual(beforeJob.review_reply, expectedReviewReply,
-      `${phase} phase must begin with only its configured review-channel reply`);
-    if (expectedReviewReply) {
-      assert(beforeJob.review_reply.body.includes(target.selection),
-        `${phase} phase review reply must contain its first valid selection`);
-    }
     assert.deepStrictEqual(beforeJob.package_records, [],
       `${phase} phase must begin before any AI package-state record`);
     assert.strictEqual(beforeJob.target_notification_present, true,
@@ -692,7 +607,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
     assert.strictEqual(beforeJob.review_notification_present, true,
       `${phase} phase must begin with its review notification`);
     assert.deepStrictEqual(afterJob.question_codes, [],
-      `${phase} phase must not persist its completion selection as a Uclusion question`);
+      `${phase} phase must not persist its completion reply as a Uclusion question`);
     assert.strictEqual(afterJob.task_resolved, true,
       `${phase} phase must preserve its resolved implementation task`);
     assert.strictEqual(afterJob.job_resolved, false,
@@ -705,19 +620,12 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       `${phase} package must preserve exactly one review`);
     assert.deepStrictEqual(afterJob.review_reports[0], beforeJob.review_reports[0],
       `${phase} package must not replace or update its auto-opened review`);
-    assert.deepStrictEqual(afterJob.review_reply, beforeJob.review_reply,
-      `${phase} package must preserve its first review-channel reply`);
     assert.strictEqual(after.decoy_notification_present, true,
       `${phase} phase must preserve the unrelated unread notification`);
     assert.deepStrictEqual(after.git.remotes, ['origin'],
       `${phase} package must retain only its disposable origin`);
     assert.strictEqual(after.git.origin_url, target.remotePath,
       `${phase} package must retain the exact local bare origin`);
-
-    for (const otherPhase of PHASES.filter((candidate) => candidate !== phase)) {
-      assert.deepStrictEqual(jobCore(after.jobs[otherPhase]), jobCore(before.jobs[otherPhase]),
-        `${phase} phase changed unrelated ${otherPhase} completion state`);
-    }
 
     const expectedDirty = [
       ` M ${target.taskFile}`,
@@ -733,32 +641,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       after.git.unrelated_baseline_content,
       `${phase} package must leave the unrelated change uncommitted`
     );
-    if (phase === 'declined') {
-      assert.strictEqual(afterJob.stage_id, this.doableStageId,
-        'Declined package must leave the exact job Doable');
-      assert.strictEqual(afterJob.review_reports[0].code, target.reviewCode,
-        'Declined package must keep the review that preceded its none reply');
-      assert.strictEqual(afterJob.sweep_notes.length, 0,
-        'Declined package must not record a completion sweep');
-      assert.strictEqual(afterJob.target_notification_present, true,
-        'Declined package must preserve the exact job notification');
-      assert.strictEqual(afterJob.review_notification_present, true,
-        'Declined package must preserve the completion review notification');
-      assert.strictEqual(afterJob.package_records.length, 1,
-        'Declined package must record exactly one terminal reply for its chat selection');
-      assert.strictEqual(afterJob.package_records[0].reply_id, target.review.id,
-        'Declined terminal reply must be recorded on the exact review root');
-      assert.deepStrictEqual(after.git.status, expectedDirty,
-        'Declined package must preserve both prepared diffs');
-      assert.strictEqual(after.git.working_content, after.git.ready_content,
-        'Declined package must preserve the prepared task-owned content');
-      assert.strictEqual(after.git.head, after.git.baseline_head,
-        'Declined package must not commit');
-      assert.strictEqual(after.git.origin_head, after.git.baseline_head,
-        'Declined package must not push');
-      return;
-    }
-
     assert(afterJob.review_reports[0].code?.startsWith('R-'),
       `${phase} completion review must expose its durable R- code`);
     assert.deepStrictEqual(after.git.status, expectedUnrelatedDirty,
@@ -773,24 +655,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       `${phase} commit must preserve the prepared task-owned content`);
     assert.deepStrictEqual(after.git.origin_refs, ['refs/heads/main'],
       `${phase} package must not create or push another branch`);
-
-    if (phase === 'partial') {
-      assert.strictEqual(afterJob.stage_id, this.doableStageId,
-        'Partial package must keep the exact job Doable');
-      assert.strictEqual(afterJob.sweep_notes.length, 0,
-        'Partial package must not record a completion sweep');
-      assert.strictEqual(afterJob.target_notification_present, true,
-        'Partial package must preserve the exact job notification');
-      assert.strictEqual(afterJob.review_notification_present, true,
-        'Partial package must preserve the completion review notification');
-      assert.strictEqual(afterJob.package_records.length, 1,
-        'Partial package must record one terminal status on its human review reply');
-      assert.strictEqual(afterJob.package_records[0].reply_id, target.reviewReply.id,
-        'Partial terminal status must use the human review reply as its state root');
-      assert.strictEqual(after.git.origin_head, after.git.baseline_head,
-        'Partial package must not push its commit-only selection');
-      return;
-    }
 
     assert.strictEqual(afterJob.stage_id, this.reviewableStageId,
       'Full package must move the exact job to Reviewable');
