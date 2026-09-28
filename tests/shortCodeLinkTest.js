@@ -11,6 +11,7 @@ import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 export default function (adminConfiguration) {
   describe('#test short codes in AI content become internal-form links (B-all-528, C-all-1358, B-all-530, S-all-321)', () => {
     let accountClient;
+    let accountToken;
     let adminClient;
     let marketId;
     let uclusionToken;
@@ -23,6 +24,7 @@ export default function (adminConfiguration) {
       }
       const accountLogin = await loginUserToAccountAndGetToken(adminConfiguration);
       accountClient = accountLogin.client;
+      accountToken = accountLogin.accountToken;
       const result = await accountClient.markets.createMarket({
         name: 'Short code link integration',
         market_type: 'PLANNING'
@@ -136,6 +138,49 @@ export default function (adminConfiguration) {
         `The target job's title must not become link text: ${referencingMarkdown}`);
       assert(referencingMarkdown.includes(codeSpan),
         `Job description code span should keep ${jobTicketCode} bare: ${referencingMarkdown}`);
+    }).timeout(600000);
+
+    async function listComments() {
+      const versions = await accountClient.summaries.versions(accountToken, [marketId]);
+      const marketEntry = (versions.signatures || []).find((entry) => entry.market_id === marketId);
+      const commentVersions = new Map();
+      (marketEntry?.signatures || [])
+        .filter((signature) => signature.type === 'comment')
+        .flatMap((signature) => signature.object_versions || [])
+        .forEach((version) => {
+          commentVersions.set(version.object_id_one,
+            Math.max(commentVersions.get(version.object_id_one) || 0, version.version));
+        });
+      if (commentVersions.size === 0) {
+        return [];
+      }
+      return adminClient.investibles.getMarketComments(
+        [...commentVersions].map(([id, version]) => ({ id, version })));
+    }
+
+    it('stores an AI [CODE](#CODE) anchor as the link a bare code gets (B-all-679)', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Anchor target job ${marker}`,
+        description: 'Job an AI anchor link will reference.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      // get_job renders every stored link as [CODE](#CODE) and agents copy that anchor.
+      // get_job renders a dead #CODE href the same way, so only the stored body shows it.
+      await pollMcp('add_info', {
+        short_code_id: jobTicketCode,
+        info: `Anchor ${marker} points at [${jobTicketCode}](#${jobTicketCode}).`,
+        tz: 'America/Los_Angeles'
+      });
+      const comments = await pollFor(listComments,
+        (fetched) => fetched.some((comment) => comment.body?.includes(marker)));
+      const comment = comments.find((candidate) => candidate.body?.includes(marker));
+      assert(comment, `The AI comment carrying ${marker} was never stored`);
+      assert(comment.body.includes(`href="/dialog/${marketId}/${job.investible.id}"`),
+        `The anchor should be stored as the job's internal link: ${comment.body}`);
+      assert(!comment.body.includes(`href="#${jobTicketCode}"`),
+        `The anchor must not be stored as a page-relative #CODE link: ${comment.body}`);
     }).timeout(600000);
   });
 }
