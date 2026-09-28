@@ -21,6 +21,7 @@ import notificationsMcpTest from '../tests/notificationsMcpTest.js';
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import findWorkOrderingTest from '../tests/findWorkOrderingTest.js';
 import missingToolsMcpTest from '../tests/missingToolsMcpTest.js';
+import reopenMcpTest from '../tests/reopenMcpTest.js';
 import shortCodeLinkTest from '../tests/shortCodeLinkTest.js';
 import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
@@ -79,6 +80,7 @@ describe('uclusion', () => {
   viewNotesMcpTest(adminConfiguration);
   findWorkOrderingTest(adminConfiguration);
   missingToolsMcpTest(adminConfiguration);
+  reopenMcpTest(adminConfiguration);
   shortCodeLinkTest(adminConfiguration);
   marketInvestiblesTest(adminConfiguration, userConfiguration);
   investmentsTest(adminConfiguration, userConfiguration, 2);
