@@ -550,8 +550,9 @@ export default function (adminConfiguration, userConfiguration) {
         short_code_id: questionCode,
         thread_only: true
       });
+      // S-all-345: show what the thread read said, so a failure tells which read disagreed.
       assert(restoredThread.includes('This job is in stage Doable.'),
-        'A thread reload should name the same restored stage');
+        `A thread reload should name the same restored stage: ${restoredThread}`);
       const restoredStage = await pollFor(() => getJobStage(job),
         (stageId) => stageId === doableStage.id);
       assert.strictEqual(restoredStage, doableStage.id,
