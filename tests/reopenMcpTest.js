@@ -65,7 +65,7 @@ export default function (adminConfiguration) {
     }
 
     async function jobStage(jobCode) {
-      return JSON.parse(mcpText(await pollMcp('get_job', { short_code_id: jobCode, stage_only: true }))).stage;
+      return toolResult(await pollMcp('get_job', { short_code_id: jobCode, stage_only: true })).structuredContent.stage;
     }
 
     const OPTIONS = [

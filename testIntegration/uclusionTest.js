@@ -23,6 +23,8 @@ import inlineDuplicateNotificationsMcpTest from '../tests/inlineDuplicateNotific
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import findWorkOrderingTest from '../tests/findWorkOrderingTest.js';
 import missingToolsMcpTest from '../tests/missingToolsMcpTest.js';
+import reopenMcpTest from '../tests/reopenMcpTest.js';
+import nextStageTest from '../tests/nextStageTest.js';
 import taskMoveCliTest from '../tests/taskMoveCliTest.js';
 import shortCodeLinkTest from '../tests/shortCodeLinkTest.js';
 import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
@@ -33,6 +35,7 @@ import jobAuditMcpTest from '../tests/jobAuditMcpTest.js';
 import designCapsuleMcpTest from '../tests/designCapsuleMcpTest.js';
 import addInfoUpdateMcpTest from '../tests/addInfoUpdateMcpTest.js';
 import aiDemoPoolTest from '../tests/aiDemoPoolTest.js';
+import exportTest from '../tests/exportTest.js';
 
 const Amplify = awsAmplify.default;
 
@@ -89,6 +92,8 @@ describe('uclusion', () => {
   viewNotesMcpTest(adminConfiguration);
   findWorkOrderingTest(adminConfiguration);
   missingToolsMcpTest(adminConfiguration);
+  reopenMcpTest(adminConfiguration);
+  nextStageTest(adminConfiguration);
   taskMoveCliTest(adminConfiguration);
   shortCodeLinkTest(adminConfiguration);
   marketInvestiblesTest(adminConfiguration, userConfiguration);
@@ -99,4 +104,5 @@ describe('uclusion', () => {
   designCapsuleMcpTest(adminConfiguration);
   addInfoUpdateMcpTest(adminConfiguration);
   aiDemoPoolTest(adminConfiguration);
+  exportTest(adminConfiguration);
 });

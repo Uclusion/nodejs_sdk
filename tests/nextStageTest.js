@@ -6,7 +6,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, mcpText, pollFor, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, pollFor, sleep } from './commonTestFunctions.js';
 
 // J-all-488: Next stage on a Debatable job is where the server returns it, and setting it changes that.
 export default function (adminConfiguration) {
@@ -65,7 +65,7 @@ export default function (adminConfiguration) {
     }
 
     async function jobStage(jobCode) {
-      return JSON.parse(mcpText(await pollMcp('get_job', { short_code_id: jobCode, stage_only: true }))).stage;
+      return JSON.parse(await pollMcp('get_job', { short_code_id: jobCode, stage_only: true })).result.structuredContent.stage;
     }
 
     async function listMarketComments() {
