@@ -166,7 +166,7 @@ export default function (adminConfiguration) {
       const tasksOnly = await pollMcp('get_job', { short_code_id: jobCode, sections: ['tasks'] });
       assert(tasksOnly.includes(taskMarkerA), 'sections tasks should include the tasks');
       assert(!tasksOnly.includes(questionMarker), 'sections tasks should exclude assistance');
-      assert(tasksOnly.includes(descriptionMarker), 'scoped get_job keeps the job description');
+      assert(!tasksOnly.includes(descriptionMarker), 'Task-scoped get_job omits the job description');
 
       const assistanceOnly = await pollMcp('get_job', { short_code_id: jobCode, sections: ['assistance'] });
       assert(assistanceOnly.includes(questionMarker), 'sections assistance should include the question');

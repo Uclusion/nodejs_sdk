@@ -799,12 +799,12 @@ export default function (adminConfiguration) {
       )));
     }).timeout(360000);
 
-    it('should emit Updated when a human edits a collaborated job description', async () => {
+    it('should emit description-change Updated when a human edits a collaborated job description', async () => {
       const marker = randomUUID();
       const { job, jobTicketCode } = await createCollaboratedJob(marker);
       const updatedSignature = {
         event_type: 'poke_ai',
-        message: `Updated ${jobTicketCode}`
+        message: `Updated ${jobTicketCode} description change`
       };
       const locked = await adminClient.investibles.lock(job.investible.id);
       await assertNoPoke(
@@ -874,7 +874,7 @@ export default function (adminConfiguration) {
       const jobTicketCode = await getTicketCode(job);
       const updatedSignature = {
         event_type: 'poke_ai',
-        message: `Updated ${jobTicketCode}`
+        message: `Updated ${jobTicketCode} description change`
       };
       const locked = await adminClient.investibles.lock(job.investible.id);
       await assertNoPoke(

@@ -251,12 +251,36 @@ export default function (adminConfiguration, userConfiguration) {
       return { jobCode, question, client, options };
     }
 
+    function assertRenderedRecommendation(rendered, questionCode, vote, certainty, reason) {
+      const qualifiedOptionCode = `${questionCode}_${vote.option_code}`;
+      const optionAnchor = qualifiedOptionCode.toLowerCase();
+      const optionHeader = `#### Option ${qualifiedOptionCode}<a name="${optionAnchor}"></a>`;
+      // B-all-657/T-all-2547: option and vote anchors retain their question qualification.
+      assert(rendered.includes(optionHeader),
+        `The option header must carry its question qualified anchor: ${rendered}`);
+      const optionBody = rendered.split(optionHeader)[1].split('\n#### Option ')[0];
+      assert(optionBody.includes('Stage: Approvable.'),
+        'The selected option must explicitly retain its actual stage');
+      const voteHeader = optionBody.match(
+        new RegExp(`^> ##### Vote <a name="${optionAnchor}_\\d+"></a>.*$`, 'm'))?.[0];
+      assert(voteHeader, `The vote must render attached to option ${vote.option_code}: ${rendered}`);
+      const certaintyText = [null, 'Uncertain', 'Somewhat Uncertain', 'Somewhat Certain',
+        'Certain', 'Very Certain'][certainty];
+      assert(voteHeader.includes(`For, ${vote.quantity}/100, ${certaintyText}; Reason `),
+        `The vote must retain plain direction and numeric/text certainty: ${voteHeader}`);
+      const reasonCode = `${questionCode}_${vote.reason.ticket_code}`;
+      assert(voteHeader.includes(`${reasonCode}<a name="${reasonCode.toLowerCase()}"></a>`),
+        `The compact vote must retain its qualified reason code and anchor: ${voteHeader}`);
+      assert(optionBody.includes(reason), 'The selected option must retain the vote reason body');
+      return voteHeader;
+    }
+
     async function assertRecommendation(context, optionName, certainty, reason) {
       const votes = await pollFor(
         () => readOptionVotes(context.client, context.question.created_by, context.options),
         (values) => values.length === 1 && values[0].option_name === optionName &&
           values[0].quantity === [0, 5, 25, 50, 75, 100][certainty] &&
-          values[0].reason?.body?.includes(reason));
+          values[0].reason?.ticket_code && values[0].reason.body?.includes(reason));
       assert.strictEqual(votes.length, 1, 'The AI must hold exactly one preferred For vote');
       const [vote] = votes;
       assert.strictEqual(vote.option_name, optionName, 'The vote must bind to the selected created option');
@@ -271,19 +295,8 @@ export default function (adminConfiguration, userConfiguration) {
         short_code_id: context.question.ticket_code
       }), (text) => text.includes(reason));
       assert(markdown.includes(reason), 'A reload must expose the saved vote reason');
-      // B-all-657: the reader must be able to tell which option the vote was cast on
-      // from the vote's own header, without parsing its reason prose.
-      const optionCode = context.options
-        .find((option) => option.investible.id === vote.option_id)?.market_infos[0]?.ticket_code;
-      assert(optionCode, 'The voted option must carry a ticket code to anchor on');
-      const qualifiedOptionCode = `${context.question.ticket_code}_${optionCode}`;
-      const optionAnchor = qualifiedOptionCode.toLowerCase();
-      const rendered = mcpText(markdown);
-      // T-all-2547: the option's rendered name carries its question's code, like its anchor
-      assert(rendered.includes(`#### Option ${qualifiedOptionCode}<a name="${optionAnchor}"></a>`),
-        `The option header must carry its question qualified anchor: ${rendered}`);
-      assert(new RegExp(`Vote <a name="${optionAnchor}_\\d+"></a>`).test(rendered),
-        `The vote must render attached to option ${optionCode}: ${rendered}`);
+      assert(vote.option_code, 'The voted option must carry a ticket code to anchor on');
+      assertRenderedRecommendation(mcpText(markdown), context.question.ticket_code, vote, certainty, reason);
       return vote;
     }
 
@@ -294,7 +307,17 @@ export default function (adminConfiguration, userConfiguration) {
         { new_option_index: 1, certainty: 3, reason });
       assert.notStrictEqual(context.question.created_by, adminId);
       assert(!context.question.resolved, 'The AI recommendation must leave the question open');
-      await assertRecommendation(context, `Second ${marker}`, 3, reason);
+      const vote = await assertRecommendation(context, `Second ${marker}`, 3, reason);
+      const voteHeaders = [];
+      for (const shortCode of [context.jobCode, `${context.question.ticket_code}_${vote.option_code}`]) {
+        const markdown = await pollFor(
+          () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: shortCode }),
+          (text) => text.includes(reason));
+        voteHeaders.push(assertRenderedRecommendation(
+          mcpText(markdown), context.question.ticket_code, vote, 3, reason));
+      }
+      assert.strictEqual(voteHeaders[0], voteHeaders[1],
+        'Broad and qualified option reads must expose the same compact vote and anchors');
     }).timeout(360000);
 
     it('selects an added option by its index within the new batch', async () => {

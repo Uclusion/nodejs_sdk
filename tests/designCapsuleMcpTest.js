@@ -14,7 +14,7 @@ import {
   INTEGRATION_TEST_SUB_TYPE
 } from './jobAuditMcpTest.js';
 
-const CAPSULE_HEADING = '#### Current intent/design capsule';
+const CAPSULE_CONTEXT = 'Capsules (selected ';
 const REGION = 'us-west-2';
 const COMMENTS_TABLE_BY_BASE_URL = new Map([
   ['https://dev.api.uclusion.com/v1', 'uclusion-markets-dev-comments'],
@@ -202,13 +202,13 @@ export default function (adminConfiguration) {
     }
 
     function hasCapsuleReference(markdown, capsule) {
-      return markdown.includes(
-        `capsule: ${capsule.capsule_short_code_id} version ${capsule.capsule_version}.`);
+      return new RegExp(
+        `=${capsule.capsule_short_code_id} v${capsule.capsule_version}(?![0-9])`).test(markdown);
     }
 
     async function readTarget(shortCode, expectedMarker, renderedStateIsReady = () => true) {
       const hasExpectedState = (markdown) =>
-        markdown.includes(CAPSULE_HEADING) &&
+        markdown.includes(CAPSULE_CONTEXT) &&
         markdown.includes(expectedMarker) &&
         renderedStateIsReady(markdown);
       const response = await pollFor(
@@ -375,9 +375,9 @@ export default function (adminConfiguration) {
         'set_design_capsule copy must describe target-only create-or-replace behavior');
       assert.deepStrictEqual(
         Object.keys(capsuleTool.inputSchema.properties).sort(),
-        ['capsule', 'job_id', 'task_id', 'update_capsule_short_code_id',
+        ['capsule', 'job_id', 'resolve_question_short_code_ids', 'task_id', 'update_capsule_short_code_id',
           'update_capsule_version'],
-        'Target mode must state the job and optionally its task'
+        'Capsule writes must retain target/revision fields and optional answered-question resolution'
       );
       assert.deepStrictEqual(
         capsuleTool.inputSchema.oneOf.map((choice) => choice.required),
@@ -454,7 +454,7 @@ export default function (adminConfiguration) {
         job.investible.id, marketId, capsuleReplyMarker, persistedTaskV1.id);
       const capsuleReplyCode = await commentCode(capsuleReply);
       const capsuleReplyMarkdown = await readTarget(capsuleReplyCode, capsuleReplyMarker);
-      assert(capsuleReplyMarkdown.includes(`Selected implementation target: Task ${taskTicketCode}.`),
+      assert(capsuleReplyMarkdown.includes(`Capsules (selected Task ${taskTicketCode}):`),
         'A reply to a task capsule must retain that task capsule as its sole contract');
       assert(capsuleReplyMarkdown.includes(createdTask.capsule_short_code_id));
       assert(!capsuleReplyMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
@@ -466,7 +466,7 @@ export default function (adminConfiguration) {
         thread_only: true
       });
       const capsuleReplyThread = toolText(capsuleReplyThreadResponse);
-      assert(capsuleReplyThread.includes(`Selected implementation target: Task ${taskTicketCode}.`));
+      assert(capsuleReplyThread.includes(`Capsules (selected Task ${taskTicketCode}):`));
       assert(capsuleReplyThread.includes(createdTask.capsule_short_code_id)
         && capsuleReplyThread.includes(capsuleReplyMarker));
       assert(!capsuleReplyThread.includes(`Job capsule version one ${marker}`));
@@ -507,27 +507,27 @@ export default function (adminConfiguration) {
 
       const jobMarkdown = await readTarget(jobTicketCode, createdJob.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, createdJob)
-          && markdown.includes(`Task ${missingTaskCode} capsule: none.`)
-          && markdown.includes(`Task ${taskTicketCode} capsule: ${createdTask.capsule_short_code_id} version `));
-      assert(jobMarkdown.includes(`Selected implementation target: Job ${jobTicketCode}.`));
+          && markdown.includes(`Task ${missingTaskCode}=none`)
+          && markdown.includes(`Task ${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
+      assert(jobMarkdown.includes(`Capsules (selected Job ${jobTicketCode}):`));
       assert(hasCapsuleReference(jobMarkdown, createdJob));
       assert(!jobMarkdown.includes(`Job capsule version one ${marker}`));
       assert(!jobMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
         'Job get_job must not merge in a task capsule');
       const taskMarkdown = await readTarget(taskTicketCode, createdTask.capsule_short_code_id);
-      assert(taskMarkdown.includes(`Selected implementation target: Task ${taskTicketCode}.`));
+      assert(taskMarkdown.includes(`Capsules (selected Task ${taskTicketCode}):`));
       assert(!taskMarkdown.includes(`Job capsule version one ${marker}`),
         'Task get_job must not fall back to the job capsule');
       const groupedMarkdown = await readTarget(groupedTicketCode, createdTask.capsule_short_code_id);
-      assert(groupedMarkdown.includes(`Selected implementation target: Task ${taskTicketCode}.`),
+      assert(groupedMarkdown.includes(`Capsules (selected Task ${taskTicketCode}):`),
         'Grouped get_job must select the normalized top-level task capsule');
       assert(!groupedMarkdown.includes(`Job capsule version one ${marker}`),
         'Grouped get_job must not merge in or fall back to the job capsule');
       for (const markdown of [taskMarkdown, groupedMarkdown]) {
         assert(!markdown.includes(`Task capsule selected through grouped child ${marker}`));
       }
-      const missingMarkdown = await readTarget(missingTaskCode, `Task ${missingTaskCode} capsule: none.`);
-      assert(missingMarkdown.includes(`Selected implementation target: Task ${missingTaskCode}.`));
+      const missingMarkdown = await readTarget(missingTaskCode, `Task ${missingTaskCode}=none`);
+      assert(missingMarkdown.includes(`Capsules (selected Task ${missingTaskCode}):`));
       assert(!missingMarkdown.includes(`Job capsule version one ${marker}`));
       const explicitJob = await readNamedNote(createdJob.capsule_short_code_id, 1,
         `Job capsule version one ${marker}`);
@@ -544,7 +544,7 @@ export default function (adminConfiguration) {
         short_code_id: jobTicketCode, sections: ['tasks']
       }));
       assert(hasCapsuleReference(scopedJob, createdJob));
-      assert(scopedJob.includes(`Task ${taskTicketCode} capsule: ${createdTask.capsule_short_code_id} version `));
+      assert(scopedJob.includes(`Task ${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
       assert(!scopedJob.includes(`Job capsule version one ${marker}`));
       assert(!scopedJob.includes(`Task capsule selected through grouped child ${marker}`));
 
@@ -696,7 +696,7 @@ export default function (adminConfiguration) {
         (markdown) => hasCapsuleReference(markdown, {
           capsule_short_code_id: stableRaceCode, capsule_version: raceRows[0].version
         }));
-      assert(raceMarkdown.includes(`Selected implementation target: Task ${raceTaskCode}.`));
+      assert(raceMarkdown.includes(`Capsules (selected Task ${raceTaskCode}):`));
       assert(!raceMarkdown.includes(selectedRaceMarker));
       await readNamedNote(stableRaceCode, raceRows[0].version, selectedRaceMarker);
     }).timeout(900000);
@@ -957,8 +957,8 @@ export default function (adminConfiguration) {
         (markdown) => hasCapsuleReference(markdown, {
           ...createdDestinationCapsule, capsule_version: destinationCurrentBeforeUpdate.version
         }));
-      assert(taskMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
-      assert(groupedMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
+      assert(taskMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
+      assert(groupedMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
       [taskMarkdown, groupedMarkdown].forEach((markdown) => {
         assert(!markdown.includes(`Source job control capsule ${marker}`));
         assert(!markdown.includes(movedTaskCapsuleMarker),
@@ -1031,8 +1031,8 @@ export default function (adminConfiguration) {
       const updatedGroupedMarkdown = await readTarget(
         groupedTaskCode, updatedDestinationCapsule.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, updatedDestinationCapsule));
-      assert(updatedTaskMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
-      assert(updatedGroupedMarkdown.includes(`Selected implementation target: Task ${taskCode}.`));
+      assert(updatedTaskMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
+      assert(updatedGroupedMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
       await readNamedNote(updatedDestinationCapsule.capsule_short_code_id,
         updatedDestinationCapsule.capsule_version, `Fresh destination task capsule version two ${marker}`);
     }).timeout(900000);
@@ -1044,8 +1044,8 @@ export default function (adminConfiguration) {
       assert(reviewTool, 'tools/list must retain ask_for_review');
       assert.deepStrictEqual(
         Object.keys(reviewTool.inputSchema.properties).sort(),
-        ['job_id', 'report', 'update_review_short_code_id', 'uploaded_files'],
-        'ask_for_review must remain the existing freeform report schema without capsule delta fields'
+        ['implementation_complete', 'job_id', 'report', 'update_review_short_code_id', 'uploaded_files'],
+        'ask_for_review must retain freeform reports and optional implementation completion'
       );
       assert.strictEqual(reviewTool.inputSchema.properties.report.type, 'string',
         'Review delta content must remain freeform prose');
