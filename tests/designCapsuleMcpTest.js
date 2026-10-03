@@ -390,12 +390,8 @@ export default function (adminConfiguration) {
         ['update_capsule_short_code_id', 'update_capsule_version'],
         'Target mode must exclude explicit R/version fields'
       );
-      assert.deepStrictEqual(
-        capsuleTool.inputSchema.oneOf[1].not.anyOf
-          .map((rule) => rule.required[0]).sort(),
-        ['job_id', 'task_id'],
-        'Explicit R/version mode must exclude target fields'
-      );
+      // S-Marketing-113: R/version mode may also carry the capsule's own target;
+      // the calls below check that it is accepted and that another is refused.
       const job = await adminClient.investibles.create({
         groupId: marketId,
         name: `Capsule lifecycle ${marker}`,
@@ -491,13 +487,14 @@ export default function (adminConfiguration) {
         capsule: '   '
       });
       assertRefusal(blank, 'capsule must be nonblank');
-      const xor = await retryMcp('set_design_capsule', {
+      const otherTarget = await retryMcp('set_design_capsule', {
         job_id: jobTicketCode,
+        task_id: taskTicketCode,
         update_capsule_short_code_id: createdJob.capsule_short_code_id,
         update_capsule_version: 1,
         capsule: `Must not be saved ${marker}`
       });
-      assertRefusal(xor, 'Choose exactly one mode');
+      assertRefusal(otherTarget, `is the capsule of ${jobTicketCode}`, taskTicketCode);
       const removedTargetField = await retryMcp('set_design_capsule', {
         job_id: jobTicketCode,
         job_or_task_id: taskTicketCode,
@@ -568,6 +565,8 @@ export default function (adminConfiguration) {
         'An identical target-only body must not increment the capsule version');
 
       const explicitUnchanged = structuredResult(await retryMcp('set_design_capsule', {
+        // The capsule's own job is accepted and changes nothing.
+        job_id: jobTicketCode,
         update_capsule_short_code_id: unchanged.capsule_short_code_id,
         update_capsule_version: unchanged.capsule_version,
         capsule: jobV2
