@@ -319,7 +319,6 @@ export class WorkClaimsDevFixture {
       proxyExtraArgs: ['--work-claims'],
       expectedCliCommand,
       stagedSource,
-      bridgeActive: true,
       sensitiveValues: this.sensitiveValues(),
       snapshot: () => this.snapshotRace(),
       close: async () => {

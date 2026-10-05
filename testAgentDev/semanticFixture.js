@@ -789,7 +789,6 @@ export class SemanticDevFixture {
       expectedCliCommand,
       expectedEvent,
       stagedSource,
-      bridgeActive: true,
       sensitiveValues: this.sensitiveValues(),
       snapshot: () => this.snapshotSemantic(),
       close: async () => {

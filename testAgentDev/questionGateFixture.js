@@ -456,7 +456,6 @@ export class QuestionGateDevFixture {
       proxyEnvironment: { HOME: sessionHome },
       expectedCliCommand,
       stagedSource,
-      bridgeActive: true,
       sensitiveValues: this.sensitiveValues(),
       snapshot: () => this.snapshotGate(session.phase),
       close: async () => {

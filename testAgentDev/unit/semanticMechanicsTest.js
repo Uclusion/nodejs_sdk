@@ -96,7 +96,6 @@ describe('agent dev Codex semantic harness mechanics', () => {
       sessionHome: '/tmp/semantic-home',
       proxyPath: '/tmp/uclusionMCPProxy.py',
       marketId: 'market-unit',
-      bridgeActive: true,
       proxyEnvironment: { TEST_AGENT_DEV_SESSION: 'unit' }
     };
     const launch = buildCodexLaunch({
@@ -136,7 +135,7 @@ describe('agent dev Codex semantic harness mechanics', () => {
     }
     assert.strictEqual(childEnv.HOME, fixture.sessionHome);
     assert.strictEqual(childEnv.CODEX_HOME, path.join(fixture.sessionHome, '.codex'));
-    assert.strictEqual(childEnv.UCLUSION_CODEX_BRIDGE_ACTIVE, '1');
+    assert(!Object.hasOwn(childEnv, 'UCLUSION_CODEX_BRIDGE_ACTIVE'));
     assert.strictEqual(childEnv.GIT_DIR, fixture.gitDirectory);
     assert.strictEqual(childEnv.GIT_WORK_TREE, fixture.workspace);
 
@@ -363,7 +362,6 @@ describe('agent dev Codex semantic harness mechanics', () => {
             proxyEnvironment: {},
             marketId: 'market-unit',
             runId: 'run-unit',
-            bridgeActive: true,
             stagedSource: { skillTarget },
             sensitiveValues: [secret],
             async snapshot() { return {}; },

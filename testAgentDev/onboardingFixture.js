@@ -286,7 +286,6 @@ export class OnboardingDevFixture {
       proxyEnvironment: { HOME: sessionHome },
       expectedCliCommand,
       stagedSource,
-      bridgeActive: true,
       sensitiveValues: this.sensitiveValues(),
       snapshot: () => this.snapshotSemantic(),
       close: async () => {

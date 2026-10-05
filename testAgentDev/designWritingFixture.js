@@ -575,7 +575,6 @@ export class DesignWritingDevFixture {
       expectedCliCommand,
       expectedEvent: `Start ${this.jobCode}`,
       stagedSource,
-      bridgeActive: true,
       sensitiveValues: this.sensitiveValues(),
       snapshot: () => this.snapshotDesign(),
       close: async () => {

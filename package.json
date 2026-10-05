@@ -39,6 +39,7 @@
     "testAgentDevDesignWriting": "node testAgentDev/run.js --catalog design-writing",
     "testAgentDevStageAuthorization": "node testAgentDev/run.js --catalog stage-authorization",
     "testAgentDevCompletionPackage": "node testAgentDev/run.js --catalog completion-package",
+    "testAgentDevTokenBreakdown": "node testAgentDev/run.js --catalog token-breakdown",
     "testAgentDevUnit": "mocha --recursive testAgentDev/unit",
     "coverage": "nyc report --reporter=html --reporter=text --reporter=lcovonly --report-dir=test/coverage"
   }

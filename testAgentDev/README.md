@@ -125,6 +125,24 @@ defined by
 `completionPackageScenarios.js`, `completionPackageFixture.js`, and
 `completionPackageAssertions.js`.
 
+`npm run testAgentDevTokenBreakdown` runs the token breakdown catalog (J-all-492).
+It runs one Claude Code session and one Codex session, each in its own fresh
+marked market. Each session takes up a Doable probe job with the token audit
+on, adds one progress note, ends the audit and stops. The Claude Code session
+runs persisted, unlike the other catalogs, with the audit's hooks in the
+workspace's project settings. Because a one-shot session exits with its MCP
+proxy, the harness starts that proxy again on the same audit store so it
+publishes the final note. The Codex session runs through ordinary `codex` with the native Uclusion MCP
+adapter in a pseudo-terminal (`tokenBreakdownCodexSession.py`). It stays open until the job's final audit note
+appears. Grading reads that note through the raw export Lambda and runs
+`uclusion usage` on the session's saved transcript or rollout. Both must show
+the skill, bootstrap, tool definition and MCP framing lines. Neither may
+contain anything but line names and numbers, which the harness checks with a
+canary string in the job description. The catalog needs
+`public/scripts/token-manifest.json`, `ANTHROPIC_API_KEY` for the Claude Code
+session, and Codex auth as below. It is defined by
+`tokenBreakdownScenarios.js` and `tokenBreakdownHarness.js`.
+
 The original three-phase semantic catalog is `semanticScenarios.js`. There is
 deliberately no implicit `all` mode: choosing a semantic-harness script does
 not rerun the nine transport sessions.
@@ -173,10 +191,10 @@ process retains the 500,000-token ceiling. Only the completion phase enables
 workspace-write command networking, because its required fresh DEV export must
 reach Uclusion before the completion scan can run.
 
-The harness also sets only the presence marker
-`UCLUSION_CODEX_BRIDGE_ACTIVE=1` in those semantic child environments. Each
-prompt names its exact durable target, so each process neither starts
-the writable CLI wait gate nor consumes an unrelated retained Poke.
+Each semantic prompt names its exact durable target. These headless processes
+use their explicit fixture instructions and do not consume unrelated retained
+Pokes. Native delivery and live accounting are exercised by the separate
+interactive Codex accounting session.
 
 The JSONL `turn.completed` record must report nonnegative integer
 `input_tokens` and `output_tokens`. Their sum may not exceed 500,000. Cached

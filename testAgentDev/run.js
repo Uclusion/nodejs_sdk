@@ -24,6 +24,7 @@ import {
   buildCompletionPackagePlan,
   completionPackagePrompt
 } from './completionPackageScenarios.js';
+import { buildTokenBreakdownPlan } from './tokenBreakdownScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
@@ -35,12 +36,13 @@ const SEMANTIC_PLAN_BUILDERS = Object.freeze({
 });
 const WORK_CLAIMS_CATALOG = 'work-claims';
 const QUESTION_GATE_CATALOG = 'question-gate';
+const TOKEN_BREAKDOWN_CATALOG = 'token-breakdown';
 
 function selectedCatalog(argv) {
   const index = argv.indexOf('--catalog');
   const catalog = index === -1 ? 'triggers' : argv[index + 1];
   if (catalog !== 'triggers' && catalog !== WORK_CLAIMS_CATALOG &&
-      catalog !== QUESTION_GATE_CATALOG &&
+      catalog !== QUESTION_GATE_CATALOG && catalog !== TOKEN_BREAKDOWN_CATALOG &&
       !Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog)) {
     throw new Error(`Unknown agent dev catalog ${catalog || '(missing)'}`);
   }
@@ -52,7 +54,9 @@ const catalog = selectedCatalog(process.argv.slice(2));
 const semanticCatalog = Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog);
 const workClaimsCatalog = catalog === WORK_CLAIMS_CATALOG;
 const questionGateCatalog = catalog === QUESTION_GATE_CATALOG;
-const defaultArtifactDir = semanticCatalog || workClaimsCatalog || questionGateCatalog
+const tokenBreakdownCatalog = catalog === TOKEN_BREAKDOWN_CATALOG;
+const defaultArtifactDir = semanticCatalog || workClaimsCatalog || questionGateCatalog ||
+  tokenBreakdownCatalog
   ? path.join(directory, 'artifacts', catalog)
   : path.join(directory, 'artifacts');
 const artifactDir = path.resolve(
@@ -81,7 +85,9 @@ let plan = semanticCatalog
     ? buildWorkClaimsPlan()
     : questionGateCatalog
       ? buildQuestionGatePlan()
-      : buildSessionMatrix();
+      : tokenBreakdownCatalog
+        ? buildTokenBreakdownPlan()
+        : buildSessionMatrix();
 // --phase <name> narrows a multi-tier catalog to one phase so a fixed tier
 // can re-verify without re-paying for tiers that already passed.
 const phaseIndex = process.argv.indexOf('--phase');
@@ -93,7 +99,7 @@ if (phaseIndex !== -1) {
   }
   plan = narrowed;
 }
-if (semanticCatalog || workClaimsCatalog || questionGateCatalog) {
+if (semanticCatalog || workClaimsCatalog || questionGateCatalog || tokenBreakdownCatalog) {
   options.catalog = catalog;
   options.sessions = plan;
   options.reportProgress = (message) => process.stdout.write(`${message}\n`);
@@ -144,13 +150,16 @@ const result = await runAfterPendingMarketCleanup(marketCleanup, async () => (
       ? (await import('./workClaimsHarness.js')).executeWorkClaimsHarness(options)
       : questionGateCatalog
         ? (await import('./questionGateHarness.js')).executeQuestionGateHarness(options)
-        : executeHarness(options)
+        : tokenBreakdownCatalog
+          ? (await import('./tokenBreakdownHarness.js')).executeTokenBreakdownHarness(options)
+          : executeHarness(options)
 ));
-if (result.status === 'passed' && phaseIndex === -1) {
+if (result.status === 'passed' && phaseIndex === -1 && result.store) {
   result.store.publishLastGreen();
 }
 const passed = result.results.filter((entry) => entry.status === 'passed').length;
-const summary = semanticCatalog || workClaimsCatalog || questionGateCatalog
+const summary = semanticCatalog || workClaimsCatalog || questionGateCatalog ||
+  tokenBreakdownCatalog
   ? `Agent dev ${catalog} catalog ${result.status}: ` +
     `${passed}/${plan.length} live phases passed. Artifacts: ${artifactDir}\n`
   : `Agent dev gate ${result.status}: ${passed}/9 sessions passed. ` +

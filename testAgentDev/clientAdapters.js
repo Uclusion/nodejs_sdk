@@ -196,11 +196,6 @@ export function isolatedSessionEnvironment(env, client, fixture) {
   result.CODEX_HOME = path.join(fixture.sessionHome, '.codex');
   result.CLAUDE_CONFIG_DIR = path.join(fixture.sessionHome, '.claude');
   result.CI = '1';
-  if (client === 'codex' && fixture.bridgeActive === true) {
-    // Presence alone tells the shipped workflow that the harness has already
-    // established delivery; never copy a parent bridge value into the child.
-    result.UCLUSION_CODEX_BRIDGE_ACTIVE = '1';
-  }
   if (client === 'codex' && fixture.gitDirectory) {
     const workspace = path.resolve(fixture.workspace);
     const gitDirectory = path.resolve(fixture.gitDirectory);

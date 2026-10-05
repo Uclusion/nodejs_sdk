@@ -615,5 +615,66 @@ export default function (adminConfiguration) {
         && comment.body?.includes('Audit publication: <code>final</code>')),
       'A run that was never ended must not invent a terminal snapshot');
     }).timeout(600000);
+
+    it('renders the Uclusion breakdown lines in the terminal audit note (J-all-492)', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Uclusion breakdown job ${marker}`,
+        description: 'Job used to verify the Uclusion token breakdown lines of an audit note.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const runId = randomUUID();
+      const started = parseMcpToolResult(await pollMcp('start_job_audit', {
+        job_id: jobTicketCode,
+        audit_run_id: runId
+      }));
+      assert.strictEqual(started.state, 'active');
+      const pending = parseMcpToolResult(await pollMcp('end_job_audit', {
+        job_id: jobTicketCode,
+        audit_run_id: runId,
+        handoff_type: 'completed'
+      }));
+      assert.strictEqual(pending.state, 'pending_finalization');
+
+      const ended = parseMcpToolResult(await pollMcp('end_job_audit', {
+        job_id: jobTicketCode,
+        audit_run_id: runId,
+        handoff_type: 'completed',
+        finalization: {
+          ...finalization(1000, [{ label: 'planning', tokens: 1000 }], '2026-08-05T10:00:00Z'),
+          uclusion: {
+            method: 'uclusion_overhead_v1',
+            status: 'available',
+            items: [
+              { line: 'skills', arrival_tokens: 120, total_tokens: 480, estimated_tokens: 0 },
+              { line: 'uclusion_turns', arrival_tokens: 10, total_tokens: 200, estimated_tokens: 0 },
+              { line: 'mcp_framing', arrival_tokens: 15, total_tokens: 45, estimated_tokens: 45 }
+            ],
+            uclusion_total_tokens: 725,
+            provider_total_tokens: 1000,
+            model_requests: 4
+          }
+        }
+      }));
+      assert.strictEqual(ended.state, 'completed');
+      assert.strictEqual(ended.publication, 'final');
+
+      const comments = await pollFor(() => listRawMarketComments(job.market_infos[0].id),
+        (found) => found.some((comment) => comment.body?.includes(runId)
+          && comment.body?.includes('Audit publication: <code>final</code>')));
+      const note = comments.find((comment) => comment.body?.includes(runId)
+        && comment.body?.includes('Audit publication: <code>final</code>'));
+      assert(note, `Audit note with a Uclusion breakdown missing: ${JSON.stringify(comments)}`);
+      assertMachineOnlyAuditNote(note);
+      assert(note.body.includes('725 of 1,000 tokens (72.5%)'), note.body);
+      assert(note.body.includes('across 4 model requests'), note.body);
+      assert(note.body.includes('Skill and reference reads 120 on arrival, 480 with re-sends'),
+        note.body);
+      assert(note.body.includes('Uclusion-only turns 10 on arrival, 200 with re-sends'),
+        note.body);
+      assert(note.body.includes('MCP framing 15 on arrival, 45 with re-sends (45 estimated)'),
+        note.body);
+    }).timeout(600000);
   });
 }
