@@ -338,6 +338,7 @@ function writeSessionFiles({
     'sys.path.insert(0, str(pathlib.Path(PROXY_PATH).parent))',
     'spec = importlib.util.spec_from_file_location("uclusion_agent_dev_proxy", PROXY_PATH)',
     'module = importlib.util.module_from_spec(spec)',
+    'sys.modules[spec.name] = module',
     'spec.loader.exec_module(module)',
     'original_enqueue = module.enqueue_prompt',
     'def enqueue_and_signal(environment, workspace_id, payload):',

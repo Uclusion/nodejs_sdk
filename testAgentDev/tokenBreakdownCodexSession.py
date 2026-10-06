@@ -78,7 +78,7 @@ def main():
 
     deadline = time.monotonic() + args.timeout
     with open(args.log, 'wb') as log:
-        terminal = install.DemoCodexTerminal(command, dict(os.environ), log)
+        terminal = install.DemoCodexTerminal(command, {**os.environ, 'TERM': 'xterm-256color'}, log)
         try:
             while True:
                 if os.path.exists(args.stop):
