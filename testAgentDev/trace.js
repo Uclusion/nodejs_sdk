@@ -295,9 +295,9 @@ function processClaudeEvent(event, eventIndex, state) {
     return;
   }
   if (event?.type === 'system' && event?.subtype === 'task_started') {
-    const monitor = event.tool_use_id ? state.byId.get(event.tool_use_id) : null;
-    if (monitor?.name === 'Monitor' && event.task_id) {
-      monitor.taskId = event.task_id;
+    const task = event.tool_use_id ? state.byId.get(event.tool_use_id) : null;
+    if (task && event.task_id) {
+      task.taskId = event.task_id;
     }
     return;
   }
@@ -306,11 +306,10 @@ function processClaudeEvent(event, eventIndex, state) {
     ['task_updated', 'task_notification'].includes(event?.subtype) &&
     (event?.patch?.status === 'failed' || event?.status === 'failed')
   ) {
-    const monitor = state.calls.find((call) =>
-      call.name === 'Monitor' && call.taskId === event.task_id);
-    if (monitor) {
-      monitor.success = false;
-      monitor.resultEventIndex = eventIndex;
+    const task = state.calls.find((call) => call.taskId === event.task_id);
+    if (task) {
+      task.success = false;
+      task.resultEventIndex = eventIndex;
     }
     return;
   }
@@ -401,9 +400,10 @@ export function extractClientMetadata(events, client) {
           `${starts.length} events and ${JSON.stringify(sessionIds)}`
       );
     }
-    if (starts.some((event) => !Array.isArray(event.tools) || !event.tools.includes('Monitor'))) {
+    if (starts.some((event) => !Array.isArray(event.tools) ||
+        (!event.tools.includes('Monitor') && !event.tools.includes('Bash')))) {
       throw new Error(
-        'Claude system/init must advertise the Monitor tool for persistent Poke delivery'
+        'Claude system/init must advertise Monitor or Bash for Poke delivery'
       );
     }
     const initModel = nonempty(starts[0].model);
@@ -576,7 +576,9 @@ export function parseAgentTrace(events, expectedPoke = null, client) {
         sentinelEventIndexes.push(evidence.eventIndex);
       }
       if (expectedPoke && evidence.text.split(/\r?\n/).some(
-        (line) => line.trim() === expectedPoke
+        (line) => (String(call.name).toLowerCase() === 'read'
+          ? line.replace(/^\s*\d+\t/, '')
+          : line).trim() === expectedPoke
       )) {
         pokeEventIndexes.push(evidence.eventIndex);
       }

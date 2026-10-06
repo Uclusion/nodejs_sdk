@@ -217,7 +217,7 @@ describe('agent dev client orchestration', () => {
           signal: null,
           error: null,
           stdout: `${JSON.stringify({
-          type: 'system', subtype: 'init', tools: ['Monitor', 'TaskList', 'Skill', 'Read']
+          type: 'system', subtype: 'init', tools: ['Bash', 'TaskList', 'Skill', 'Read']
           })}\n${JSON.stringify({ type: 'result', total_cost_usd: 0 })}\n`,
           stderr: 'budget exhausted before model request'
         };
@@ -237,6 +237,6 @@ describe('agent dev client orchestration', () => {
       run: () => ({ error: null, stdout: `${JSON.stringify({
         type: 'system', subtype: 'init', tools: ['Read', 'Skill']
       })}\n${JSON.stringify({ type: 'result', total_cost_usd: 0 })}\n`, stderr: '' })
-    }), /missing required tool Monitor/);
+    }), /missing required tool Bash/);
   });
 });

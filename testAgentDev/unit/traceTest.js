@@ -307,11 +307,11 @@ describe('agent dev structured trace parsing', () => {
     );
   });
 
-  it('requires Claude system/init to advertise Monitor', () => {
+  it('requires Claude system/init to advertise a delivery tool', () => {
     assert.throws(() => parseAgentTrace([{
       type: 'system', subtype: 'init', model: 'claude-concrete',
       session_id: 'session-1', tools: ['Read', 'Skill']
-    }], null, 'claude'), /advertise the Monitor tool/);
+    }], null, 'claude'), /advertise Monitor or Bash/);
   });
 
   it('recognizes the canonical Claude Skill launch result without inventing EOF output', () => {

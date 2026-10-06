@@ -38,10 +38,17 @@ function containsExactShellCommand(command, expected) {
   return false;
 }
 
+export function isClaudePokeDelivery(call, expectedCommand) {
+  return (normalizedName(call) === 'monitor' &&
+      commandOf(call) === `${expectedCommand} listen`) ||
+    (normalizedName(call) === 'bash' &&
+      commandOf(call) === `${expectedCommand} wait --timeout 86400`);
+}
+
 function deliveryCalls(parsed, client, expectedCommand) {
   if (client === 'claude') {
     return parsed.toolCalls.filter((call) =>
-      normalizedName(call) === 'monitor' && commandOf(call) === `${expectedCommand} listen`);
+      isClaudePokeDelivery(call, expectedCommand));
   }
   return parsed.toolCalls.filter((call) => {
     const name = normalizedName(call);
@@ -60,6 +67,7 @@ function allDeliveryCalls(parsed, expectedCommand) {
     }
     return ['shell', 'bash', 'exec_command', 'command_execution'].includes(name) && (
       command === `${expectedCommand} listen` ||
+      containsExactShellCommand(command, `${expectedCommand} wait --timeout 86400`) ||
       containsExactShellCommand(command, `${expectedCommand} wait --timeout 0`) ||
       /(?:^|\s)uclusion(?:-dev)?(?:\s+-e\s+\S+)?\s+(?:wait|listen)(?:\s|$)/.test(command)
     );
@@ -81,36 +89,42 @@ function skillCall(call) {
   return false;
 }
 
-function assertDelivery(parsed, client, expectedCommand) {
+function assertDelivery(parsed, client, scenario, expectedCommand) {
   const found = deliveryCalls(parsed, client, expectedCommand);
+  const backgroundWait = client === 'claude' && normalizedName(found[0] || {}) === 'bash';
+  const expectedCount = backgroundWait && scenario === 'first-poke' ? 2 : 1;
   assert.strictEqual(
     found.length,
-    1,
-    `${client} must establish delivery exactly once with the shipped command; calls were ` +
+    expectedCount,
+    `${client} must establish delivery with the shipped command and re-arm an ended wait; calls were ` +
       JSON.stringify(parsed.toolCalls)
   );
   assert.strictEqual(
     allDeliveryCalls(parsed, expectedCommand).length,
-    1,
+    expectedCount,
     `${client} must not start an extra wait/listen delivery consumer`
   );
   const delivery = found[0];
   if (client === 'claude') {
-    // T-Marketing-287: Claude Code offers `persistent` only behind a flag it
-    // controls. Without it the bootstrap asks for the largest timeout, and a
-    // re-arm when the expiry notice arrives.
-    assert(delivery.input.persistent === true || Number.isInteger(delivery.input.timeout_ms),
-      'Claude Monitor must be persistent or carry a timeout to re-arm on');
-    // TaskList, pgrep, and ps pipelines are all real listener prechecks;
-    // newer Claude builds defer TaskList, making shell process checks common.
-    // The uclusion pattern tolerates the grep self-exclusion idiom [u]clusion.
-    const prechecks = parsed.toolCalls.filter((call) =>
-      normalizedName(call) === 'tasklist' ||
-      (/(?:pgrep|\bps\b)/.test(commandOf(call)) &&
-        /\[?u\]?clusion/i.test(commandOf(call))));
-    assert(prechecks.length > 0, 'Claude must check for an existing listener before arming');
-    assert(prechecks[0].eventIndex < delivery.eventIndex,
-      'Claude listener precheck must happen before Monitor arming');
+    const probeReads = parsed.toolCalls.filter((call) =>
+      /\bprobe\.json\b/.test(
+        commandOf(call) || String(call.input?.file_path || call.input?.path || '')));
+    assert(probeReads.every((call) => call.eventIndex > delivery.eventIndex),
+      'Claude must establish delivery before acting on the user request');
+    for (const call of found) {
+      if (backgroundWait) {
+        assert(normalizedName(call) === 'bash' && call.input.run_in_background === true &&
+          Number.isInteger(call.input.timeout) && call.input.timeout >= 7200000,
+        'Claude wait must run in the background with the maximum unattended timeout');
+      } else {
+        assert(call.input.persistent === true, 'Claude Monitor must be persistent');
+      }
+    }
+    if (found.length > 1) {
+      assert(parsed.pokeEventIndexes.some((index) =>
+        index > delivery.eventIndex && index < found[1].eventIndex),
+      'Claude must receive the Poke before re-arming its wait');
+    }
   }
   return delivery;
 }
@@ -259,7 +273,7 @@ export function assertScenario({
   stateAfter
 }) {
   assertReadOnlyTools(parsed);
-  const delivery = assertDelivery(parsed, client, expectedCommand);
+  const delivery = assertDelivery(parsed, client, scenario, expectedCommand);
   if (scenario === 'session-start') {
     assertExactUclusionCalls(parsed, []);
     assertUnchangedState(stateBefore, stateAfter);
@@ -295,6 +309,13 @@ export function assertScenario({
     assert(pokeIndex < calls[0].eventIndex,
       'The correlated Poke line must be observed before get_job');
     assertSkillBefore(parsed, calls[0].eventIndex, pokeIndex, client);
+    if (client === 'claude') {
+      const deliveries = deliveryCalls(parsed, client, expectedCommand);
+      if (deliveries.length > 1) {
+        assert(calls[0].resultEventIndex < deliveries[1].eventIndex,
+          'Claude must finish handling the Poke before re-arming its wait');
+      }
+    }
     assertUnchangedState(stateBefore, stateAfter);
     return;
   }

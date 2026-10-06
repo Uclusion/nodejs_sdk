@@ -12,6 +12,12 @@ Cursor). The idle-find-work sessions also grade presentation: the agent's
 user-visible reply must pair the work item's short code with its description
 in one message, not show the short code alone.
 
+Use `node testAgentDev/run.js --client claude` to run only its three Claude
+scenarios. This preflights only Claude and leaves the shared nine-session
+last-known-good pins and last-green record unchanged. Claude delivery accepts
+a persistent Monitor or a one-day background wait. The first-Poke scenario
+also checks that an ended background wait is re-armed after receiving the Poke.
+
 `npm run testAgentDevSemantic` runs only the Codex semantic catalog. It creates
 one UUID-marked `INTEGRATION_TEST` planning market and executes exactly three
 independent `codex exec --ephemeral --json` processes against that shared

@@ -199,17 +199,12 @@ describe('agent dev semantic assertions', () => {
     }
   });
 
-  it('accepts a Claude listener armed with a timeout where persistence is not offered', () => {
-    const scenario = (monitorInput) => () => assertScenario({
+  it('accepts persistent Monitor or background wait and rejects an expiring Monitor', () => {
+    const scenario = (delivery) => () => assertScenario({
       client: 'claude',
-      scenario: 'idle-find-work',
+      scenario: 'session-start',
       parsed: {
-        toolCalls: [
-          call('TaskList', {}, 0),
-          call('Monitor', { command: `${command} listen`, ...monitorInput }, 1),
-          call('Skill', { skill: 'uclusion' }, 3),
-          call('mcp__Uclusion__find_work', {}, 5)
-        ],
+        toolCalls: [delivery],
         sentinelEventIndexes: [],
         skillEndSentinel: '<!-- /uclusion-skill:v1 -->'
       },
@@ -217,15 +212,16 @@ describe('agent dev semantic assertions', () => {
       stateBefore: stableState,
       stateAfter: stableState
     });
-    const monitorRefusal = /Claude Monitor must be persistent or carry a timeout/;
-    for (const input of [{ persistent: true }, { timeout_ms: 1800000 }]) {
-      try {
-        scenario(input)();
-      } catch (error) {
-        assert.doesNotMatch(error.message, monitorRefusal);
-      }
-    }
-    assert.throws(scenario({}), monitorRefusal);
+    assert.doesNotThrow(scenario(call('Monitor', {
+      command: `${command} listen`, persistent: true
+    }, 0)));
+    assert.doesNotThrow(scenario(call('Bash', {
+      command: `${command} wait --timeout 86400`,
+      run_in_background: true, timeout: 7200000
+    }, 0)));
+    assert.throws(scenario(call('Monitor', {
+      command: `${command} listen`, timeout_ms: 1800000
+    }, 0)), /Claude Monitor must be persistent/);
   });
 
   it('accepts Claude native Skill success as platform-confirmed skill loading', () => {

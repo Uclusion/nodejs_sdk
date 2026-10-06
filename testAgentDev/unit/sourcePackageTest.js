@@ -11,6 +11,11 @@ function write(filePath, text) {
 
 function sourceTree(root) {
   const scripts = path.join(root, 'public', 'scripts');
+  for (const name of ['reading', 'audit', 'claims', 'uploads']) {
+    write(path.join(scripts, 'skills', 'uclusion', 'references', `${name}.md`),
+      `<!-- uclusion-skill-reference:v1 -->\n# ${name}\n` +
+      '<!-- /uclusion-skill-reference:v1 -->\n');
+  }
   const stub = '<!-- uclusion-workflow:v1 -->\n{{UCLUSION_CLI}} wait\n' +
     '<!-- /uclusion-workflow:v1 -->\n';
   write(path.join(scripts, 'CLAUDE.md'), stub);

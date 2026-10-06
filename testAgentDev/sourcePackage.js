@@ -14,19 +14,31 @@ const SKILL_PACKAGES = Object.freeze({
     files: Object.freeze([
       'SKILL.md',
       'references/pokes.md',
+      'references/reading.md',
       'references/operations.md',
       'references/completion.md',
+      'references/audit.md',
+      'references/claims.md',
+      'references/uploads.md',
       'agents/openai.yaml'
     ]),
     skillStart: '<!-- uclusion-skill:v1 -->',
     skillEnd: '<!-- /uclusion-skill:v1 -->',
     referenceStarts: Object.freeze({
       'references/pokes.md': '<!-- uclusion-skill-reference:v1 -->',
+      'references/reading.md': '<!-- uclusion-skill-reference:v1 -->',
+      'references/audit.md': '<!-- uclusion-skill-reference:v1 -->',
+      'references/claims.md': '<!-- uclusion-skill-reference:v1 -->',
+      'references/uploads.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/operations.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/completion.md': '<!-- uclusion-skill-reference:v1 -->'
     }),
     referenceEnds: Object.freeze({
       'references/pokes.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'references/reading.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'references/audit.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'references/claims.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'references/uploads.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/operations.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/completion.md': '<!-- /uclusion-skill-reference:v1 -->'
     })

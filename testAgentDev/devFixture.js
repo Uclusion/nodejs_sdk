@@ -309,6 +309,7 @@ function writeSessionFiles({
     'import pathlib',
     'import sys',
     `CLI_PATH = ${JSON.stringify(cliPath)}`,
+    'sys.path.insert(0, str(pathlib.Path(CLI_PATH).parent))',
     'spec = importlib.util.spec_from_file_location("uclusion_agent_dev_cli", CLI_PATH)',
     'module = importlib.util.module_from_spec(spec)',
     'spec.loader.exec_module(module)',
@@ -368,8 +369,13 @@ function writeSessionFiles({
   writeExecutable(wrapperPath, [
     '#!/bin/sh',
     'set -eu',
+    // Keep every delivery invocation bound to this fixture's workspace even
+    // when Claude moves its shell into a skill reference directory.
+    `cd ${shellQuote(workspace)}`,
     gate,
-    'if [ "${1-} ${2-} ${3-}" = "-e dev listen" ]; then',
+    'if [ "${1-} ${2-} ${3-}" = "-e dev listen" ] || ' +
+      '{ [ "${1-} ${2-} ${3-}" = "-e dev wait" ] && ' +
+      '[ -n "${TEST_AGENT_DEV_LISTENER_READY-}" ]; }; then',
     `  exec env HOME=${shellQuote(sessionHome)} python3 ` +
       `${shellQuote(listenerLauncherPath)} "$@"`,
     'fi',
@@ -526,20 +532,22 @@ export class DevFixtureFactory {
         secret.account_id,
         `${secret.external_id}_${secret.account_id}`
       ]);
-      const capabilityReadyVersions = await pollFor(
+      const readyForBaseline = (versions) => {
+        const signatures = canonicalMarketSignature(versions, marketId);
+        const capabilities = signatures.find((signature) => signature.type === 'market_capability');
+        const investibles = signatures.find((signature) => signature.type === 'investible');
+        return (capabilities?.object_versions || []).length >= 2 &&
+          (investibles?.object_versions || []).some((object) =>
+            object.object_id_one === job.investible.id && object.version === 1);
+      };
+      const baselineReadyVersions = await pollFor(
         () => factory.accountClient.summaries.versions(factory.accountToken, [marketId]),
-        (versions) => {
-          const capabilities = canonicalMarketSignature(versions, marketId)
-            .find((signature) => signature.type === 'market_capability');
-          return (capabilities?.object_versions || []).length >= 2;
-        },
+        readyForBaseline,
         20,
         500
       );
-      const readyCapabilities = canonicalMarketSignature(capabilityReadyVersions, marketId)
-        .find((signature) => signature.type === 'market_capability');
-      assert((readyCapabilities?.object_versions || []).length >= 2,
-        'AI market capability did not converge before the durable baseline snapshot');
+      assert(readyForBaseline(baselineReadyVersions),
+        'AI capabilities and probe job did not converge before the durable baseline snapshot');
 
     fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'uclusion-agent-dev-'));
     const workspace = path.join(fixtureRoot, 'workspace');

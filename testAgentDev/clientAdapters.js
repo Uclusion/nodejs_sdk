@@ -1,4 +1,5 @@
 import assert from 'assert';
+import { isClaudePokeDelivery } from './assertions.js';
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
@@ -114,14 +115,10 @@ export function verifyClaudeHeadlessTools({
       `found ${init.length}: ${capability.error || capability.stderr}`);
   const tools = init[0].tools;
   assert(Array.isArray(tools), 'Claude system/init did not include its tool list');
-  for (const required of ['Monitor', 'Skill', 'Read']) {
+  for (const required of ['Bash', 'Skill', 'Read']) {
     assert(tools.includes(required),
       `Claude headless system/init is missing required tool ${required}`);
   }
-  // Newer Claude builds defer TaskList behind ToolSearch, so the listener
-  // precheck capability is reachable without appearing in the init list.
-  assert(tools.includes('TaskList') || tools.includes('ToolSearch'),
-    'Claude headless system/init exposes neither TaskList nor ToolSearch');
   assert(!capability.error, `Claude headless capability probe failed: ${capability.error}`);
   const result = events.find((event) => event?.type === 'result');
   assert(result, 'Claude headless capability probe did not emit its final result record');
@@ -491,9 +488,9 @@ export async function runAgentSession({
         if (session.scenario !== 'first-poke' || session.client !== 'claude') {
           return;
         }
-        const serialized = JSON.stringify(event);
-        if (serialized.includes('"name":"Monitor"') &&
-            serialized.includes(`${fixture.expectedCliCommand} listen`)) {
+        if (event.type === 'assistant' && Array.isArray(event.message?.content) &&
+            event.message.content.some((block) => block.type === 'tool_use' &&
+              isClaudePokeDelivery(block, fixture.expectedCliCommand))) {
           await triggerPoke();
         }
       }

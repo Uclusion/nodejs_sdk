@@ -42,6 +42,7 @@ export async function executeHarness({
   marketCleanup,
   seedPinsPath,
   webUiRoot,
+  sessions = buildSessionMatrix(),
   timeoutMs = Number(process.env.TEST_AGENT_DEV_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
   runId = randomUUID(),
   env = process.env,
@@ -56,9 +57,11 @@ export async function executeHarness({
   const store = dependencies.store || new ArtifactStore({
     artifactDir,
     seedPinsPath,
-    runId
+    runId,
+    sessions
   });
-  const matrix = buildSessionMatrix();
+  const matrix = sessions;
+  const clients = [...new Set(matrix.map((session) => session.client))];
   const results = [];
   const preflightResults = {};
   const seenSessionIds = new Set();
@@ -80,7 +83,7 @@ export async function executeHarness({
     const sourcePackage = inspectSource(webUiRoot);
     store.setSourcePackage(sourcePackage);
     const preflightFailures = [];
-    for (const client of CLIENTS) {
+    for (const client of clients) {
       try {
         const result = preflight(client, env);
         preflightResults[client] = result;
@@ -228,10 +231,14 @@ export async function executeHarness({
     const allPassed = results.length === matrix.length &&
       results.every((result) => result.status === 'passed');
     if (allPassed) {
-      const pins = pinDocument(runId, sourcePackage, preflightResults, results);
       store.validateTraces?.();
       store.finish('passed');
       store.assertNoSecrets?.();
+      if (matrix.length !== buildSessionMatrix().length) {
+        assert(store.assertPinsUnchanged(), 'A partial catalog must not modify shared pins');
+        return { status: 'passed', results, preflight: preflightResults, store };
+      }
+      const pins = pinDocument(runId, sourcePackage, preflightResults, results);
       const ratcheted = ratchetIfAllPassed({
         results,
         expectedCount: matrix.length,

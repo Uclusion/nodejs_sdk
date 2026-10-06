@@ -88,6 +88,17 @@ let plan = semanticCatalog
       : tokenBreakdownCatalog
         ? buildTokenBreakdownPlan()
         : buildSessionMatrix();
+const clientIndex = process.argv.indexOf('--client');
+if (clientIndex !== -1) {
+  const client = process.argv[clientIndex + 1];
+  if (catalog !== 'triggers' || !['claude', 'codex', 'cursor'].includes(client)) {
+    throw new Error('--client requires the triggers catalog and claude, codex or cursor');
+  }
+  plan = plan.filter((session) => session.client === client);
+}
+if (catalog === 'triggers') {
+  options.sessions = plan;
+}
 // --phase <name> narrows a multi-tier catalog to one phase so a fixed tier
 // can re-verify without re-paying for tiers that already passed.
 const phaseIndex = process.argv.indexOf('--phase');
@@ -154,7 +165,7 @@ const result = await runAfterPendingMarketCleanup(marketCleanup, async () => (
           ? (await import('./tokenBreakdownHarness.js')).executeTokenBreakdownHarness(options)
           : executeHarness(options)
 ));
-if (result.status === 'passed' && phaseIndex === -1 && result.store) {
+if (result.status === 'passed' && phaseIndex === -1 && clientIndex === -1 && result.store) {
   result.store.publishLastGreen();
 }
 const passed = result.results.filter((entry) => entry.status === 'passed').length;
@@ -162,7 +173,7 @@ const summary = semanticCatalog || workClaimsCatalog || questionGateCatalog ||
   tokenBreakdownCatalog
   ? `Agent dev ${catalog} catalog ${result.status}: ` +
     `${passed}/${plan.length} live phases passed. Artifacts: ${artifactDir}\n`
-  : `Agent dev gate ${result.status}: ${passed}/9 sessions passed. ` +
+  : `Agent dev gate ${result.status}: ${passed}/${plan.length} sessions passed. ` +
     `Artifacts: ${artifactDir}\n`;
 process.stdout.write(summary);
 if (result.status !== 'passed') {
