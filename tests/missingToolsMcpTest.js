@@ -384,17 +384,24 @@ export default function (adminConfiguration) {
       const empty = JSON.parse(mcpText(await pollMcp('get_job_attachments', { short_code_id: jobCode })));
       assert.deepStrictEqual(empty.files, [], 'A job without attachments returns an empty list');
       const content = `Separate evidence ${randomUUID()}`;
+      const originalName = 'separate-evidence.txt';
       const upload = JSON.parse(mcpText(await pollMcp('get_upload', {
-        content_type: 'text/plain', content_length: Buffer.byteLength(content), original_name: 'separate-evidence.txt'
+        content_type: 'text/plain', content_length: Buffer.byteLength(content), original_name: originalName
       })));
-      const form = new FormData();
+      // node-fetch v2 does not encode native FormData. Send the policy
+      // fields before the file in an explicit multipart body.
+      const boundary = `----uclusion${randomUUID()}`;
+      let body = '';
       for (const [key, value] of Object.entries(upload.presigned_post.fields)) {
-        form.append(key, value);
+        body += `--${boundary}\r\nContent-Disposition: form-data; name="${key}"\r\n\r\n${value}\r\n`;
       }
-      form.append('file', new Blob([content], { type: 'text/plain' }), 'separate-evidence.txt');
-      const uploaded = await fetch(upload.presigned_post.url, { method: 'POST', body: form });
+      body += `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${originalName}"\r\n` +
+        `Content-Type: text/plain\r\n\r\n${content}\r\n--${boundary}--\r\n`;
+      const uploaded = await fetch(upload.presigned_post.url, { method: 'POST',
+        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body });
       assert(uploaded.ok, `Separate attachment upload failed: ${uploaded.status}`);
-      await adminClient.investibles.addAttachments(job.investible.id, [upload.metadata]);
+      await adminClient.investibles.addAttachments(job.investible.id,
+        [{ ...upload.metadata, original_name: originalName }]);
       const markdown = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: jobCode })),
         (text) => text.includes('Attachments: 1.'));
@@ -403,7 +410,7 @@ export default function (adminConfiguration) {
       const listed = JSON.parse(mcpText(await pollMcp('get_job_attachments', { short_code_id: jobCode })));
       assert.strictEqual(listed.job, jobCode);
       assert.strictEqual(listed.files.length, 1);
-      assert.strictEqual(listed.files[0].original_name, 'separate-evidence.txt');
+      assert.strictEqual(listed.files[0].original_name, originalName);
       assert.strictEqual(listed.files[0].content_length, Buffer.byteLength(content));
       if (!adminConfiguration.baseURL.includes('//dev.')) {
         const downloaded = await fetch(listed.files[0].download_url);
