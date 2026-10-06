@@ -376,6 +376,42 @@ export default function (adminConfiguration) {
       }
     }).timeout(240000);
 
+    it('announces separate job attachments and lists authorized links only on request', async () => {
+      const job = await adminClient.investibles.create({
+        groupId: marketId, name: 'Job with separate attachments', description: 'Attachment evidence'
+      });
+      const jobCode = job.market_infos[0].ticket_code;
+      const empty = JSON.parse(mcpText(await pollMcp('get_job_attachments', { short_code_id: jobCode })));
+      assert.deepStrictEqual(empty.files, [], 'A job without attachments returns an empty list');
+      const content = `Separate evidence ${randomUUID()}`;
+      const upload = JSON.parse(mcpText(await pollMcp('get_upload', {
+        content_type: 'text/plain', content_length: Buffer.byteLength(content), original_name: 'separate-evidence.txt'
+      })));
+      const form = new FormData();
+      for (const [key, value] of Object.entries(upload.presigned_post.fields)) {
+        form.append(key, value);
+      }
+      form.append('file', new Blob([content], { type: 'text/plain' }), 'separate-evidence.txt');
+      const uploaded = await fetch(upload.presigned_post.url, { method: 'POST', body: form });
+      assert(uploaded.ok, `Separate attachment upload failed: ${uploaded.status}`);
+      await adminClient.investibles.addAttachments(job.investible.id, [upload.metadata]);
+      const markdown = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: jobCode })),
+        (text) => text.includes('Attachments: 1.'));
+      assert(markdown.includes('get_job_attachments'), 'Job Markdown announces the explicit attachment method');
+      assert(!markdown.includes(upload.metadata.path), 'Job Markdown does not open or list separate file URLs');
+      const listed = JSON.parse(mcpText(await pollMcp('get_job_attachments', { short_code_id: jobCode })));
+      assert.strictEqual(listed.job, jobCode);
+      assert.strictEqual(listed.files.length, 1);
+      assert.strictEqual(listed.files[0].original_name, 'separate-evidence.txt');
+      assert.strictEqual(listed.files[0].content_length, Buffer.byteLength(content));
+      if (!adminConfiguration.baseURL.includes('//dev.')) {
+        const downloaded = await fetch(listed.files[0].download_url);
+        assert(downloaded.ok, `Authorized attachment download failed: ${downloaded.status}`);
+        assert.strictEqual(await downloaded.text(), content);
+      }
+    }).timeout(240000);
+
     it('requests work and notifies the workspace humans', async () => {
       const response = await pollMcp('request_work', {});
       assert(response.includes('Requested work'), `request_work should confirm: ${response}`);
