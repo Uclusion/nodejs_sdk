@@ -22,9 +22,12 @@ const REGION = 'us-west-2';
 const EXPORT_FUNCTION = 'uclusion-markets-dev-markets_export';
 const BREAKDOWN_KEYS = new Set([
   'method', 'status', 'reason', 'items', 'uclusion_total_tokens',
-  'provider_total_tokens', 'model_requests', 'reasoning', 'client', 'counts'
+  'provider_total_tokens', 'model_requests', 'reasoning', 'client', 'counts', 'coverage'
 ]);
 const ITEM_KEYS = ['arrival_tokens', 'estimated_tokens', 'line', 'total_tokens'];
+const COVERAGE_COUNTS = [
+  'descendants_discovered', 'descendants_included', 'missing_descendant_logs'
+];
 // Lines every audited session produces: the skill, its bootstrap, the tools
 // it loaded and the framing of the calls it made.
 const REQUIRED_LINES = ['skills', 'bootstrap', 'tool_definitions', 'mcp_framing'];
@@ -221,6 +224,20 @@ export function assertNumbersOnlyBreakdown(breakdown, forbidden) {
       assert(Number.isSafeInteger(item[field]) && item[field] >= 0,
         `${item.line}.${field} is not a token count`);
     }
+  }
+  if (breakdown.coverage !== undefined) {
+    const coverage = breakdown.coverage;
+    assert(coverage && typeof coverage === 'object' && !Array.isArray(coverage),
+      'uclusion usage returned invalid descendant coverage');
+    assert.deepStrictEqual(Object.keys(coverage).sort(),
+      [...COVERAGE_COUNTS, 'inherited_context'].sort(),
+      'uclusion usage returned unexpected descendant coverage fields');
+    for (const field of COVERAGE_COUNTS) {
+      assert(Number.isSafeInteger(coverage[field]) && coverage[field] >= 0,
+        `coverage.${field} is not an aggregate count`);
+    }
+    assert(['complete', 'partial'].includes(coverage.inherited_context),
+      'uclusion usage returned an invalid inherited context status');
   }
   const text = JSON.stringify(breakdown);
   for (const value of forbidden) {
