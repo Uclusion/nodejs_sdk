@@ -132,5 +132,32 @@ export default function (adminConfiguration) {
       await assert.rejects(adminClient.investibles.updateFormerStage(jobId, stageIds.Doable),
         'A job in Approvable has no next stage to set');
     }).timeout(300000);
+
+    it('assigns and accepts an unassigned Backlog job for the human moving it through MCP', async () => {
+      const humanId = (await adminClient.users.get()).id;
+      const job = await adminClient.investibles.create({
+        groupId: marketId, name: `Unassigned MCP move ${randomUUID()}`,
+        description: 'The authorizing human owns the job when it enters Doable.'
+      });
+      const createdInfo = job.market_infos.find((info) => info.market_id === marketId);
+      async function currentInfo() {
+        const rows = await adminClient.markets.getMarketInvestibles([{
+          investible: { id: job.investible.id, version: 1 },
+          market_infos: [{ id: createdInfo.id, version: 1 }]
+        }]);
+        return rows[0]?.market_infos.find((info) => info.market_id === marketId);
+      }
+      const before = await pollFor(currentInfo, (info) => Boolean(info?.ticket_code));
+      assert.strictEqual(before.stage, stageIds.Backlog, 'The job must start in Backlog');
+      assert.strictEqual(before.assigned?.length || 0, 0, 'The job must start unassigned');
+
+      await mcpCall(adminConfiguration, uclusionToken, 'change_job_stage', {
+        job_id: before.ticket_code, from_stage: 'Backlog', stage: 'Doable'
+      });
+      const after = await pollFor(currentInfo, (info) => info?.stage === stageIds.Doable);
+      assert.strictEqual(after.stage, stageIds.Doable);
+      assert.deepStrictEqual(after.assigned, [humanId]);
+      assert.deepStrictEqual(after.accepted, [humanId]);
+    }).timeout(300000);
   });
 }
