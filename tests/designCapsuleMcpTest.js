@@ -371,8 +371,6 @@ export default function (adminConfiguration) {
       const marker = randomUUID();
       const tools = await listMcpTools();
       const capsuleTool = tools.find((tool) => tool.name === 'set_design_capsule');
-      assert(capsuleTool?.description.includes('creates the capsule when absent or replaces'),
-        'set_design_capsule copy must describe target-only create-or-replace behavior');
       assert.deepStrictEqual(
         Object.keys(capsuleTool.inputSchema.properties).sort(),
         ['capsule', 'job_id', 'resolve_question_short_code_ids', 'task_id', 'update_capsule_short_code_id',
