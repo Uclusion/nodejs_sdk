@@ -126,10 +126,12 @@ export default function (adminConfiguration) {
         name: `Job referencing ${marker}`,
         description: `Cannot start until ${jobTicketCode} completes.\n\nLeave ${codeSpan} alone in scripts.`
       });
-      const addedCodeMatch = added.match(/Added job with id ([^ ]+) and link/);
+      const addedResult = JSON.parse(added).result;
+      assert.notStrictEqual(addedResult.isError, true, added);
+      const addedCodeMatch = addedResult.content[0].text.match(/\bJ-[^\s/<>"]+-\d+\b/);
       assert(addedCodeMatch, `add_job result should carry the new ticket code: ${added}`);
       const referencingMarkdown = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: addedCodeMatch[1] }),
+        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: addedCodeMatch[0] }),
         (markdown) => markdown.includes(linkedCode) && markdown.includes(codeSpan)
       );
       assert(referencingMarkdown.includes(linkedCode),

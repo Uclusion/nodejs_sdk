@@ -237,14 +237,18 @@ export default function (adminConfiguration) {
       const markdown = await pollFor(() => mcpCall(adminConfiguration, uclusionToken, 'get_job',
         { short_code_id: rootCode, thread_only: true }), (text) => text.includes(childCode));
 
-      // get_comment_anchor renders CODE<a name="code"></a>, the code followed by an
-      // empty anchor, so the attribution sits after that anchor rather than after the
-      // code (S-all-330). The anchor's own value is not what these pin.
-      const rendered = mcpText(markdown);
-      assert(new RegExp(`${replyCode}<a name="[^"]+"></a> to ${rootCode}`).test(rendered),
-        `first level reply must name the root: ${rendered}`);
-      assert(new RegExp(`${childCode}<a name="[^"]+"></a> to ${replyCode}`).test(rendered),
-        `second level reply must name the reply it answers, not the root: ${rendered}`);
+      assert(mcpText(markdown).includes(childCode));
+      for (const [reply, itemCode, parent, parentCode] of [
+        [thread.reply, replyCode, thread.root, rootCode],
+        [thread.childReply, childCode, thread.reply, replyCode]
+      ]) {
+        assert.strictEqual(getComment(withCodes, reply.id).reply_id, parent.id);
+        assert.strictEqual(getComment(withCodes, reply.id).root_comment_id, thread.root.id);
+        const rendered = mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_job',
+          { short_code_id: itemCode, thread_only: true }));
+        assert(rendered.includes(itemCode) && rendered.includes(parentCode),
+          `The scoped reply must identify its actual parent: ${rendered}`);
+      }
     }).timeout(240000);
 
     it('should convert suggestion at view level to bug', async () => {

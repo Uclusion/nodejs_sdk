@@ -59,9 +59,12 @@ export default function (adminConfiguration) {
     }
 
     function extractShortCode(responseText) {
-      const match = responseText.match(/with id ([A-Z]-[^ ]+) and link/);
-      assert(match, `No short code in response: ${responseText}`);
-      return match[1];
+      const result = JSON.parse(responseText).result;
+      assert.notStrictEqual(result.isError, true, responseText);
+      const code = result.structuredContent?.short_code_id ||
+        result.content?.[0]?.text.match(/\bJ-[^\s/<>"]+-\d+\b/)?.[0];
+      assert(code, `No short code in response: ${responseText}`);
+      return code;
     }
 
     async function jobStage(jobCode) {

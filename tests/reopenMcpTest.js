@@ -13,6 +13,7 @@ export default function (adminConfiguration) {
   describe('#test reopen through MCP (J-all-485)', () => {
     let accountClient;
     let accountToken;
+    let adminClient;
     let marketId;
     let uclusionToken;
 
@@ -31,7 +32,7 @@ export default function (adminConfiguration) {
       });
       marketId = result.market.id;
       await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
-      const { client: adminClient } = await loginUserToMarketAndGetToken(adminConfiguration, marketId);
+      ({ client: adminClient } = await loginUserToMarketAndGetToken(adminConfiguration, marketId));
       uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
       const ready = await pollFor(async () => {
         const versions = await accountClient.summaries.versions(accountToken, [marketId]);
@@ -55,9 +56,12 @@ export default function (adminConfiguration) {
     }
 
     function extractShortCode(responseText) {
-      const match = responseText.match(/with id ([A-Z]-[^ ]+) and link/);
-      assert(match, `No short code in response: ${responseText}`);
-      return match[1];
+      const result = JSON.parse(responseText).result;
+      assert.notStrictEqual(result.isError, true, responseText);
+      const code = result.structuredContent?.short_code_id ||
+        result.content?.[0]?.text.match(/\bJ-[^\s/<>"]+-\d+\b/)?.[0];
+      assert(code, `No short code in response: ${responseText}`);
+      return code;
     }
 
     function toolResult(raw) {
@@ -76,13 +80,19 @@ export default function (adminConfiguration) {
 
     it('reopens a resolved bug so it can become a question job again', async () => {
       const marker = randomUUID();
-      const bugCode = extractShortCode(await mcpCall(adminConfiguration, uclusionToken, 'add_bug',
+      const addedBug = toolResult(await mcpCall(adminConfiguration, uclusionToken, 'add_bug',
         { bug: `Back still fails ${marker}`, severity: 'RED' }));
+      const bugCode = addedBug.structuredContent.short_code_id;
       await pollMcp('resolve', { short_code_id: bugCode });
       const resolved = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: bugCode })),
-        (markdown) => markdown.includes(`Resolved Bug ${bugCode}<a`));
-      assert(resolved.includes(`Resolved Bug ${bugCode}<a`), `The bug should be resolved: ${resolved}`);
+        async () => (await adminClient.investibles.getMarketComments([
+          { id: addedBug.structuredContent.comment_id, version: 1 }
+        ]))[0],
+        (bug) => bug?.resolved === true);
+      assert.strictEqual(resolved?.resolved, true);
+      assert.strictEqual(resolved.ticket_code, bugCode);
+      assert.strictEqual(resolved.comment_type, 'TODO');
+      assert(mcpText(await pollMcp('get_job', { short_code_id: bugCode })).includes(bugCode));
 
       const refused = toolResult(await mcpCall(adminConfiguration, uclusionToken, 'ask_question', {
         job_id: bugCode, question: `Retry ${marker}?`, options: OPTIONS, initial_vote: VOTE
@@ -96,9 +106,14 @@ export default function (adminConfiguration) {
       assert.deepStrictEqual(reopened?.structuredContent, { short_code_id: bugCode, status: 'reopened' },
         JSON.stringify(reopened));
       const open = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: bugCode })),
-        (markdown) => markdown.includes(`Bug ${bugCode}<a`) && !markdown.includes(`Resolved Bug ${bugCode}<a`));
-      assert(!open.includes(`Resolved Bug ${bugCode}<a`), `The bug should be open again: ${open}`);
+        async () => (await adminClient.investibles.getMarketComments([
+          { id: addedBug.structuredContent.comment_id, version: resolved.version }
+        ]))[0],
+        (bug) => bug && bug.resolved !== true);
+      assert(open && open.resolved !== true);
+      assert.strictEqual(open.ticket_code, bugCode);
+      assert.strictEqual(open.comment_type, 'TODO');
+      assert(mcpText(await pollMcp('get_job', { short_code_id: bugCode })).includes(bugCode));
 
       const converted = await mcpCall(adminConfiguration, uclusionToken, 'ask_question', {
         job_id: bugCode, question: `Retry ${marker}?`, options: OPTIONS, initial_vote: VOTE

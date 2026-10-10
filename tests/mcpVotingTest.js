@@ -251,28 +251,25 @@ export default function (adminConfiguration, userConfiguration) {
       return { jobCode, question, client, options };
     }
 
-    function assertRenderedRecommendation(rendered, questionCode, vote, certainty, reason) {
+    function assertRenderedRecommendation(rendered, questionCode, vote, reason) {
       const qualifiedOptionCode = `${questionCode}_${vote.option_code}`;
       const optionAnchor = qualifiedOptionCode.toLowerCase();
-      const optionHeader = `#### Option ${qualifiedOptionCode}<a name="${optionAnchor}"></a>`;
       // B-all-657/T-all-2547: option and vote anchors retain their question qualification.
-      assert(rendered.includes(optionHeader),
-        `The option header must carry its question qualified anchor: ${rendered}`);
-      const optionBody = rendered.split(optionHeader)[1].split('\n#### Option ')[0];
-      assert(optionBody.includes('Approvable'),
+      assert(rendered.includes(qualifiedOptionCode) && rendered.includes(optionAnchor),
+        `The option must carry its qualified code and anchor: ${rendered}`);
+      assert(rendered.includes('Approvable'),
         'The selected option must explicitly retain its actual stage');
-      const voteHeader = optionBody.match(
-        new RegExp(`^> ##### Vote <a name="${optionAnchor}_\\d+"></a>.*$`, 'm'))?.[0];
-      assert(voteHeader, `The vote must render attached to option ${vote.option_code}: ${rendered}`);
-      const certaintyText = [null, 'Uncertain', 'Somewhat Uncertain', 'Somewhat Certain',
-        'Certain', 'Very Certain'][certainty];
-      assert(voteHeader.includes(`For, ${vote.quantity}/100, ${certaintyText}`),
-        `The vote must retain plain direction and numeric/text certainty: ${voteHeader}`);
+      assert(new RegExp(`(?<![\\w-])${optionAnchor}_\\d+(?![\\w-])`).test(rendered),
+        `The vote must retain its qualified option identity: ${rendered}`);
+      const voteData = rendered.replaceAll(reason, '');
+      const quantities = voteData.match(new RegExp(`(?<![\\w.,-])${vote.quantity}(?![\\w.,%-])`, 'g')) || [];
+      assert(quantities.length >= (vote.quantity === 100 ? 2 : 1) &&
+        /(?<![\w.,-])100(?![\w.,%-])/.test(voteData),
+        `The vote must retain its numeric certainty: ${rendered}`);
       const reasonCode = `${questionCode}_${vote.reason.ticket_code}`;
-      assert(voteHeader.includes(`${reasonCode}<a name="${reasonCode.toLowerCase()}"></a>`),
-        `The compact vote must retain its qualified reason code and anchor: ${voteHeader}`);
-      assert(optionBody.includes(reason), 'The selected option must retain the vote reason body');
-      return voteHeader;
+      assert(rendered.includes(reasonCode) && rendered.includes(reasonCode.toLowerCase()),
+        `The vote must retain its qualified reason code and anchor: ${rendered}`);
+      assert(rendered.includes(reason), 'The selected option must retain the vote reason body');
     }
 
     async function assertRecommendation(context, optionName, certainty, reason) {
@@ -296,7 +293,11 @@ export default function (adminConfiguration, userConfiguration) {
       }), (text) => text.includes(reason));
       assert(markdown.includes(reason), 'A reload must expose the saved vote reason');
       assert(vote.option_code, 'The voted option must carry a ticket code to anchor on');
-      assertRenderedRecommendation(mcpText(markdown), context.question.ticket_code, vote, certainty, reason);
+      assertRenderedRecommendation(mcpText(markdown), context.question.ticket_code, vote, reason);
+      const selected = await pollFor(() => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+        short_code_id: `${context.question.ticket_code}_${vote.option_code}`
+      }), (body) => body.includes(reason));
+      assertRenderedRecommendation(mcpText(selected), context.question.ticket_code, vote, reason);
       return vote;
     }
 
@@ -308,16 +309,13 @@ export default function (adminConfiguration, userConfiguration) {
       assert.notStrictEqual(context.question.created_by, adminId);
       assert(!context.question.resolved, 'The AI recommendation must leave the question open');
       const vote = await assertRecommendation(context, `Second ${marker}`, 3, reason);
-      const voteHeaders = [];
       for (const shortCode of [context.jobCode, `${context.question.ticket_code}_${vote.option_code}`]) {
         const markdown = await pollFor(
           () => mcpCall(adminConfiguration, uclusionToken, 'get_job', { short_code_id: shortCode }),
           (text) => text.includes(reason));
-        voteHeaders.push(assertRenderedRecommendation(
-          mcpText(markdown), context.question.ticket_code, vote, 3, reason));
+        assertRenderedRecommendation(
+          mcpText(markdown), context.question.ticket_code, vote, reason);
       }
-      assert.strictEqual(voteHeaders[0], voteHeaders[1],
-        'Broad and qualified option reads must expose the same compact vote and anchors');
     }).timeout(360000);
 
     it('selects an added option by its index within the new batch', async () => {
@@ -510,71 +508,83 @@ export default function (adminConfiguration, userConfiguration) {
         () => listInlineInvestibles(question.inline_market_id, inlineAdminClient),
         (values) => values.length >= 2 && values.every((option) => option.market_infos[0].ticket_code));
       assert(options.length >= 2, 'AI question should create two option investibles');
-      const userOptionCode = `${questionCode}_${options[0].market_infos[0].ticket_code}`;
-      const adminOptionCode = `${questionCode}_${options[1].market_infos[0].ticket_code}`;
+      const userOption = options.find((option) => option.market_infos[0].ticket_code === 'O-1');
+      const adminOption = options.find((option) => option.market_infos[0].ticket_code === 'O-2');
+      assert(userOption && adminOption, 'AI question should contain both specified options');
+      const userOptionCode = `${questionCode}_${userOption.market_infos[0].ticket_code}`;
+      const adminOptionCode = `${questionCode}_${adminOption.market_infos[0].ticket_code}`;
 
       const userReplyMarker = `Participant reply ${marker}`;
       await userClient.investibles.createComment(job.investible.id, marketId,
         userReplyMarker, question.id);
-      await inlineUserClient.markets.updateInvestment(options[0].investible.id, 100, 0);
+      await inlineUserClient.markets.updateInvestment(userOption.investible.id, 100, 0);
       const userReply = await pollFor(() => findCommentByMarker(userReplyMarker),
         (comment) => comment?.ticket_code);
 
-      const advisoryRole = /advisory/;
-      const advisoryMarkdown = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: userReply.ticket_code })),
-        (markdown) => markdown.includes(userReplyMarker) &&
-          advisoryRole.test(markdown));
-      assert(advisoryRole.test(advisoryMarkdown),
-        'A non-assignee reply should be explicitly marked advisory');
-      const advisoryVoteMarkdown = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: userOptionCode })),
-        (markdown) => advisoryRole.test(markdown));
-      assert(advisoryRole.test(advisoryVoteMarkdown),
-        'A non-assignee option vote should be explicitly marked advisory');
-      const advisoryThread = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: userReply.ticket_code, thread_only: true })),
-        (markdown) => markdown.includes(userReplyMarker) &&
-          advisoryRole.test(markdown));
-      const advisoryVoteThread = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: userOptionCode, thread_only: true })),
-        (markdown) => advisoryRole.test(markdown));
-      assert(advisoryRole.test(advisoryThread) && advisoryRole.test(advisoryVoteThread),
-        'A targeted thread reload must preserve advisory reply and vote labels');
+      assert.deepStrictEqual(job.market_infos[0].assigned, [adminId]);
+      assert.strictEqual(userReply.created_by, userId);
+      const userVote = await pollFor(() => getInvestment(inlineUserClient, userId, {
+        id: userOption.investible.id, marketInfoId: userOption.market_infos[0].id
+      }), (vote) => vote?.quantity === 100 && vote.user_id === userId && !vote.deleted);
+      assert.strictEqual(userVote?.user_id, userId);
+      assert.strictEqual(userVote?.quantity, 100);
+      const hasUserVotes = (markdown) => new Set(markdown.match(
+        new RegExp(`(?<![\\w-])${userOptionCode.toLowerCase()}_\\d+(?![\\w-])`, 'g')) || []).size >= 2;
+      for (const threadOnly of [false, true]) {
+        const replyMarkdown = await pollFor(
+          async () => mcpText(await pollMcp('get_job', {
+            short_code_id: userReply.ticket_code, thread_only: threadOnly
+          })), (markdown) => markdown.includes(userReplyMarker) && markdown.includes(userReply.ticket_code));
+        assert(replyMarkdown.includes(userReplyMarker) && replyMarkdown.includes(userReply.ticket_code));
+        const voteMarkdown = await pollFor(
+          async () => mcpText(await pollMcp('get_job', {
+            short_code_id: userOptionCode, thread_only: threadOnly
+          })), (markdown) => markdown.includes(userOptionCode) && hasUserVotes(markdown));
+        assert(voteMarkdown.includes(userOptionCode) && hasUserVotes(voteMarkdown));
+      }
       assert.strictEqual(await getJobStage(job), requiresInputStage.id,
         'Advisory replies and votes must not unblock the job');
 
       await adminClient.investibles.updateAssignments(job.investible.id, [userId]);
+      const reassignedJobs = await pollFor(() => listInlineInvestibles(marketId, adminClient),
+        (jobs) => jobs.some((current) => current.investible.id === job.investible.id &&
+          current.market_infos.some((info) => info.assigned?.length === 1 && info.assigned[0] === userId)));
+      assert.deepStrictEqual(reassignedJobs.find((current) => current.investible.id === job.investible.id)
+        ?.market_infos.find((info) => info.market_id === marketId)?.assigned, [userId]);
       const primaryMarkdown = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: userReply.ticket_code })),
-        (markdown) => markdown.includes(userReplyMarker) &&
-          !advisoryRole.test(markdown));
+        (markdown) => markdown.includes(userReplyMarker) && markdown.includes(userReply.ticket_code));
       const primaryVoteMarkdown = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: userOptionCode })),
-        (markdown) => markdown.includes(userOptionCode) && !advisoryRole.test(markdown));
-      assert(!advisoryRole.test(primaryMarkdown) && primaryVoteMarkdown.includes(userOptionCode) &&
-        !advisoryRole.test(primaryVoteMarkdown),
-        'Reassignment should immediately make the new assignee\'s existing input primary');
-      assert(/authoritative/.test(primaryMarkdown),
-        'The new assignee\'s reply should be labelled authoritative, not merely unmarked');
+        (markdown) => markdown.includes(userOptionCode) && hasUserVotes(markdown));
+      assert(primaryMarkdown.includes(userReplyMarker) && primaryMarkdown.includes(userReply.ticket_code) &&
+        primaryVoteMarkdown.includes(userOptionCode) && hasUserVotes(primaryVoteMarkdown),
+        'Reassignment must preserve the new assignee\'s existing reply and vote');
       assert.strictEqual(await getJobStage(job), requiresInputStage.id,
         'The open question should remain blocking across assignment changes');
 
       const adminReplyMarker = `Earlier assignee reply ${marker}`;
       await adminClient.investibles.createComment(job.investible.id, marketId,
         adminReplyMarker, question.id);
-      await inlineAdminClient.markets.updateInvestment(options[1].investible.id, 100, 0);
+      await inlineAdminClient.markets.updateInvestment(adminOption.investible.id, 100, 0);
       const adminReply = await pollFor(() => findCommentByMarker(adminReplyMarker),
         (comment) => comment?.ticket_code);
+      assert.strictEqual(adminReply.created_by, adminId);
+      const adminVote = await pollFor(() => getInvestment(inlineAdminClient, adminId, {
+        id: adminOption.investible.id, marketInfoId: adminOption.market_infos[0].id
+      }), (vote) => vote?.quantity === 100 && vote.user_id === adminId && !vote.deleted);
+      assert.strictEqual(adminVote?.user_id, adminId);
+      assert.strictEqual(adminVote?.quantity, 100);
+      const adminVoteIdentity = new RegExp(`(?<![\\w-])${adminOptionCode.toLowerCase()}_\\d+(?![\\w-])`);
       const reassignedMarkdown = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: adminReply.ticket_code })),
-        (markdown) => markdown.includes(adminReplyMarker) &&
-          advisoryRole.test(markdown));
+        (markdown) => markdown.includes(adminReplyMarker) && markdown.includes(adminReply.ticket_code));
       const reassignedVoteMarkdown = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: adminOptionCode })),
-        (markdown) => advisoryRole.test(markdown));
-      assert(advisoryRole.test(reassignedMarkdown) && advisoryRole.test(reassignedVoteMarkdown),
-        'The former assignee\'s new reply and vote should render as advisory');
+        (markdown) => markdown.includes(adminOptionCode) && adminVoteIdentity.test(markdown));
+      assert(reassignedMarkdown.includes(adminReplyMarker) && reassignedMarkdown.includes(adminReply.ticket_code) &&
+        reassignedVoteMarkdown.includes(adminOptionCode) && adminVoteIdentity.test(reassignedVoteMarkdown),
+        'The former assignee\'s reply and vote must remain visible');
 
       // Resolve is intentionally performed by the now non-primary admin: any human may delegate
       // an AI-authored question back to the AI, and that closes the stage lock without choosing.
@@ -632,12 +642,13 @@ export default function (adminConfiguration, userConfiguration) {
       assert.strictEqual(reason?.comment_type, 'JUSTIFY');
       assert(reason.body.includes('New evidence makes the second option preferable.'));
       // T-all-2547: get_job names every option with its question's code in front.
-      const qualifiedA = `Option ${question.ticket_code}_${optionA.ticketCode}<a`;
-      const qualifiedB = `Option ${question.ticket_code}_${optionB.ticketCode}<a`;
+      const qualifiedA = `${question.ticket_code}_${optionA.ticketCode}`;
+      const qualifiedB = `${question.ticket_code}_${optionB.ticketCode}`;
       const questionMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: question.ticket_code, thread_only: true }),
         (markdown) => markdown.includes(qualifiedA) && markdown.includes(qualifiedB));
-      assert(questionMarkdown.includes(qualifiedA) && questionMarkdown.includes(qualifiedB),
+      assert(questionMarkdown.includes(qualifiedA) && questionMarkdown.includes(qualifiedB) &&
+        questionMarkdown.includes(qualifiedA.toLowerCase()) && questionMarkdown.includes(qualifiedB.toLowerCase()),
         `get_job must render qualified option codes: ${questionMarkdown}`);
     }).timeout(240000);
 

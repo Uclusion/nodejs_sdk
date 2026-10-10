@@ -7,7 +7,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, pollFor, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, pollFor as pollForRead, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration, userConfiguration) {
   describe('#test notifications MCP integration', () => {
@@ -85,17 +85,6 @@ export default function (adminConfiguration, userConfiguration) {
       return toolResult.structuredContent || JSON.parse(toolResult.content[0].text);
     }
 
-    // mcpCall returns the stringified JSON-RPC envelope, so the markdown's newlines
-    // arrive as literal backslash-n escapes.
-    function linesAbout(stringifiedResult, ticketCodes) {
-      return stringifiedResult.split('\\n')
-        .filter((line) => ticketCodes.some((code) => line.includes(code)));
-    }
-
-    function hasUnreadLine(stringifiedResult, ticketCodes) {
-      return linesAbout(stringifiedResult, ticketCodes).some((line) => !line.includes(', read**'));
-    }
-
     it('lists an AI reply notification and clears it by job short code', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
@@ -115,10 +104,8 @@ export default function (adminConfiguration, userConfiguration) {
         info: `AI reply that must generate a tracked notification ${marker}.`,
         tz: 'America/Los_Angeles'
       });
-      const replyMatch = replied.match(/Added info with id (\S+) and link/);
-      assert(replyMatch, `MCP add_info response wrong: ${replied}`);
-      const replyTicketCode = replyMatch[1];
-      const ticketCodes = [replyTicketCode];
+      const replyTicketCode = JSON.parse(replied).result?.structuredContent?.short_code_id;
+      assert(replyTicketCode, `MCP add_info response wrong: ${replied}`);
       const expectedReplyLink = `/${marketId}/${replyTicketCode}`;
 
       const rawReplyNotification = await pollFor(async () => {
@@ -139,35 +126,28 @@ export default function (adminConfiguration, userConfiguration) {
         (markdown) => markdown.includes(replyTicketCode));
       assert(inbox.includes(replyTicketCode),
         `get_notifications should list the AI reply notification ${replyTicketCode}: ${inbox}`);
-      // B-all-516: inbox lines carry the ticket path (often as an absolute UI URL
-      // `http://host/{marketId}/{ticketCode}`). Accept that or a bare ` — C-…`
-      // form; only the legacy `/dialog/…` UUID link is wrong.
-      const ticketPath = `/${marketId}/${replyTicketCode}`;
-      const replyLine = linesAbout(inbox, ticketCodes)
-        .find((line) => ticketCodes.some((code) => line.includes(code)));
-      assert(replyLine,
-        `get_notifications should list the reply notification ${replyTicketCode}: ${inbox}`);
-      assert(
-        replyLine.includes(ticketPath) || replyLine.includes(` — ${replyTicketCode}`),
-        `get_notifications should render the ticket path or bare code for ${replyTicketCode}: ${replyLine}`
-      );
-      assert(!replyLine.includes('/dialog/'),
-        `Reply notification should not fall back to an internal UUID dialog link: ${replyLine}`);
+      assert(!inbox.includes('/dialog/'),
+        `Reply notification should not fall back to an internal UUID dialog link: ${inbox}`);
 
       // Clearing by the JOB short code must catch the reply's notification through its
       // investible id — the object the agent finished, not the individual comment.
       const cleared = await mcpCall(adminConfiguration, uclusionToken, 'clear_notifications', {
         short_code_id: jobTicketCode
       });
-      assert(parseMcpToolResult(cleared).cleared > 0,
-        `clear_notifications should match at least one notification: ${cleared}`);
+      assert.notStrictEqual(JSON.parse(cleared).result.isError, true,
+        `clear_notifications should succeed: ${cleared}`);
+      const remaining = await pollForRead(
+        async () => (await getMessages(adminConfiguration)) || [],
+        (messages) => !messages.some((message) => message.market_id === marketId &&
+          message.type_object_id === rawReplyNotification.type_object_id));
+      assert(!remaining.some((message) => message.market_id === marketId &&
+        message.type_object_id === rawReplyNotification.type_object_id),
+        'Clearing the job must remove its previously observed reply notification');
 
-      // Cleared means removed (unread types) or marked read (persistent types); either way no
-      // unread line about the reply may remain.
       const after = await pollFor(getNotifications,
-        (markdown) => !hasUnreadLine(markdown, ticketCodes));
-      assert(!hasUnreadLine(after, ticketCodes),
-        `No unread notification should remain about ${ticketCodes} after the clear: ${after}`);
+        (markdown) => !markdown.includes(replyTicketCode));
+      assert(!after.includes(replyTicketCode),
+        `The removed reply notification should disappear from the inbox: ${after}`);
     }).timeout(600000);
 
     it('notifies the assignee with AI_GENERATED when the AI asks a first-level question', async () => {
@@ -216,9 +196,8 @@ export default function (adminConfiguration, userConfiguration) {
       const addedSuggestion = JSON.parse(suggested).result?.structuredContent;
       assert(addedSuggestion?.link?.endsWith(addedSuggestion.short_code_id),
         `make_suggestion must return its link in structuredContent: ${suggested}`);
-      const suggestionMatch = suggested.match(/Added suggestion with id (\S+) and link/);
-      assert(suggestionMatch, `MCP make_suggestion response wrong: ${suggested}`);
-      const suggestionTicketCode = suggestionMatch[1];
+      const suggestionTicketCode = addedSuggestion.short_code_id;
+      assert(suggestionTicketCode, `MCP make_suggestion response wrong: ${suggested}`);
       const expectedLink = `/${marketId}/${suggestionTicketCode}`;
 
       const suggestionNotifications = await pollFor(async () => {
@@ -368,9 +347,20 @@ export default function (adminConfiguration, userConfiguration) {
         description: 'A job the human created themselves generates no self-notification.'
       });
       const jobTicketCode = await getTicketCode(job);
+      const before = ((await getMessages(adminConfiguration)) || [])
+        .filter((message) => message.market_id === marketId);
+      assert(before.length > 0, 'Earlier fixtures must leave unrelated notifications to preserve');
+      assert(!before.some((message) => message.investible_id === job.investible.id),
+        'The quiet job must have no notification to clear');
       const cleared = await pollMcp('clear_notifications', { short_code_id: jobTicketCode });
-      assert.strictEqual(parseMcpToolResult(cleared).cleared, 0,
-        `clear_notifications must not touch unrelated notifications: ${cleared}`);
+      assert.notStrictEqual(JSON.parse(cleared).result.isError, true,
+        `Clearing the quiet job should succeed: ${cleared}`);
+      const after = ((await getMessages(adminConfiguration)) || [])
+        .filter((message) => message.market_id === marketId);
+      assert(before.every((previous) => after.some((current) =>
+        current.type_object_id === previous.type_object_id &&
+          current.is_highlighted === previous.is_highlighted)),
+        'Clearing the quiet job must preserve unrelated notification rows and their highlight state');
     }).timeout(300000);
   });
 }

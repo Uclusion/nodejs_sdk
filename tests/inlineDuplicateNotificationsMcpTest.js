@@ -97,17 +97,19 @@ export default function (adminConfiguration, userConfiguration) {
       // subscribe has no acknowledgement. A pong proves the subscription row can be found for
       // this connection, so retry ping while its eventually-consistent index catches up.
       for (let i = 0; i < 12; i += 1) {
+        let closedBeforePing = false;
         try {
           await webSocketRunner.waitForOpen();
           const pongPromise = webSocketRunner.waitForReceivedMessage({ event_type: 'pong' }, 5000);
           // If the connection closes between waitForOpen and send, this waiter will time out after
           // the retry has moved on. Attach a handler now so that timeout is never unhandled.
           pongPromise.catch(() => {});
+          closedBeforePing = !webSocketRunner.socket ||
+            webSocketRunner.socket.readyState !== webSocketRunner.socket.OPEN;
           webSocketRunner.send('ping');
           await pongPromise;
           return;
         } catch (error) {
-          const closedBeforePing = error.message === 'Cannot send because websocket is not open';
           if (error.code !== WEBSOCKET_TIMEOUT_CODE && !closedBeforePing) {
             throw error;
           }

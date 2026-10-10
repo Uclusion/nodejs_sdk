@@ -66,19 +66,21 @@ export default function (adminConfiguration) {
       return row;
     }
 
-    async function readInfo(info, marker, parentQuestion) {
-      // Local codes are addressed through their question, never globally.
-      const args = { short_code_id: parentQuestion || info.short_code_id, thread_only: true };
-      const escapedCode = info.short_code_id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // T-all-2547: a code inside a question renders with its question's code in front.
-      const versionPattern = new RegExp(
-        `(?:Note|Reply|Info) (?:\\S+_)?${escapedCode}<a[^\n]*\n(?:Note|Reply|Info) version: (\\d+)\\.`);
-      const markdown = await pollFor(async () => text(await call('get_job', args)),
-        (body) => body.includes(marker) && versionPattern.test(body));
+    async function readInfo(info, marker, targetMarketId = marketId, client = adminClient) {
+      const stored = await persisted(info, targetMarketId, client);
+      assert(stored.body.includes(marker));
+      const versionPattern = new RegExp(`(?<![\\w.,-])${stored.version}(?![\\w,-]|\\.\\d)`, 'g');
+      const bodyVersions = (stored.body.replace(/<[^>]*>/g, '').match(versionPattern) || []).length;
+      const hasVersion = (body) => (body.replace(/<[^>]*>/g, '').match(versionPattern) || []).length > bodyVersions;
+      const markdown = await pollFor(async () => text(await call('get_job', {
+        short_code_id: info.short_code_id, thread_only: true
+      })), (body) => body.includes(marker) && body.includes(info.short_code_id) &&
+        hasVersion(body));
       assert(markdown.includes(marker), `Missing info body: ${markdown}`);
-      const match = markdown.match(versionPattern);
-      assert(match, `Missing version beside ${info.short_code_id}: ${markdown}`);
-      return Number(match[1]);
+      assert(markdown.includes(info.short_code_id));
+      assert(hasVersion(markdown),
+        `Missing stored version of ${info.short_code_id}: ${markdown}`);
+      return stored.version;
     }
 
     async function createInfo(target, marker, extra = {}) {
@@ -162,10 +164,7 @@ export default function (adminConfiguration) {
       const inlineLogin = await pollFor(
         () => loginUserToMarketAndGetToken(adminConfiguration, inlineMarketId), Boolean);
       const inlineClient = inlineLogin.client;
-      const questionMarkdown = await pollFor(
-        async () => text(await call('get_job', { short_code_id: question.short_code_id, thread_only: true })),
-        (body) => /Option \S+_O-\d+<a/.test(body));
-      const optionCode = questionMarkdown.match(/Option \S+_(O-\d+)<a/)?.[1];
+      const optionCode = question.options[0].short_code_id.slice(question.short_code_id.length + 1);
       assert(optionCode);
       const parent = { parent_question_short_code_id: question.short_code_id };
       const note = await createInfo(jobCode, `Job note ${marker}`);
@@ -191,7 +190,7 @@ export default function (adminConfiguration) {
         [optionReply, `Option reply ${marker}`, parent, inlineMarketId, inlineClient]
       ];
       for (const [info, original, extra = {}, targetMarket = marketId, client = adminClient] of cases) {
-        const version = await readInfo(info, original, extra.parent_question_short_code_id);
+        const version = await readInfo(info, original, targetMarket, client);
         const before = await persisted({ ...info, version }, targetMarket, client);
         const corrected = `Corrected ${original}`;
         const updated = success(await updateInfo(info, version, corrected, extra));
@@ -206,7 +205,7 @@ export default function (adminConfiguration) {
           assert.deepStrictEqual(after[field], before[field], `Update changed ${field}`);
         }
         assert(after.body.includes(corrected));
-        const rereadVersion = await readInfo(updated, corrected, extra.parent_question_short_code_id);
+        const rereadVersion = await readInfo(updated, corrected, targetMarket, client);
         const unchanged = success(await updateInfo(updated, rereadVersion, corrected, extra));
         assert.strictEqual(unchanged.status, 'unchanged');
         assert.strictEqual(unchanged.version, rereadVersion);

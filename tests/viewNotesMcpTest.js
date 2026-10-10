@@ -123,13 +123,18 @@ export default function (adminConfiguration) {
     }
 
     async function readNote(note, bodyMarker) {
-      const versionRow = new RegExp(`^[^\\d\\n]*(?<![\\w.,-])${note.version}(?![\\w,-])[^\\d\\n]*$`, 'm');
+      const versionValue = new RegExp(`(?<![\\w.,-])${note.version}(?![\\w,-]|\\.\\d)`, 'g');
+      const bodyVersions = (note.body.replace(/<[^>]*>/g, '').match(versionValue) || []).length;
+      const hasVersion = (markdown) =>
+        (markdown.replace(/<[^>]*>/g, '').match(versionValue) || []).length > bodyVersions;
       const markdown = await pollFor(
         () => readJob({ short_code_id: note.ticket_code, thread_only: true }),
-        (text) => text.includes(bodyMarker) && versionRow.test(text)
+        (text) => text.includes(bodyMarker) && text.includes(note.ticket_code) &&
+          hasVersion(text)
       );
       assert(markdown.includes(bodyMarker), `Explicit note read lost its body: ${markdown}`);
-      assert(versionRow.test(markdown),
+      assert(markdown.includes(note.ticket_code));
+      assert(hasVersion(markdown),
         `Explicit note read lost its actual stored version: ${markdown}`);
       return markdown;
     }
@@ -317,7 +322,7 @@ export default function (adminConfiguration) {
         view_short_code_id: jobTicketCode,
         note: lessonMarker
       });
-      const noteTicketCode = created.match(/Added view note (\S+) and link/)?.[1];
+      const noteTicketCode = JSON.parse(created).result?.structuredContent?.short_code_id;
       assert(noteTicketCode && noteTicketCode.startsWith('R-'),
         `Expected an R- ticket code in: ${created}`);
 
@@ -473,12 +478,15 @@ export default function (adminConfiguration) {
       assert(shownJobNote.is_visible, 'The fixture must exercise the Show AI override');
 
       await adminClient.investibles.updateComment(jobNote.id, undefined, true);
+      const resolvedNote = await pollFor(() => commentState(jobNote.id, jobNoteMarker),
+        (note) => note.resolved === true);
+      assert.strictEqual(resolvedNote.resolved, true);
       const resolvedHistory = await pollFor(
         () => readJob({ short_code_id: jobTicketCode, include_all_resolved: true }),
-        (markdown) => markdown.includes(`Resolved Note ${jobNote.ticket_code}`)
+        (markdown) => markdown.includes(jobNote.ticket_code)
           && markdown.includes(jobNoteMarker)
       );
-      assert(resolvedHistory.includes(`Resolved Note ${jobNote.ticket_code}`));
+      assert(resolvedHistory.includes(jobNote.ticket_code));
       assert(resolvedHistory.includes(jobNoteMarker));
       const afterResolve = await readJob({ short_code_id: jobTicketCode });
       assert(!afterResolve.includes(jobNoteMarker),

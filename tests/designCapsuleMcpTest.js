@@ -220,19 +220,28 @@ export default function (adminConfiguration) {
     }
 
     async function readNamedNote(shortCode, version, bodyMarker) {
-      const versionRow = new RegExp(`^[^\\d\\n]*(?<![\\w.,-])${version}(?![\\w,-])[^\\d\\n]*$`, 'm');
+      const comments = await waitForComments((items) => items.some((comment) =>
+        comment.ticket_code === shortCode && comment.version === version && comment.body?.includes(bodyMarker)));
+      const stored = comments.find((comment) => comment.ticket_code === shortCode);
+      assert.strictEqual(stored?.version, version);
+      const versionValue = new RegExp(`(?<![\\w.,-])${stored.version}(?![\\w,-]|\\.\\d)`, 'g');
+      const bodyVersions = (stored.body.replace(/<[^>]*>/g, '').match(versionValue) || []).length;
+      const hasVersion = (markdown) =>
+        (markdown.replace(/<[^>]*>/g, '').match(versionValue) || []).length > bodyVersions;
       const response = await pollFor(
         () => retryMcp('get_job', { short_code_id: shortCode, thread_only: true }),
         (candidate) => {
           const markdown = toolText(candidate);
-          return markdown.includes(bodyMarker) && versionRow.test(markdown);
+          return markdown.includes(bodyMarker) && markdown.includes(shortCode) &&
+            hasVersion(markdown);
         },
         20,
         3000
       );
       const markdown = toolText(response);
       assert(markdown.includes(bodyMarker), `Explicit ${shortCode} read lost its named body: ${markdown}`);
-      assert(versionRow.test(markdown),
+      assert(markdown.includes(shortCode));
+      assert(hasVersion(markdown),
         `Explicit ${shortCode} read lost its current stored version: ${markdown}`);
       return markdown;
     }
@@ -243,9 +252,9 @@ export default function (adminConfiguration) {
         info: body,
         tz: 'America/Los_Angeles'
       });
-      const match = toolText(response).match(/Added info with id (\S+) and link/);
-      assert(match, `add_info did not return the created note R code: ${response}`);
-      return match[1];
+      const code = structuredResult(response).short_code_id;
+      assert(code, `add_info did not return the created note R code: ${response}`);
+      return code;
     }
 
     async function addInfo(shortCode, body) {
@@ -496,8 +505,8 @@ export default function (adminConfiguration) {
 
       const jobMarkdown = await readTarget(jobTicketCode, createdJob.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, createdJob)
-          && markdown.includes(`Task ${missingTaskCode}=none`)
-          && markdown.includes(`Task ${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
+          && markdown.includes(`${missingTaskCode}=none`)
+          && markdown.includes(`${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
       assert(hasCapsuleReference(jobMarkdown, createdJob));
       assert(!jobMarkdown.includes(`Job capsule version one ${marker}`));
       assert(!jobMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
@@ -511,7 +520,7 @@ export default function (adminConfiguration) {
       for (const markdown of [taskMarkdown, groupedMarkdown]) {
         assert(!markdown.includes(`Task capsule selected through grouped child ${marker}`));
       }
-      const missingMarkdown = await readTarget(missingTaskCode, `Task ${missingTaskCode}=none`);
+      const missingMarkdown = await readTarget(missingTaskCode, `${missingTaskCode}=none`);
       assert(!missingMarkdown.includes(`Job capsule version one ${marker}`));
       await readNamedNote(createdJob.capsule_short_code_id, 1,
         `Job capsule version one ${marker}`);
@@ -526,7 +535,7 @@ export default function (adminConfiguration) {
         short_code_id: jobTicketCode, sections: ['tasks']
       }));
       assert(hasCapsuleReference(scopedJob, createdJob));
-      assert(scopedJob.includes(`Task ${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
+      assert(scopedJob.includes(`${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
       assert(!scopedJob.includes(`Job capsule version one ${marker}`));
       assert(!scopedJob.includes(`Task capsule selected through grouped child ${marker}`));
 

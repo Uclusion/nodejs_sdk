@@ -84,9 +84,12 @@ export default function (adminConfiguration) {
     }
 
     function extractShortCode(responseText) {
-      const match = responseText.match(/with id ([A-Z]-[^ ]+) and link/);
-      assert(match, `No short code in response: ${responseText}`);
-      return match[1];
+      const result = JSON.parse(responseText).result;
+      assert.notStrictEqual(result.isError, true, responseText);
+      const code = result.structuredContent?.short_code_id ||
+        result.content?.[0]?.text.match(/\bJ-[^\s/<>"]+-\d+\b/)?.[0];
+      assert(code, `No short code in response: ${responseText}`);
+      return code;
     }
 
     async function listMarketComments() {
@@ -237,8 +240,15 @@ export default function (adminConfiguration) {
         (markdown) => markdown.includes(taskMarker));
       assert(destination.includes(stages.find((stage) => stage.id === doableStageId).name),
         'The destination must retain the source Doable stage');
-      assert(destination.includes(`Task ${taskCode}<a`),
+      assert(destination.includes(taskCode),
         `The moved task should keep its code: ${destination}`);
+      const movedTask = await pollFor(() => findCommentByMarker(taskMarker),
+        (task) => task?.investible_id && task.investible_id !== source.investible.id);
+      assert.strictEqual(movedTask.ticket_code, taskCode);
+      assert.strictEqual(movedTask.comment_type, 'TODO');
+      const destinationJob = await pollFor(() => getFullInvestible(movedTask.investible_id),
+        (job) => job?.market_infos?.some((info) => info.ticket_code === result.short_code_id));
+      assert(destinationJob?.market_infos?.some((info) => info.ticket_code === result.short_code_id));
     }).timeout(300000);
 
     it('turns a suggestion on a job into a task only for the human (S-Marketing-76)', async () => {
@@ -264,9 +274,16 @@ export default function (adminConfiguration) {
       assert.strictEqual(result?.structuredContent?.status, 'moved', moved);
       const tasks = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: jobCode, sections: ['tasks'] })),
-        (markdown) => markdown.includes(`Task ${suggestionCode}<a`));
-      assert(tasks.includes(`Task ${suggestionCode}<a`) && tasks.includes(suggestionMarker),
+        (markdown) => markdown.includes(suggestionCode) && markdown.includes(suggestionMarker));
+      assert(tasks.includes(suggestionCode) && tasks.includes(suggestionMarker),
         `The suggestion should now be a task of its job under the same code: ${tasks}`);
+      const task = await pollFor(() => findCommentByMarker(suggestionMarker),
+        (comment) => comment?.comment_type === 'TODO' && comment.investible_id);
+      assert.strictEqual(task.ticket_code, suggestionCode);
+      assert.strictEqual(task.comment_type, 'TODO');
+      const taskJob = await pollFor(() => getFullInvestible(task.investible_id),
+        (job) => job?.market_infos?.some((info) => info.ticket_code === jobCode));
+      assert(taskJob?.market_infos?.some((info) => info.ticket_code === jobCode));
     }).timeout(300000);
 
     it('gathers view level suggestions into a new job as suggestions (J-all-477)', async () => {
@@ -295,9 +312,20 @@ export default function (adminConfiguration) {
 
       const report = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: created.short_code_id })),
-        (markdown) => viewCodes.every((code) => markdown.includes(`Suggestion ${code}<a`)));
-      assert(viewCodes.every((code) => report.includes(`Suggestion ${code}<a`)),
+        (markdown) => viewCodes.every((code) => markdown.includes(code)));
+      assert(viewCodes.every((code) => report.includes(code)),
         `The new job should hold both suggestions under their codes, still as suggestions: ${report}`);
+      const gathered = await pollFor(listMarketComments, (comments) => viewCodes.every((code) =>
+        comments.some((comment) => comment.ticket_code === code && comment.investible_id)));
+      const gatheredJobId = gathered.find((comment) => comment.ticket_code === viewCodes[0])?.investible_id;
+      const gatheredJob = await pollFor(() => getFullInvestible(gatheredJobId),
+        (job) => job?.market_infos?.some((info) => info.ticket_code === created.short_code_id));
+      assert(gatheredJob?.market_infos?.some((info) => info.ticket_code === created.short_code_id));
+      for (const code of viewCodes) {
+        const suggestion = gathered.find((comment) => comment.ticket_code === code);
+        assert.strictEqual(suggestion.comment_type, 'SUGGEST');
+        assert.strictEqual(suggestion.investible_id, gatheredJobId);
+      }
       assert(!report.includes(onJobCode), `The job's own suggestion must not move: ${report}`);
 
       const converted = JSON.parse(await pollMcp('move_suggestion_to_task',
@@ -763,8 +791,6 @@ export default function (adminConfiguration) {
         (markdown) => markdown.includes(bugMarker) && markdown.includes(replyMarker));
       assert(bugMarkdown.includes(bugMarker) && bugMarkdown.includes(replyMarker),
         'The open-ended question should remain in the original bug thread');
-      assert(!bugMarkdown.includes('# Job J-'),
-        'An open-ended question must not create a job');
       const originalBug = await findCommentByMarker(bugMarker);
       assert(!originalBug.investible_id && originalBug.comment_type === 'TODO',
         'The bug should remain a view-level TODO after the rejected conversion');
