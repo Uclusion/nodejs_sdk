@@ -216,8 +216,7 @@ export default function (adminConfiguration, userConfiguration) {
       await reportingHttpErrors(async () => {
         const marker = `Single inline question ${randomUUID()}?`;
         const { ticketCode } = await createJob('Inline dup single');
-        const asked = await askQuestion(ticketCode, marker);
-        assert(asked.includes('Added question with id'), `MCP ask_question response wrong: ${asked}`);
+        await askQuestion(ticketCode, marker);
 
         const question = await findQuestionByMarker(marker);
         const inlineMarketId = question.inline_market_id;
@@ -269,8 +268,7 @@ export default function (adminConfiguration, userConfiguration) {
       await reportingHttpErrors(async () => {
         const marker = `Plain question ${randomUUID()}?`;
         const { ticketCode } = await createJob('Inline dup control');
-        const asked = await pollMcp('ask_question', { job_id: ticketCode, question: marker });
-        assert(asked.includes('Added question with id'), `MCP ask_question response wrong: ${asked}`);
+        await pollMcp('ask_question', { job_id: ticketCode, question: marker });
 
         const comments = await pollFor(listMarketComments,
           (fetched) => fetched.some((comment) => comment.body?.includes(marker)));

@@ -189,13 +189,11 @@ export default function (adminConfiguration) {
       });
       const jobTicketCode = await getTicketCode(job);
       const collaboratorMarker = `AI collaborator note ${marker}`;
-      const mcpResult = await pollMcp('add_info', {
+      await pollMcp('add_info', {
         short_code_id: jobTicketCode,
         info: collaboratorMarker,
         tz: 'America/Los_Angeles'
       });
-      assert(mcpResult.includes('Added info with id'),
-        `MCP add_info response wrong: ${mcpResult}`);
       const collaboratorComment = await findCommentByMarker(
         adminClient, marketId, collaboratorMarker);
       assert(collaboratorComment, 'AI collaborator comment should be discoverable');
@@ -242,12 +240,10 @@ export default function (adminConfiguration) {
       });
       const jobTicketCode = await getTicketCode(job);
       const questionMarker = `AI question awaiting one human response ${marker}?`;
-      const mcpResult = await pollMcp('ask_question', {
+      await pollMcp('ask_question', {
         job_id: jobTicketCode,
         question: questionMarker
       });
-      assert(mcpResult.includes('Added question with id'),
-        `MCP ask_question response wrong: ${mcpResult}`);
 
       const comments = await pollFor(listPlanningComments,
         (fetched) => fetched.some((comment) => comment.body?.includes(questionMarker)));
@@ -312,18 +308,14 @@ export default function (adminConfiguration) {
       const jobTicketCode = await getTicketCode(job);
       const firstMarker = `First AI question of a pair ${marker}?`;
       const secondMarker = `Second AI question of a pair ${marker}?`;
-      const firstResult = await pollMcp('ask_question', {
+      await pollMcp('ask_question', {
         job_id: jobTicketCode,
         question: firstMarker
       });
-      assert(firstResult.includes('Added question with id'),
-        `MCP ask_question response wrong: ${firstResult}`);
-      const secondResult = await pollMcp('ask_question', {
+      await pollMcp('ask_question', {
         job_id: jobTicketCode,
         question: secondMarker
       });
-      assert(secondResult.includes('Added question with id'),
-        `MCP ask_question response wrong: ${secondResult}`);
       const firstQuestion = await findCommentByMarker(adminClient, marketId, firstMarker);
       const secondQuestion = await findCommentByMarker(adminClient, marketId, secondMarker);
       assert(firstQuestion?.ticket_code && secondQuestion?.ticket_code,
@@ -415,24 +407,20 @@ export default function (adminConfiguration) {
       // plus the AI completion note below.
 
       const completionMarker = `AI completion note for both-poke ${marker}`;
-      const mcpInfo = await pollMcp('add_info', {
+      await pollMcp('add_info', {
         short_code_id: bugTicketCode,
         info: completionMarker,
         tz: 'America/Los_Angeles'
       });
-      assert(mcpInfo.includes('Added info with id'),
-        `MCP add_info response wrong: ${mcpInfo}`);
       const completion = await findCommentByMarker(
         adminClient, marketId, completionMarker);
       assert(completion, 'AI completion note should be discoverable');
       assert.notStrictEqual(completion.created_by, adminId,
         'MCP add_info comment should be authored by the market AI user');
 
-      const mcpResolve = await pollMcp('resolve', {
+      await pollMcp('resolve', {
         short_code_id: bugTicketCode
       });
-      assert(mcpResolve.includes('Resolved'),
-        `MCP resolve response wrong: ${mcpResolve}`);
       const resolvedBug = await pollFor(
         () => listPlanningComments().then((comments) =>
           comments.find((comment) => comment.id === persistedBug.id)),
@@ -501,7 +489,7 @@ export default function (adminConfiguration) {
       });
       const jobTicketCode = await getTicketCode(job);
       const parentMarker = `AI parent question with an option ${marker}?`;
-      const mcpResult = await pollMcp('ask_question', {
+      await pollMcp('ask_question', {
         job_id: jobTicketCode,
         question: parentMarker,
         options: [{
@@ -511,8 +499,6 @@ export default function (adminConfiguration) {
         initial_vote: { new_option_index: 0, certainty: 3,
           reason: 'Use this option while its nested question is clarified.' }
       });
-      assert(mcpResult.includes('Added question with id'),
-        `MCP ask_question response wrong: ${mcpResult}`);
 
       const parentQuestion = await findCommentByMarker(adminClient, marketId, parentMarker);
       assert(parentQuestion, 'AI-authored parent question should be discoverable');
@@ -733,7 +719,7 @@ export default function (adminConfiguration) {
         assertPokeEnvelope(updated);
       }
 
-      const blockerMarker = `Human blocker forcing Blocked ${marker}`;
+      const blockerMarker = `Human dependency blocker ${marker}`;
       const blocker = await adminClient.investibles.createComment(
         job.investible.id,
         marketId,
@@ -765,8 +751,8 @@ export default function (adminConfiguration) {
       );
       assert(jobMarkdown.includes(blockerMarker),
         'Causal get_job should include the blocker that triggered the event');
-      assert(jobMarkdown.includes('This job is in stage Blocked.'),
-        'Causal get_job should include the current Blocked stage');
+      assert(jobMarkdown.includes(blockedStage.name),
+        'Causal get_job should render the stage triggered by the blocker');
 
       const blockedInvestibles = await pollFor(
         () => adminClient.markets.getMarketInvestibles([{

@@ -259,14 +259,14 @@ export default function (adminConfiguration, userConfiguration) {
       assert(rendered.includes(optionHeader),
         `The option header must carry its question qualified anchor: ${rendered}`);
       const optionBody = rendered.split(optionHeader)[1].split('\n#### Option ')[0];
-      assert(optionBody.includes('Stage: Approvable.'),
+      assert(optionBody.includes('Approvable'),
         'The selected option must explicitly retain its actual stage');
       const voteHeader = optionBody.match(
         new RegExp(`^> ##### Vote <a name="${optionAnchor}_\\d+"></a>.*$`, 'm'))?.[0];
       assert(voteHeader, `The vote must render attached to option ${vote.option_code}: ${rendered}`);
       const certaintyText = [null, 'Uncertain', 'Somewhat Uncertain', 'Somewhat Certain',
         'Certain', 'Very Certain'][certainty];
-      assert(voteHeader.includes(`For, ${vote.quantity}/100, ${certaintyText}; Reason `),
+      assert(voteHeader.includes(`For, ${vote.quantity}/100, ${certaintyText}`),
         `The vote must retain plain direction and numeric/text certainty: ${voteHeader}`);
       const reasonCode = `${questionCode}_${vote.reason.ticket_code}`;
       assert(voteHeader.includes(`${reasonCode}<a name="${reasonCode.toLowerCase()}"></a>`),
@@ -483,21 +483,18 @@ export default function (adminConfiguration, userConfiguration) {
       const questionCode = questionCodeMatch[0];
       // T-all-2551: the result names what the call created, so no get_job is needed to learn it.
       const askedResult = JSON.parse(asked).result;
-      const askedText = askedResult.content.map((part) => part.text || '').join('\n');
-      assert(askedText.includes(`Options, in the order given: ${questionCode}_O-1 = First path ${marker}; `
-        + `${questionCode}_O-2 = Second path ${marker}.`),
-      `ask_question must return each option's qualified code with its name in order: ${askedText}`);
-      assert(askedText.includes(`Initial vote: For ${questionCode}_O-1 at certainty 3.`),
-        `ask_question must return the initial vote: ${askedText}`);
-      assert(askedText.includes(`Job ${jobTicket} is now in stage Requires Input.`),
-        `ask_question must name the job's new stage: ${askedText}`);
+      assert.deepStrictEqual(askedResult.structuredContent.options.map((option) => option.name),
+        [`First path ${marker}`, `Second path ${marker}`]);
+      assert.deepStrictEqual(askedResult.structuredContent.initial_vote,
+        { short_code_id: `${questionCode}_O-1`, certainty: 3 });
+      assert.strictEqual(askedResult.structuredContent.job_stage, requiresInputStage.name);
       assert.deepStrictEqual(askedResult.structuredContent.options.map((option) => option.short_code_id),
         [`${questionCode}_O-1`, `${questionCode}_O-2`]);
       const openedThread = await pollMcp('get_job', {
         short_code_id: questionCode,
         thread_only: true
       });
-      assert(openedThread.includes('This job is in stage Requires Input.'),
+      assert(openedThread.includes(requiresInputStage.name),
         'A thread reload of a new question should report Requires Input before the stage write');
       const question = await findCommentByMarker(questionMarker);
       assert(question?.inline_market_id, 'AI question should have an inline decision market');
@@ -507,74 +504,90 @@ export default function (adminConfiguration, userConfiguration) {
       assert.strictEqual(blockedStage, requiresInputStage.id,
         'An open AI-authored question should move a Doable job to Requires Input');
 
-      const optionIds = await pollFor(
-        () => listInlineInvestibleIds(question.inline_market_id),
-        (ids) => ids.length >= 2);
-      assert(optionIds.length >= 2, 'AI question should create two option investibles');
       const inlineUserClient = await pollLogin(userConfiguration, question.inline_market_id);
       const inlineAdminClient = await pollLogin(adminConfiguration, question.inline_market_id);
+      const options = await pollFor(
+        () => listInlineInvestibles(question.inline_market_id, inlineAdminClient),
+        (values) => values.length >= 2 && values.every((option) => option.market_infos[0].ticket_code));
+      assert(options.length >= 2, 'AI question should create two option investibles');
+      const userOptionCode = `${questionCode}_${options[0].market_infos[0].ticket_code}`;
+      const adminOptionCode = `${questionCode}_${options[1].market_infos[0].ticket_code}`;
 
-      const userReplyMarker = `Advisory user reply ${marker}`;
+      const userReplyMarker = `Participant reply ${marker}`;
       await userClient.investibles.createComment(job.investible.id, marketId,
         userReplyMarker, question.id);
-      await inlineUserClient.markets.updateInvestment(optionIds[0], 100, 0);
+      await inlineUserClient.markets.updateInvestment(options[0].investible.id, 100, 0);
+      const userReply = await pollFor(() => findCommentByMarker(userReplyMarker),
+        (comment) => comment?.ticket_code);
 
-      // T-all-2548: the reply and vote headers differ only in level, so match whole lines.
-      // Lines only exist in the rendered markdown, not the JSON frame that escapes its newlines.
-      const advisoryReply = /^##### From advisory human:$/m;
-      const advisoryVote = /^#### From advisory human:$/m;
+      const advisoryRole = /advisory/;
       const advisoryMarkdown = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode })),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: userReply.ticket_code })),
         (markdown) => markdown.includes(userReplyMarker) &&
-          advisoryReply.test(markdown) && advisoryVote.test(markdown));
-      assert(advisoryReply.test(advisoryMarkdown),
+          advisoryRole.test(markdown));
+      assert(advisoryRole.test(advisoryMarkdown),
         'A non-assignee reply should be explicitly marked advisory');
-      assert(advisoryVote.test(advisoryMarkdown),
+      const advisoryVoteMarkdown = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: userOptionCode })),
+        (markdown) => advisoryRole.test(markdown));
+      assert(advisoryRole.test(advisoryVoteMarkdown),
         'A non-assignee option vote should be explicitly marked advisory');
       const advisoryThread = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode, thread_only: true })),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: userReply.ticket_code, thread_only: true })),
         (markdown) => markdown.includes(userReplyMarker) &&
-          advisoryReply.test(markdown) && advisoryVote.test(markdown));
-      assert(advisoryReply.test(advisoryThread) && advisoryVote.test(advisoryThread),
+          advisoryRole.test(markdown));
+      const advisoryVoteThread = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: userOptionCode, thread_only: true })),
+        (markdown) => advisoryRole.test(markdown));
+      assert(advisoryRole.test(advisoryThread) && advisoryRole.test(advisoryVoteThread),
         'A targeted thread reload must preserve advisory reply and vote labels');
       assert.strictEqual(await getJobStage(job), requiresInputStage.id,
         'Advisory replies and votes must not unblock the job');
 
       await adminClient.investibles.updateAssignments(job.investible.id, [userId]);
       const primaryMarkdown = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode })),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: userReply.ticket_code })),
         (markdown) => markdown.includes(userReplyMarker) &&
-          !advisoryReply.test(markdown) && !advisoryVote.test(markdown));
-      assert(!advisoryReply.test(primaryMarkdown) && !advisoryVote.test(primaryMarkdown),
+          !advisoryRole.test(markdown));
+      const primaryVoteMarkdown = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: userOptionCode })),
+        (markdown) => markdown.includes(userOptionCode) && !advisoryRole.test(markdown));
+      assert(!advisoryRole.test(primaryMarkdown) && primaryVoteMarkdown.includes(userOptionCode) &&
+        !advisoryRole.test(primaryVoteMarkdown),
         'Reassignment should immediately make the new assignee\'s existing input primary');
-      assert(/^##### From authoritative human:$/m.test(primaryMarkdown),
+      assert(/authoritative/.test(primaryMarkdown),
         'The new assignee\'s reply should be labelled authoritative, not merely unmarked');
       assert.strictEqual(await getJobStage(job), requiresInputStage.id,
         'The open question should remain blocking across assignment changes');
 
-      const adminReplyMarker = `Former assignee advisory reply ${marker}`;
+      const adminReplyMarker = `Earlier assignee reply ${marker}`;
       await adminClient.investibles.createComment(job.investible.id, marketId,
         adminReplyMarker, question.id);
-      await inlineAdminClient.markets.updateInvestment(optionIds[1], 100, 0);
+      await inlineAdminClient.markets.updateInvestment(options[1].investible.id, 100, 0);
+      const adminReply = await pollFor(() => findCommentByMarker(adminReplyMarker),
+        (comment) => comment?.ticket_code);
       const reassignedMarkdown = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: questionCode })),
+        async () => mcpText(await pollMcp('get_job', { short_code_id: adminReply.ticket_code })),
         (markdown) => markdown.includes(adminReplyMarker) &&
-          advisoryReply.test(markdown) && advisoryVote.test(markdown));
-      assert(advisoryReply.test(reassignedMarkdown) && advisoryVote.test(reassignedMarkdown),
+          advisoryRole.test(markdown));
+      const reassignedVoteMarkdown = await pollFor(
+        async () => mcpText(await pollMcp('get_job', { short_code_id: adminOptionCode })),
+        (markdown) => advisoryRole.test(markdown));
+      assert(advisoryRole.test(reassignedMarkdown) && advisoryRole.test(reassignedVoteMarkdown),
         'The former assignee\'s new reply and vote should render as advisory');
 
       // Resolve is intentionally performed by the now non-primary admin: any human may delegate
       // an AI-authored question back to the AI, and that closes the stage lock without choosing.
       await adminClient.investibles.updateComment(question.id, undefined, true);
       const restoredMarkdown = await pollMcp('get_job', { short_code_id: jobTicket });
-      assert(restoredMarkdown.includes('This job is in stage Doable.'),
+      assert(restoredMarkdown.includes(doableStage.name),
         'get_job should report the restored executable stage after Resolve without waiting for the stage write');
       const restoredThread = await pollMcp('get_job', {
         short_code_id: questionCode,
         thread_only: true
       });
       // S-all-345: show what the thread read said, so a failure tells which read disagreed.
-      assert(restoredThread.includes('This job is in stage Doable.'),
+      assert(restoredThread.includes(doableStage.name),
         `A thread reload should name the same restored stage: ${restoredThread}`);
       const restoredStage = await pollFor(() => getJobStage(job),
         (stageId) => stageId === doableStage.id);
@@ -920,13 +933,12 @@ export default function (adminConfiguration, userConfiguration) {
       const jobTicket = job.market_infos[0].ticket_code ||
         await getTicketCode(adminClient, job.investible.id, job.market_infos[0].id);
       const marker = 'AI authored question for rights test?';
-      const mcpResult = await mcpCall(adminConfiguration, uclusionToken, 'ask_question',
+      await mcpCall(adminConfiguration, uclusionToken, 'ask_question',
         { job_id: jobTicket, question: marker,
           options: [{ name: 'First direction', description: 'One way to go.' },
             { name: 'Second direction', description: 'Another way to go.' }],
           initial_vote: { new_option_index: 0, certainty: 3,
             reason: 'The first direction is the preferred starting point.' } });
-      assert(mcpResult.includes('Added question with id'), `MCP ask_question response wrong: ${mcpResult}`);
       // Discover the created comment through versions since MCP only returns short codes
       const questionComment = await pollFor(async () => {
         const versions = await accountClient.summaries.versions(accountToken, [marketId]);

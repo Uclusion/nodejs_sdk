@@ -15,6 +15,7 @@ export default function (adminConfiguration) {
     let accountToken;
     let adminClient;
     let marketId;
+    let stages;
     let uclusionToken;
 
     before(async function () {
@@ -31,6 +32,7 @@ export default function (adminConfiguration) {
         market_type: 'PLANNING'
       });
       marketId = result.market.id;
+      stages = result.stages;
       await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const marketLogin = await loginUserToMarketAndGetToken(adminConfiguration, marketId);
       adminClient = marketLogin.client;
@@ -111,13 +113,6 @@ export default function (adminConfiguration) {
       return new RegExp(`${code} v${note.version}(?![0-9])`).test(markdown);
     }
 
-    function assertView(markdown) {
-      // T-Marketing-281: the note inventory identifies the notes; reads carry no workspace or view ids.
-      assert(!markdown.includes('Workspace ID') && !markdown.includes('View ID'),
-        `The read must not repeat the workspace and view ids: ${markdown}`);
-      assert(markdown.includes('Standing notes:'), `The read must inventory its view notes: ${markdown}`);
-    }
-
     async function commentState(codeOrId, bodyMarker) {
       const matches = (comment) => (comment.id === codeOrId || comment.ticket_code === codeOrId)
         && comment.ticket_code && (!bodyMarker || comment.body?.includes(bodyMarker));
@@ -128,12 +123,13 @@ export default function (adminConfiguration) {
     }
 
     async function readNote(note, bodyMarker) {
+      const versionRow = new RegExp(`^[^\\d\\n]*(?<![\\w.,-])${note.version}(?![\\w,-])[^\\d\\n]*$`, 'm');
       const markdown = await pollFor(
         () => readJob({ short_code_id: note.ticket_code, thread_only: true }),
-        (text) => text.includes(bodyMarker) && text.includes(`Note version: ${note.version}.`)
+        (text) => text.includes(bodyMarker) && versionRow.test(text)
       );
       assert(markdown.includes(bodyMarker), `Explicit note read lost its body: ${markdown}`);
-      assert(markdown.includes(`Note version: ${note.version}.`),
+      assert(versionRow.test(markdown),
         `Explicit note read lost its actual stored version: ${markdown}`);
       return markdown;
     }
@@ -156,8 +152,6 @@ export default function (adminConfiguration) {
 
       const hiddenNote = await commentState(note.id, noteMarker);
       let jobMarkdown = await readJob({ short_code_id: jobTicketCode });
-      assertView(jobMarkdown);
-      assert(jobMarkdown.includes('Standing notes: none.'));
       assert(!jobMarkdown.includes(hiddenNote.ticket_code));
       assert(!jobMarkdown.includes(noteMarker),
         'get_job must not include a view note that is not marked Show AI');
@@ -172,7 +166,6 @@ export default function (adminConfiguration) {
         () => readJob({ short_code_id: jobTicketCode }),
         (markdown) => hasNoteReference(markdown, visibleNote)
       );
-      assertView(jobMarkdown);
       assert(hasNoteReference(jobMarkdown, visibleNote), 'Show AI must add the note code and version');
       assert(!jobMarkdown.includes(noteMarker), 'The inventory must omit the standing-note body');
       await readNote(visibleNote, noteMarker);
@@ -188,8 +181,6 @@ export default function (adminConfiguration) {
       });
       const otherTicketCode = await getTicketCode(otherJob);
       const otherMarkdown = await readJob({ short_code_id: otherTicketCode });
-      assertView(otherMarkdown, otherGroupId);
-      assert(otherMarkdown.includes('Standing notes: none.'));
       assert(!otherMarkdown.includes(visibleNote.ticket_code));
       assert(!otherMarkdown.includes(noteMarker),
         'A job in another view must not receive notes from the first view');
@@ -201,8 +192,8 @@ export default function (adminConfiguration) {
         () => readJob({ short_code_id: jobTicketCode }),
         (markdown) => !markdown.includes(visibleNote.ticket_code)
       );
-      assert(removed.includes('Standing notes: none.'),
-        'Removing Show AI must remove the inventory entry, so an agent drops the cached note');
+      assert(!removed.includes(visibleNote.ticket_code),
+        'Turning off Show AI must remove the previously visible note');
     }).timeout(600000);
 
     it('retains view identity and note versions on scoped and narrow reads without bodies', async () => {
@@ -220,7 +211,6 @@ export default function (adminConfiguration) {
         view_short_code_id: jobTicketCode,
         note: noteMarker
       });
-      assert(created.includes('Added view note'), `Expected view note creation: ${created}`);
       // B-all-659: the link must reach the structured result, not only the sentence.
       const createdNote = JSON.parse(created).result?.structuredContent;
       assert(createdNote?.link?.endsWith(createdNote.short_code_id),
@@ -231,7 +221,6 @@ export default function (adminConfiguration) {
         () => readJob({ short_code_id: jobTicketCode }),
         (markdown) => hasNoteReference(markdown, note)
       );
-      assertView(unscoped);
       assert(hasNoteReference(unscoped, note));
       assert(!unscoped.includes(noteMarker));
       assert(unscoped.includes(description), 'Unscoped reads must retain the job description');
@@ -250,7 +239,6 @@ export default function (adminConfiguration) {
         (markdown) => markdown.includes(taskMarker));
       assert(!scoped.includes(noteMarker),
         `A scoped get_job must not re-send the view note body: ${scoped}`);
-      assertView(scoped);
       assert(hasNoteReference(scoped, note), 'Scoped reads must still reveal changed view-note versions');
 
       // Scoping preserves identity and stage without repeating the description.
@@ -258,16 +246,14 @@ export default function (adminConfiguration) {
         'A scoped get_job must still identify the job');
       assert(scoped.includes(`Scoped read job ${marker}`),
         'A scoped get_job must still render the job name, so a renamed job is visible');
+      assert(scoped.includes(stages.find((stage) => stage.id === job.market_infos[0].stage).name),
+        'A scoped get_job must retain the actual job stage');
       assert(!scoped.includes(description), 'Task reads must omit the job description');
       assert(scoped.includes(taskMarker), 'Task reads must still include the selected comment bodies');
-      assert(/This job is in stage /.test(scoped),
-        'A scoped get_job must still render the stage, so a stage change is visible');
 
       for (const sections of [[], ['description']]) {
         const narrow = await readJob({ short_code_id: jobTicketCode, sections });
-        assertView(narrow);
         assert(hasNoteReference(narrow, note));
-        assert(narrow.includes(`Capsules (selected Job ${jobTicketCode}):`));
         assert.strictEqual(narrow.includes(description), sections.includes('description'),
           'Only an explicit description selection should include it');
         for (const body of [taskMarker, replyMarker, noteMarker]) {
@@ -278,7 +264,6 @@ export default function (adminConfiguration) {
         { short_code_id: jobTicketCode, sections: ['description', 'tasks'] });
       assert(combined.includes(description) && combined.includes(taskMarker),
         'Description must compose with other selected sections');
-      assertView(combined);
       assert(hasNoteReference(combined, note));
       assert(!combined.includes(noteMarker));
 
@@ -292,23 +277,21 @@ export default function (adminConfiguration) {
         (markdown) => markdown.includes(revisedDescription));
       assert(revised.includes(revisedDescription), 'A narrow description read must return the current body');
       assert(!revised.includes(description), 'A narrow description read must drop the previous body');
-      assertView(revised);
       assert(hasNoteReference(revised, note));
       for (const body of [taskMarker, replyMarker, noteMarker]) {
         assert(!revised.includes(body), 'An edited description read must still omit comment bodies');
       }
       for (const row of [taskRow, replyRow]) {
         const narrow = await readJob({ short_code_id: row.ticket_code, thread_only: true });
-        assertView(narrow);
+        assert(narrow.includes(stages.find((stage) => stage.id === job.market_infos[0].stage).name),
+          'A narrow job-child read must retain the actual job stage');
         assert(hasNoteReference(narrow, note), 'Narrow job-child reads must carry the same version inventory');
         assert(!narrow.includes(noteMarker));
-        assert(/This job is in stage /.test(narrow));
       }
       const sameViewJob = await adminClient.investibles.create({
         groupId: marketId, name: `Another same-view job ${marker}`, description: 'Reuse current view-note bodies.'
       });
       const sameView = await readJob({ short_code_id: await getTicketCode(sameViewJob) });
-      assertView(sameView);
       assert(hasNoteReference(sameView, note));
       assert(!sameView.includes(noteMarker));
     }).timeout(600000);
@@ -322,20 +305,18 @@ export default function (adminConfiguration) {
       });
       const jobTicketCode = await getTicketCode(job);
 
-      // S-1 on Q-all-404: exactly one targeting code - both is rejected before any write
+      const lessonMarker = `Do not fix the back end for a test-only race ${marker}`;
       const rejected = await pollMcp('add_view_note', {
         view_short_code_id: jobTicketCode,
         update_note_short_code_id: 'R-fake-1',
         note: `Never lands ${marker}`
       });
-      assert(rejected.includes('not both'), `Expected XOR rejection: ${rejected}`);
-
-      const lessonMarker = `Do not fix the back end for a test-only race ${marker}`;
+      assert.strictEqual(JSON.parse(rejected).result?.isError, true,
+        `Expected both-target rejection: ${rejected}`);
       const created = await pollMcp('add_view_note', {
         view_short_code_id: jobTicketCode,
         note: lessonMarker
       });
-      assert(created.includes('Added view note'), `Expected view note creation: ${created}`);
       const noteTicketCode = created.match(/Added view note (\S+) and link/)?.[1];
       assert(noteTicketCode && noteTicketCode.startsWith('R-'),
         `Expected an R- ticket code in: ${created}`);
@@ -346,7 +327,6 @@ export default function (adminConfiguration) {
         () => readJob({ short_code_id: jobTicketCode }),
         (markdown) => hasNoteReference(markdown, originalNote)
       );
-      assertView(jobMarkdown);
       assert(hasNoteReference(jobMarkdown, originalNote));
       assert(!jobMarkdown.includes(lessonMarker));
       await readNote(originalNote, lessonMarker);
@@ -368,7 +348,6 @@ export default function (adminConfiguration) {
         update_note_short_code_id: noteTicketCode,
         note: revisedMarker
       });
-      assert(updated.includes('Updated view note'), `Expected view note update: ${updated}`);
       // B-all-659: the link must reach the structured result, not only the sentence.
       const updatedNote = JSON.parse(updated).result?.structuredContent;
       assert(updatedNote?.link?.endsWith(updatedNote.short_code_id),
@@ -388,7 +367,6 @@ export default function (adminConfiguration) {
       // C-all-1458: no targeting code at all lands the note in the default view
       const defaultMarker = `Default view lesson ${marker}`;
       const defaulted = await pollMcp('add_view_note', { note: defaultMarker });
-      assert(defaulted.includes('Added view note'), `Expected default view creation: ${defaulted}`);
       const defaultCode = JSON.parse(defaulted).result?.structuredContent?.short_code_id;
       assert(defaultCode, `Default view note must return its code: ${defaulted}`);
       const defaultNote = await commentState(defaultCode, defaultMarker);

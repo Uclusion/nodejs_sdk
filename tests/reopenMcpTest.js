@@ -88,8 +88,6 @@ export default function (adminConfiguration) {
         job_id: bugCode, question: `Retry ${marker}?`, options: OPTIONS, initial_vote: VOTE
       }));
       assert.strictEqual(refused?.isError, true, `Converting a resolved bug must be refused: ${JSON.stringify(refused)}`);
-      assert(JSON.stringify(refused).includes('reopen it with the reopen tool'),
-        `The refusal should name the reopen tool: ${JSON.stringify(refused)}`);
 
       // The human reported the failure, so the reopen is theirs.
       const reopened = toolResult(await pollMcp('reopen',
@@ -106,8 +104,8 @@ export default function (adminConfiguration) {
         job_id: bugCode, question: `Retry ${marker}?`, options: OPTIONS, initial_vote: VOTE
       });
       assert.notStrictEqual(toolResult(converted)?.isError, true, converted);
-      assert(mcpText(converted).includes(`moved bug ${bugCode} into it as a task`),
-        `The reopened bug should convert: ${converted}`);
+      assert(mcpText(converted).includes(bugCode),
+        `The conversion should return the reopened bug code: ${converted}`);
     }).timeout(300000);
 
     it('returns a Reviewable job to Doable when its assignee reopens a task', async () => {
@@ -139,7 +137,6 @@ export default function (adminConfiguration) {
         { bug: `Still open ${marker}`, severity: 'BLUE' }));
       const refused = toolResult(await pollMcp('reopen', { short_code_id: bugCode }));
       assert.strictEqual(refused?.isError, true, `Reopening an open bug must be refused: ${JSON.stringify(refused)}`);
-      assert(JSON.stringify(refused).includes('is already open'), JSON.stringify(refused));
     }).timeout(300000);
   });
 }

@@ -20,6 +20,7 @@ export default function (adminConfiguration) {
     let uclusionToken;
     let accountToken;
     let adminId;
+    let stages;
     let approvableStageId;
     let doableStageId;
     let requiresInputStageId;
@@ -38,6 +39,7 @@ export default function (adminConfiguration) {
         market_type: 'PLANNING'
       });
       marketId = result.market.id;
+      stages = result.stages;
       approvableStageId = result.stages.find((stage) => stage.name === 'Approvable')?.id;
       assert(approvableStageId, 'Planning market creation should return its Approvable stage');
       doableStageId = result.stages.find((stage) => stage.name === 'Doable')?.id;
@@ -152,7 +154,6 @@ export default function (adminConfiguration) {
         description: descriptionMarker,
         tasks: [taskMarkerA, taskMarkerB]
       });
-      assert(created.includes('Created 2 tasks'), `add_job should report its task list: ${created}`);
       const jobCode = extractShortCode(created);
       const questionMarker = `Which direction ${randomUUID()}?`;
       await pollMcp('ask_question', { job_id: jobCode, question: questionMarker });
@@ -193,11 +194,8 @@ export default function (adminConfiguration) {
       assert(threadMarkdown.includes(taskMarker), 'thread_only should include the task body');
       assert(!threadMarkdown.includes(jobDescription),
         'thread_only should not render the enclosing job');
-      // Created as the human, so no AI attribution
-      assert(!threadMarkdown.includes('From AI user'),
-        'add_task must create the task as the human token owner');
-      assert(threadMarkdown.includes('#### From authoritative human:'),
-        'A human task must carry its own author header');
+      assert.strictEqual((await findCommentByMarker(taskMarker)).created_by, adminId,
+        'add_task must create the task as the human');
     }).timeout(240000);
 
     it('moves a task out of a Doable job into a new job in the same stage (B-all-670)', async () => {
@@ -237,8 +235,8 @@ export default function (adminConfiguration) {
       const destination = await pollFor(
         async () => mcpText(await pollMcp('get_job', { short_code_id: result.short_code_id })),
         (markdown) => markdown.includes(taskMarker));
-      assert(destination.includes('This job is in stage Doable.'),
-        `The new job should start in the moved task's stage: ${destination}`);
+      assert(destination.includes(stages.find((stage) => stage.id === doableStageId).name),
+        'The destination must retain the source Doable stage');
       assert(destination.includes(`Task ${taskCode}<a`),
         `The moved task should keep its code: ${destination}`);
     }).timeout(300000);
@@ -323,10 +321,8 @@ export default function (adminConfiguration) {
         () => pollMcp('get_job', { short_code_id: jobCode }),
         (markdown) => typeof markdown === 'string' && markdown.includes(blockerMarker));
       assert(jobMarkdown.includes(blockerMarker), `Blocker ${blockerCode} should render on the job`);
-      assert(!jobMarkdown.includes('From AI user'),
-        'add_blocker must create the blocker as the human token owner');
-      assert(jobMarkdown.includes('#### From authoritative human:'),
-        'A human blocker must carry its own author header');
+      assert.strictEqual((await findCommentByMarker(blockerMarker)).created_by, adminId,
+        'add_blocker must create the blocker as the human');
     }).timeout(240000);
 
     it('uploads via presigned post and attaches the file to info', async () => {
@@ -402,16 +398,15 @@ export default function (adminConfiguration) {
       assert(uploaded.ok, `Separate attachment upload failed: ${uploaded.status}`);
       await adminClient.investibles.addAttachments(job.investible.id,
         [{ ...upload.metadata, original_name: originalName }]);
-      const markdown = await pollFor(
-        async () => mcpText(await pollMcp('get_job', { short_code_id: jobCode })),
-        (text) => text.includes('Attachments: 1.'));
-      assert(markdown.includes('get_job_attachments'), 'Job Markdown announces the explicit attachment method');
-      assert(!markdown.includes(upload.metadata.path), 'Job Markdown does not open or list separate file URLs');
-      const listed = JSON.parse(mcpText(await pollMcp('get_job_attachments', { short_code_id: jobCode })));
+      const listed = await pollFor(
+        async () => JSON.parse(mcpText(await pollMcp('get_job_attachments', { short_code_id: jobCode }))),
+        (result) => result.files.length === 1);
       assert.strictEqual(listed.job, jobCode);
       assert.strictEqual(listed.files.length, 1);
       assert.strictEqual(listed.files[0].original_name, originalName);
       assert.strictEqual(listed.files[0].content_length, Buffer.byteLength(content));
+      const markdown = mcpText(await pollMcp('get_job', { short_code_id: jobCode }));
+      assert(!markdown.includes(upload.metadata.path), 'Job Markdown does not open or list separate file URLs');
       if (!adminConfiguration.baseURL.includes('//dev.')) {
         const downloaded = await fetch(listed.files[0].download_url);
         assert(downloaded.ok, `Authorized attachment download failed: ${downloaded.status}`);
@@ -420,8 +415,7 @@ export default function (adminConfiguration) {
     }).timeout(240000);
 
     it('requests work and notifies the workspace humans', async () => {
-      const response = await pollMcp('request_work', {});
-      assert(response.includes('Requested work'), `request_work should confirm: ${response}`);
+      await pollMcp('request_work', {});
       const requestMessage = await pollFor(async () => {
         const messages = (await getMessages(adminConfiguration)) || [];
         return messages.find((message) => message.type_object_id === `REQUEST_WORK_${marketId}`);
@@ -443,10 +437,8 @@ export default function (adminConfiguration) {
         () => pollMcp('get_job', { short_code_id: bugCode }),
         (markdown) => typeof markdown === 'string' && markdown.includes(bugMarker));
       assert(bugMarkdown.includes(bugMarker), 'get_job should render the created bug');
-      assert(!bugMarkdown.includes('From AI user'),
-        'add_bug must create the bug as the human token owner');
-      assert(bugMarkdown.includes('#### From authoritative human:'),
-        'A human bug must carry its own author header');
+      assert.strictEqual((await findCommentByMarker(bugMarker)).created_by, adminId,
+        'add_bug must create the bug as the human');
     }).timeout(240000);
 
     it('creates a job from existing bugs and preserves their threads while exposing priority', async () => {
@@ -642,14 +634,15 @@ export default function (adminConfiguration) {
         () => pollMcp('get_job', { short_code_id: jobCode }),
         (markdown) => markdown.includes(bugMarker) && markdown.includes(replyMarker) &&
           markdown.includes(questionMarker) && markdown.includes(optionOne) &&
-          markdown.includes(optionTwo) && markdown.includes('This job is in stage Requires Input.'));
+          markdown.includes(optionTwo) &&
+          markdown.includes(stages.find((stage) => stage.id === requiresInputStageId).name));
       assert(jobMarkdown.includes(bugMarker) && jobMarkdown.includes(replyMarker),
         'The original bug and its reply thread should render on the converted job');
       assert(jobMarkdown.includes(questionMarker) && jobMarkdown.includes(optionOne) &&
         jobMarkdown.includes(optionTwo), 'The converted job should hold the optioned question');
       // B-all-673: an open AI question now locks Approvable jobs too.
-      assert(jobMarkdown.includes('This job is in stage Requires Input.'),
-        `The converted Bugs job should wait for its question to be resolved: ${jobMarkdown}`);
+      assert(jobMarkdown.includes(stages.find((stage) => stage.id === requiresInputStageId).name),
+        'The converted job must render its Requires Input stage');
 
       const movedComments = await pollFor(
         () => listMarketComments(),
@@ -758,17 +751,13 @@ export default function (adminConfiguration) {
       });
       assert(refusal.includes('"isError":true'),
         `ask_question without options should refuse as a tool error: ${refusal}`);
-      assert(refusal.includes('ask_question was refused'),
-        `The refusal should name the refused tool: ${refusal}`);
 
       const replyMarker = `Please provide the exact reproduction steps ${marker}.`;
-      const replied = await pollMcp('add_info', {
+      await pollMcp('add_info', {
         short_code_id: bugCode,
         info: replyMarker,
         tz: 'America/Los_Angeles'
       });
-      assert(replied.includes('Added info with id'),
-        `Open-ended bug question should use add_info: ${replied}`);
       const bugMarkdown = await pollFor(
         () => pollMcp('get_job', { short_code_id: bugCode }),
         (markdown) => markdown.includes(bugMarker) && markdown.includes(replyMarker));

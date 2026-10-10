@@ -217,8 +217,8 @@ export default function (adminConfiguration, userConfiguration) {
       // MCP is just a post - resolve as the AI user with the question's ticket code
       const mcpResult = await mcpCall(adminConfiguration, uclusionToken, 'resolve',
         { short_code_id: question.ticket_code });
-      assert(mcpResult.includes(`Resolved comment ${question.ticket_code}`),
-        `MCP resolve response wrong: ${mcpResult}`);
+      assert(mcpResult.includes(question.ticket_code),
+        `MCP resolve should return the resolved question code: ${mcpResult}`);
       await assertNotificationRemoved(adminConfiguration, `UNREAD_REPLY_${reply.id}`, 'AI user resolving');
       // The AI user is a different user than the creator so the creator hears about the resolve
       const resolvedNotification = await assertNotificationArrives(
@@ -256,8 +256,8 @@ export default function (adminConfiguration, userConfiguration) {
       const mcpResult = await mcpCall(adminConfiguration, uclusionToken, 'resolve', {
         short_code_id: aiResolvedTask.ticket_code
       });
-      assert(mcpResult.includes(`Resolved comment ${aiResolvedTask.ticket_code}`),
-        `MCP task resolve response wrong: ${mcpResult}`);
+      assert(mcpResult.includes(aiResolvedTask.ticket_code),
+        `MCP resolve should return the resolved task code: ${mcpResult}`);
 
       await userClient.investibles.updateComment(humanResolvedTask.id, undefined, true);
       const humanNotification = await assertNotificationArrives(

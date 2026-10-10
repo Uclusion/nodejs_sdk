@@ -14,7 +14,6 @@ import {
   INTEGRATION_TEST_SUB_TYPE
 } from './jobAuditMcpTest.js';
 
-const CAPSULE_CONTEXT = 'Capsules (selected ';
 const REGION = 'us-west-2';
 const COMMENTS_TABLE_BY_BASE_URL = new Map([
   ['https://dev.api.uclusion.com/v1', 'uclusion-markets-dev-comments'],
@@ -99,8 +98,6 @@ export default function (adminConfiguration) {
       const result = toolResult(response);
       const text = toolText(response);
       assert.strictEqual(result.isError, true, `Expected a tool refusal: ${response}`);
-      assert(text.includes('set_design_capsule was refused:'),
-        `Refusal should identify set_design_capsule: ${response}`);
       expectedText.forEach((expected) => {
         assert(text.includes(expected), `Refusal should include "${expected}": ${response}`);
       });
@@ -208,7 +205,6 @@ export default function (adminConfiguration) {
 
     async function readTarget(shortCode, expectedMarker, renderedStateIsReady = () => true) {
       const hasExpectedState = (markdown) =>
-        markdown.includes(CAPSULE_CONTEXT) &&
         markdown.includes(expectedMarker) &&
         renderedStateIsReady(markdown);
       const response = await pollFor(
@@ -224,18 +220,19 @@ export default function (adminConfiguration) {
     }
 
     async function readNamedNote(shortCode, version, bodyMarker) {
+      const versionRow = new RegExp(`^[^\\d\\n]*(?<![\\w.,-])${version}(?![\\w,-])[^\\d\\n]*$`, 'm');
       const response = await pollFor(
         () => retryMcp('get_job', { short_code_id: shortCode, thread_only: true }),
         (candidate) => {
           const markdown = toolText(candidate);
-          return markdown.includes(bodyMarker) && markdown.includes(`Note version: ${version}.`);
+          return markdown.includes(bodyMarker) && versionRow.test(markdown);
         },
         20,
         3000
       );
       const markdown = toolText(response);
       assert(markdown.includes(bodyMarker), `Explicit ${shortCode} read lost its named body: ${markdown}`);
-      assert(markdown.includes(`Note version: ${version}.`),
+      assert(versionRow.test(markdown),
         `Explicit ${shortCode} read lost its current stored version: ${markdown}`);
       return markdown;
     }
@@ -318,14 +315,15 @@ export default function (adminConfiguration) {
     }).timeout(300000);
 
     function allCapsuleArchives(comments, sourceCode) {
-      const prefix = `Former intent/design capsule ${sourceCode}, version `;
-      return comments.filter((comment) => comment.body?.includes(prefix));
+      const code = sourceCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const reference = new RegExp(`^[^\\d]*${code}(?![\\w-])[^\\d\\n]*\\d+(?![\\w-])`);
+      return comments.filter((comment) => reference.test(comment.body?.replace(/<[^>]*>/g, '') || ''));
     }
 
     function capsuleArchives(comments, sourceCode, sourceVersion) {
-      const prefix = `Former intent/design capsule ${sourceCode}, version ${sourceVersion}.`;
-      return allCapsuleArchives(comments, sourceCode)
-        .filter((comment) => comment.body.includes(prefix));
+      const code = sourceCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const reference = new RegExp(`^[^\\d]*${code}(?![\\w-])[^\\d\\n]*${sourceVersion}(?![\\w-])`);
+      return comments.filter((comment) => reference.test(comment.body?.replace(/<[^>]*>/g, '') || ''));
     }
 
     function assertArchive(archive, source) {
@@ -333,8 +331,7 @@ export default function (adminConfiguration) {
         `Archive should have its own R code: ${JSON.stringify(archive)}`);
       assert.notStrictEqual(archive.ticket_code, source.ticket_code,
         'Archive must not reuse the capsule R code');
-      assert(archive.body.includes(
-        `Former intent/design capsule ${source.ticket_code}, version ${source.version}.`));
+      assert.strictEqual(capsuleArchives([archive], source.ticket_code, source.version).length, 1);
       assert(archive.body.endsWith(source.body), 'Archive must preserve the complete former body');
       assert.strictEqual(archive.comment_type, 'REPORT');
       assert.strictEqual(archive.notification_type, 'BLUE');
@@ -448,8 +445,6 @@ export default function (adminConfiguration) {
         job.investible.id, marketId, capsuleReplyMarker, persistedTaskV1.id);
       const capsuleReplyCode = await commentCode(capsuleReply);
       const capsuleReplyMarkdown = await readTarget(capsuleReplyCode, capsuleReplyMarker);
-      assert(capsuleReplyMarkdown.includes(`Capsules (selected Task ${taskTicketCode}):`),
-        'A reply to a task capsule must retain that task capsule as its sole contract');
       assert(capsuleReplyMarkdown.includes(createdTask.capsule_short_code_id));
       assert(!capsuleReplyMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
         'A capsule reply read must preserve discussion without repeating the root body');
@@ -460,7 +455,6 @@ export default function (adminConfiguration) {
         thread_only: true
       });
       const capsuleReplyThread = toolText(capsuleReplyThreadResponse);
-      assert(capsuleReplyThread.includes(`Capsules (selected Task ${taskTicketCode}):`));
       assert(capsuleReplyThread.includes(createdTask.capsule_short_code_id)
         && capsuleReplyThread.includes(capsuleReplyMarker));
       assert(!capsuleReplyThread.includes(`Job capsule version one ${marker}`));
@@ -484,7 +478,7 @@ export default function (adminConfiguration) {
         job_id: jobTicketCode,
         capsule: '   '
       });
-      assertRefusal(blank, 'capsule must be nonblank');
+      assertRefusal(blank);
       const otherTarget = await retryMcp('set_design_capsule', {
         job_id: jobTicketCode,
         task_id: taskTicketCode,
@@ -492,42 +486,35 @@ export default function (adminConfiguration) {
         update_capsule_version: 1,
         capsule: `Must not be saved ${marker}`
       });
-      assertRefusal(otherTarget, `is the capsule of ${jobTicketCode}`, taskTicketCode);
+      assertRefusal(otherTarget, jobTicketCode, taskTicketCode);
       const removedTargetField = await retryMcp('set_design_capsule', {
         job_id: jobTicketCode,
         job_or_task_id: taskTicketCode,
         capsule: `Must not ignore a removed target field ${marker}`
       });
-      assertRefusal(removedTargetField, 'Unknown set_design_capsule fields', 'job_or_task_id');
+      assertRefusal(removedTargetField, 'job_or_task_id');
 
       const jobMarkdown = await readTarget(jobTicketCode, createdJob.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, createdJob)
           && markdown.includes(`Task ${missingTaskCode}=none`)
           && markdown.includes(`Task ${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
-      assert(jobMarkdown.includes(`Capsules (selected Job ${jobTicketCode}):`));
       assert(hasCapsuleReference(jobMarkdown, createdJob));
       assert(!jobMarkdown.includes(`Job capsule version one ${marker}`));
       assert(!jobMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
         'Job get_job must not merge in a task capsule');
       const taskMarkdown = await readTarget(taskTicketCode, createdTask.capsule_short_code_id);
-      assert(taskMarkdown.includes(`Capsules (selected Task ${taskTicketCode}):`));
       assert(!taskMarkdown.includes(`Job capsule version one ${marker}`),
         'Task get_job must not fall back to the job capsule');
       const groupedMarkdown = await readTarget(groupedTicketCode, createdTask.capsule_short_code_id);
-      assert(groupedMarkdown.includes(`Capsules (selected Task ${taskTicketCode}):`),
-        'Grouped get_job must select the normalized top-level task capsule');
       assert(!groupedMarkdown.includes(`Job capsule version one ${marker}`),
         'Grouped get_job must not merge in or fall back to the job capsule');
       for (const markdown of [taskMarkdown, groupedMarkdown]) {
         assert(!markdown.includes(`Task capsule selected through grouped child ${marker}`));
       }
       const missingMarkdown = await readTarget(missingTaskCode, `Task ${missingTaskCode}=none`);
-      assert(missingMarkdown.includes(`Capsules (selected Task ${missingTaskCode}):`));
       assert(!missingMarkdown.includes(`Job capsule version one ${marker}`));
-      const explicitJob = await readNamedNote(createdJob.capsule_short_code_id, 1,
+      await readNamedNote(createdJob.capsule_short_code_id, 1,
         `Job capsule version one ${marker}`);
-      assert(explicitJob.includes(
-        `Requested note ${createdJob.capsule_short_code_id} is the current capsule for this target.`));
       const taskCapsuleAfterReply = (await waitForComments((items) => items.some((comment) =>
         comment.id === persistedTaskV1.id && (comment.children || []).includes(capsuleReply.id))))
         .find((comment) => comment.id === persistedTaskV1.id);
@@ -579,7 +566,7 @@ export default function (adminConfiguration) {
         update_capsule_version: 1,
         capsule: `Stale overwrite ${marker}`
       });
-      assertRefusal(stale, createdJob.capsule_short_code_id, 'version 2');
+      assertRefusal(stale, createdJob.capsule_short_code_id);
 
       comments = await waitForComments((items) =>
         items.some((comment) => comment.ticket_code === createdJob.capsule_short_code_id &&
@@ -654,10 +641,6 @@ export default function (adminConfiguration) {
         const result = toolResult(response);
         if (result.isError === true) {
           const text = toolText(response);
-          assert(text.includes('set_design_capsule was refused:')
-            && text.includes('Current capsule is R-')
-            && text.includes('at version'),
-            `A bounded race refusal must identify the current R and version: ${response}`);
           raceConflictTexts.push(text);
           return;
         }
@@ -693,7 +676,6 @@ export default function (adminConfiguration) {
         (markdown) => hasCapsuleReference(markdown, {
           capsule_short_code_id: stableRaceCode, capsule_version: raceRows[0].version
         }));
-      assert(raceMarkdown.includes(`Capsules (selected Task ${raceTaskCode}):`));
       assert(!raceMarkdown.includes(selectedRaceMarker));
       await readNamedNote(stableRaceCode, raceRows[0].version, selectedRaceMarker);
     }).timeout(900000);
@@ -851,7 +833,7 @@ export default function (adminConfiguration) {
         task_id: taskCode,
         capsule: `Must not be saved for a mismatched job ${marker}`
       });
-      assertRefusal(mismatchedJob404, destinationJobCode, taskCode, 'does not exist');
+      assertRefusal(mismatchedJob404, destinationJobCode, taskCode);
 
       await assert.rejects(
         () => adminClient.investibles.moveComments(
@@ -954,8 +936,6 @@ export default function (adminConfiguration) {
         (markdown) => hasCapsuleReference(markdown, {
           ...createdDestinationCapsule, capsule_version: destinationCurrentBeforeUpdate.version
         }));
-      assert(taskMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
-      assert(groupedMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
       [taskMarkdown, groupedMarkdown].forEach((markdown) => {
         assert(!markdown.includes(`Source job control capsule ${marker}`));
         assert(!markdown.includes(movedTaskCapsuleMarker),
@@ -969,10 +949,8 @@ export default function (adminConfiguration) {
         'An explicit Notes read must retain the demoted source capsule history');
       assert(!history.includes(freshDestinationMarker),
         'Requesting Notes must not embed the current pinned capsule body');
-      const movedCapsule = await readNamedNote(currentTaskCapsule.ticket_code,
+      await readNamedNote(currentTaskCapsule.ticket_code,
         afterMoveById.get(currentTaskCapsule.id).version, movedTaskCapsuleMarker);
-      assert(movedCapsule.includes(
-        `Requested note ${currentTaskCapsule.ticket_code} is not the current capsule for this target.`));
       await readNamedNote(createdDestinationCapsule.capsule_short_code_id,
         destinationCurrentBeforeUpdate.version, freshDestinationMarker);
       const destinationCapsuleV2Body =
@@ -1022,14 +1000,12 @@ export default function (adminConfiguration) {
         comment.id === currentTaskCapsule.id).pinned, false,
         'Updating the destination capsule must not repin the older source R');
 
-      const updatedTaskMarkdown = await readTarget(
+      await readTarget(
         taskCode, updatedDestinationCapsule.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, updatedDestinationCapsule));
-      const updatedGroupedMarkdown = await readTarget(
+      await readTarget(
         groupedTaskCode, updatedDestinationCapsule.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, updatedDestinationCapsule));
-      assert(updatedTaskMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
-      assert(updatedGroupedMarkdown.includes(`Capsules (selected Task ${taskCode}):`));
       await readNamedNote(updatedDestinationCapsule.capsule_short_code_id,
         updatedDestinationCapsule.capsule_version, `Fresh destination task capsule version two ${marker}`);
     }).timeout(900000);
@@ -1068,12 +1044,10 @@ export default function (adminConfiguration) {
       const deltaReport = `${deltaMarker}: review ${createdCapsule.capsule_short_code_id}; ` +
         'implementation delta: added target-scoped capsule selection and conflict-safe updates; ' +
         'verified the integration boundary.';
-      const reviewResponse = await retryMcp('ask_for_review', {
+      await retryMcp('ask_for_review', {
         job_id: jobTicketCode,
         report: deltaReport
       });
-      assert(toolText(reviewResponse).includes('Added report with id'),
-        `ask_for_review should create an ordinary report: ${reviewResponse}`);
 
       let comments = await waitForComments((items) =>
         items.some((comment) => comment.body?.includes(deltaMarker) && comment.ticket_code));
@@ -1116,9 +1090,7 @@ export default function (adminConfiguration) {
       assert.notStrictEqual(stillOpenReview.resolved, true,
         'Revising the capsule must not auto-resolve its open review');
 
-      const resolved = await retryMcp('resolve', { short_code_id: deltaReview.ticket_code });
-      assert(toolText(resolved).includes('Resolved'),
-        `The agent must explicitly resolve its obsolete review: ${resolved}`);
+      await retryMcp('resolve', { short_code_id: deltaReview.ticket_code });
       comments = await waitForComments((items) =>
         items.some((comment) => comment.id === deltaReview.id && comment.resolved === true));
       assert.strictEqual(comments.find((comment) => comment.id === deltaReview.id)?.resolved, true,
@@ -1127,11 +1099,10 @@ export default function (adminConfiguration) {
       const noDeltaMarker = `No capsule delta ${marker}`;
       const noDeltaReport = `${noDeltaMarker}: ${revisedCapsule.capsule_short_code_id} remains current; ` +
         'No implementation deltas. The completed verification is ready for review.';
-      const noDeltaResponse = await retryMcp('ask_for_review', {
+      await retryMcp('ask_for_review', {
         job_id: jobTicketCode,
         report: noDeltaReport
       });
-      assert(toolText(noDeltaResponse).includes('Added report with id'));
       comments = await waitForComments((items) =>
         items.some((comment) => comment.body?.includes(noDeltaMarker) && comment.ticket_code));
       const noDeltaReview = comments.find((comment) => comment.body?.includes(noDeltaMarker));

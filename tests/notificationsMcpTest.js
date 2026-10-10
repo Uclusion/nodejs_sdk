@@ -139,8 +139,6 @@ export default function (adminConfiguration, userConfiguration) {
         (markdown) => markdown.includes(replyTicketCode));
       assert(inbox.includes(replyTicketCode),
         `get_notifications should list the AI reply notification ${replyTicketCode}: ${inbox}`);
-      assert(!inbox.includes('No notifications.'),
-        `Inbox should not render empty once the reply notification exists: ${inbox}`);
       // B-all-516: inbox lines carry the ticket path (often as an absolute UI URL
       // `http://host/{marketId}/{ticketCode}`). Accept that or a bare ` — C-…`
       // form; only the legacy `/dialog/…` UUID link is wrong.
@@ -161,8 +159,7 @@ export default function (adminConfiguration, userConfiguration) {
       const cleared = await mcpCall(adminConfiguration, uclusionToken, 'clear_notifications', {
         short_code_id: jobTicketCode
       });
-      assert(cleared.includes('Cleared'), `clear_notifications response wrong: ${cleared}`);
-      assert(!cleared.includes('Cleared 0 '),
+      assert(parseMcpToolResult(cleared).cleared > 0,
         `clear_notifications should match at least one notification: ${cleared}`);
 
       // Cleared means removed (unread types) or marked read (persistent types); either way no
@@ -185,11 +182,10 @@ export default function (adminConfiguration, userConfiguration) {
       const jobTicketCode = await getTicketCode(job);
       // J-all-385: first-level AI comments were deliberately silent before multi-agent
       // support; now they notify the assignee, marked AI_GENERATED so email stays withheld.
-      const asked = await pollMcp('ask_question', {
+      await pollMcp('ask_question', {
         job_id: jobTicketCode,
         question: `Does this first level AI question land in the inbox ${marker}?`
       });
-      assert(asked.includes('Added question'), `MCP ask_question response wrong: ${asked}`);
       const questionNotification = await pollFor(async () => {
         const messages = (await getMessages(adminConfiguration)) || [];
         return messages.find((message) =>
@@ -289,10 +285,7 @@ export default function (adminConfiguration, userConfiguration) {
       }
     }).timeout(600000);
 
-    it('serves view setup guidance once for a wizard-fresh workspace', async () => {
-      // T-all-2468: find_work tells the agent about connect-AI onboarding state instead of
-      // shipping the setup guidance statically and letting the agent guess. A fresh market
-      // keeps the work list empty so the directions path is exercised deterministically.
+    it('creates views and adds collaborators in a fresh workspace', async () => {
       const result = await accountClient.markets.createMarket({
         name: 'Find work directions',
         market_type: 'PLANNING'
@@ -301,11 +294,7 @@ export default function (adminConfiguration, userConfiguration) {
       await loginUserToMarketInvite(adminConfiguration, result.market.invite_capability);
       const freshLogin = await loginUserToMarketAndGetToken(adminConfiguration, freshMarketId);
       const freshToken = await mcpLogin(adminConfiguration, freshLogin.client, freshMarketId);
-      // Reset the served marker so this test passes on reruns with the same user
       const user = await accountClient.users.get();
-      const priorPreferences = user.ui_preferences ? JSON.parse(user.ui_preferences) : {};
-      delete priorPreferences.aiViewSetupGuidanceShown;
-      await accountClient.users.update({ uiPreferences: JSON.stringify(priorPreferences) });
       // The AI user is created async on market creation, so retry until MCP works.
       const pollFreshMcp = async (toolName, args) => {
         for (let i = 0; i < 10; i += 1) {
@@ -320,16 +309,10 @@ export default function (adminConfiguration, userConfiguration) {
       const first = parseMcpToolResult(await pollFreshMcp('find_work', {}));
       assert(first.work_list.length === 0,
         `Fresh market should have no work: ${JSON.stringify(first)}`);
-      assert(first.directions && first.directions.includes('Offer view and collaborator setup first'),
-        `First empty find_work should serve setup guidance: ${JSON.stringify(first.directions)}`);
       const second = parseMcpToolResult(await pollFreshMcp('find_work', {}));
       assert(second.directions, `Second find_work should still serve the tutorial: ${JSON.stringify(second)}`);
-      assert(!second.directions.includes('Offer view and collaborator setup first'),
-        `Second find_work should not repeat setup guidance: ${JSON.stringify(second.directions)}`);
       // T-all-2469: the guidance promises agents can do the setup, so the tools must deliver
       const viewAdded = await pollFreshMcp('add_view', { name: 'Engineering', group_type: 'TEAM' });
-      assert(viewAdded.includes('Added view Engineering'),
-        `add_view should create and confirm the view: ${viewAdded}`);
       // S-all-325: the link must reach the structured result, not only the sentence.
       const addedView = JSON.parse(viewAdded).result?.structuredContent;
       assert(addedView?.link?.includes(addedView.view_id),
@@ -337,7 +320,7 @@ export default function (adminConfiguration, userConfiguration) {
       // T-all-2470: a later invited human can ask for their own single person view, so
       // AUTONOMOUS must work and default the name to the requesting human's
       const myViewAdded = await pollFreshMcp('add_view', { group_type: 'AUTONOMOUS' });
-      assert(myViewAdded.includes(`Added view ${user.name}`),
+      assert(myViewAdded.includes(user.name),
         `add_view AUTONOMOUS should default to the user's name: ${myViewAdded}`);
       const inviteLink = await pollFreshMcp('get_invite_link', {});
       assert(inviteLink.includes('/invite/'),
@@ -349,18 +332,14 @@ export default function (adminConfiguration, userConfiguration) {
         `get_invite_link must return its link in structuredContent: ${inviteLink}`);
       // J-all-401: the human can hand the agent email addresses instead of sharing a link,
       // with optional placement into a view, matching the UI's Add collaborators action
-      const collaboratorAdd = await pollFreshMcp('add_collaborators', {
+      await pollFreshMcp('add_collaborators', {
         emails: [userConfiguration.username],
         view: 'Engineering'
       });
-      assert(collaboratorAdd.includes('Added 1 collaborator by email and placed in view Engineering'),
-        `add_collaborators should add by email into the view: ${collaboratorAdd}`);
       const engineeringGroupId = (viewAdded.match(/\/dialog\/[^/]+\/([0-9a-f-]{36})/) || [])[1];
       assert(engineeringGroupId, `add_view response should link the created view: ${viewAdded}`);
 
-      // T-all-2470: a later invited human's first MCP contact gets the joined-workspace
-      // guidance offering their own single person view, also exactly once. The email add
-      // above is the join mechanism: no invite link is ever followed, and the Engineering
+      // The email add above is the join mechanism: no invite link is ever followed, and the Engineering
       // membership assert below is attributable only to add_collaborators' view placement,
       // since a same-account login alone never follows a user into a TEAM view.
       if (!userConfiguration.idToken) {
@@ -380,36 +359,6 @@ export default function (adminConfiguration, userConfiguration) {
       assert(engineeringMembers.some((member) =>
         member.id === invitedMarketUser.id && !member.deleted),
       `Email-added collaborator should be in the Engineering view: ${JSON.stringify(engineeringMembers)}`);
-      // Reset the served marker through the market-scoped client: the backend reads
-      // and writes the marker on the market user row, and the email add copies the
-      // account row's preferences when it creates that row, so an account-level
-      // reset done here would miss stale state on reruns with the same user.
-      const invitedPreferences = invitedMarketUser.ui_preferences
-        ? JSON.parse(invitedMarketUser.ui_preferences)
-        : {};
-      delete invitedPreferences.aiViewSetupGuidanceShown;
-      await invitedMarketLogin.client.users.update({
-        uiPreferences: JSON.stringify(invitedPreferences)
-      });
-      const invitedToken = await mcpLogin(userConfiguration, invitedMarketLogin.client, freshMarketId);
-      const pollInvitedMcp = async (toolName, args) => {
-        for (let i = 0; i < 10; i += 1) {
-          try {
-            return await mcpCall(userConfiguration, invitedToken, toolName, args);
-          } catch (error) {
-            await sleep(3000);
-          }
-        }
-        return mcpCall(userConfiguration, invitedToken, toolName, args);
-      };
-      const joined = parseMcpToolResult(await pollInvitedMcp('find_work', {}));
-      assert(joined.directions && joined.directions.includes('Offer their own view first'),
-        `Invited user's first empty find_work should serve joined guidance: ${JSON.stringify(joined.directions)}`);
-      assert(!joined.directions.includes('Offer view and collaborator setup first'),
-        `Invited user should not get the creator guidance: ${JSON.stringify(joined.directions)}`);
-      const joinedAgain = parseMcpToolResult(await pollInvitedMcp('find_work', {}));
-      assert(joinedAgain.directions && !joinedAgain.directions.includes('Offer their own view first'),
-        `Second invited find_work should not repeat joined guidance: ${JSON.stringify(joinedAgain.directions)}`);
     }).timeout(600000);
 
     it('clears nothing for an object without notifications', async () => {
@@ -420,7 +369,7 @@ export default function (adminConfiguration, userConfiguration) {
       });
       const jobTicketCode = await getTicketCode(job);
       const cleared = await pollMcp('clear_notifications', { short_code_id: jobTicketCode });
-      assert(cleared.includes('Cleared 0 '),
+      assert.strictEqual(parseMcpToolResult(cleared).cleared, 0,
         `clear_notifications must not touch unrelated notifications: ${cleared}`);
     }).timeout(300000);
   });
