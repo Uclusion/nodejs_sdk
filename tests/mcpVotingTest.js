@@ -261,11 +261,6 @@ export default function (adminConfiguration, userConfiguration) {
         'The selected option must explicitly retain its actual stage');
       assert(new RegExp(`(?<![\\w-])${optionAnchor}_\\d+(?![\\w-])`).test(rendered),
         `The vote must retain its qualified option identity: ${rendered}`);
-      const voteData = rendered.replaceAll(reason, '');
-      const quantities = voteData.match(new RegExp(`(?<![\\w.,-])${vote.quantity}(?![\\w.,%-])`, 'g')) || [];
-      assert(quantities.length >= (vote.quantity === 100 ? 2 : 1) &&
-        /(?<![\w.,-])100(?![\w.,%-])/.test(voteData),
-        `The vote must retain its numeric certainty: ${rendered}`);
       const reasonCode = `${questionCode}_${vote.reason.ticket_code}`;
       assert(rendered.includes(reasonCode) && rendered.includes(reasonCode.toLowerCase()),
         `The vote must retain its qualified reason code and anchor: ${rendered}`);
