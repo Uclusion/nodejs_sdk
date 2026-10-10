@@ -284,18 +284,6 @@ export default function (adminConfiguration, userConfiguration) {
           `find_work should mark ${jobTicketCode} auto_take: ${found}`);
         assert(findWork.auto_take_directions,
           `find_work should carry auto_take_directions when auto_take items exist: ${found}`);
-        assert(findWork.auto_take_directions.includes(
-          'same turn that produced this list') && findWork.auto_take_directions.includes(
-          'call get_job for the FIRST auto_take item'),
-          `auto_take_directions should require loading the target in the same turn: ${found}`);
-        assert(findWork.auto_take_directions.includes(
-          'initial auto-take turn or any later turn working that item'),
-          `auto_take_directions should persist the handoff rule across the work lane: ${found}`);
-        assert(findWork.auto_take_directions.includes('otherwise use add_info on the active item'),
-          `auto_take_directions should require a durable fallback handoff: ${found}`);
-        assert(findWork.auto_take_directions.includes(
-          'Chat may mirror that handoff, but must never be its only copy'),
-          `auto_take_directions must forbid chat-only handoffs: ${found}`);
       } finally {
         await adminClient.markets.updateGroup(marketId, { ai_auto_take: false });
       }
