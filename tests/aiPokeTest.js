@@ -690,6 +690,66 @@ export default function (adminConfiguration) {
         'Task mutation should target the task rather than its enclosing job');
     }).timeout(240000);
 
+    it('should name the new type when a human moves a suggestion to a task', async () => {
+      // B-all-703: the task keeps its S- code, so the Poke says what it became and the
+      // agent need not reread it. The web UI's Move to task sends only the new type.
+      const marker = randomUUID();
+      const { job, jobTicketCode } = await createCollaboratedJob(marker);
+      const suggestionMarker = `Human suggestion to move to a task ${marker}`;
+      const suggestion = await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        suggestionMarker,
+        null,
+        'SUGGEST'
+      );
+      const persistedSuggestion = suggestion.ticket_code
+        ? suggestion
+        : await findCommentByMarker(adminClient, marketId, suggestionMarker);
+      assert(persistedSuggestion?.ticket_code, 'Human-created suggestion should have a ticket code');
+
+      const convertedPromise = aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Updated ${persistedSuggestion.ticket_code} of ${jobTicketCode} converted to task`
+      }, MESSAGE_TIMEOUT_MS);
+      const task = await adminClient.investibles.updateComment(persistedSuggestion.id, undefined,
+        undefined, undefined, undefined, 'TODO', undefined, undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, 'America/Los_Angeles');
+      assert.strictEqual(task.comment_type, 'TODO', 'Move to task should store a task');
+      assert.strictEqual(task.ticket_code, persistedSuggestion.ticket_code,
+        'Move to task keeps the suggestion short code');
+      assertPokeEnvelope(await convertedPromise);
+    }).timeout(240000);
+
+    it('should name the new type when a human moves a task to a bug', async () => {
+      // B-all-703: the web UI's Move to bug only sets a severity, which takes the task out
+      // of its job, so the stored type stays a task and only the job membership changes.
+      const marker = randomUUID();
+      const { job, jobTicketCode } = await createCollaboratedJob(marker);
+      const taskMarker = `Human task to move to a bug ${marker}`;
+      const task = await adminClient.investibles.createComment(
+        job.investible.id,
+        marketId,
+        taskMarker,
+        null,
+        'TODO'
+      );
+      const persistedTask = task.ticket_code
+        ? task
+        : await findCommentByMarker(adminClient, marketId, taskMarker);
+      assert(persistedTask?.ticket_code, 'Human-created task should have a ticket code');
+
+      const convertedPromise = aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai',
+        message: `Updated ${persistedTask.ticket_code} of ${jobTicketCode} converted to bug`
+      }, MESSAGE_TIMEOUT_MS);
+      const bug = await adminClient.investibles.alterComment(persistedTask.id, 'RED');
+      assert(!bug.investible_id, 'Move to bug should take the task out of its job');
+      assert.strictEqual(bug.ticket_code, persistedTask.ticket_code,
+        'Move to bug keeps the task short code');
+      assertPokeEnvelope(await convertedPromise);
+    }).timeout(240000);
+
     it('should defer a blocker Added event until the job is Blocked and causally readable', async () => {
       const marker = randomUUID();
       const { job, jobTicketCode } = await createCollaboratedJob(marker);
