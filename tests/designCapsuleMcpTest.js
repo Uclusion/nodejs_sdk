@@ -508,7 +508,8 @@ export default function (adminConfiguration) {
           && markdown.includes(`${missingTaskCode}=none`)
           && markdown.includes(`${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
       assert(hasCapsuleReference(jobMarkdown, createdJob));
-      assert(!jobMarkdown.includes(`Job capsule version one ${marker}`));
+      assert(jobMarkdown.includes(`Job capsule version one ${marker}`),
+        'A default whole-job read must include its current capsule body');
       assert(!jobMarkdown.includes(`Task capsule selected through grouped child ${marker}`),
         'Job get_job must not merge in a task capsule');
       const taskMarkdown = await readTarget(taskTicketCode, createdTask.capsule_short_code_id);
@@ -531,8 +532,9 @@ export default function (adminConfiguration) {
       const explicitTask = await readNamedNote(createdTask.capsule_short_code_id,
         taskCapsuleAfterReply.version, `Task capsule selected through grouped child ${marker}`);
       assert(!explicitTask.includes(`Job capsule version one ${marker}`));
+
       const scopedJob = toolText(await retryMcp('get_job', {
-        short_code_id: jobTicketCode, sections: ['tasks']
+        short_code_id: jobTicketCode, initial_read: true, sections: ['tasks']
       }));
       assert(hasCapsuleReference(scopedJob, createdJob));
       assert(scopedJob.includes(`${taskTicketCode}=${createdTask.capsule_short_code_id} v`));
@@ -627,7 +629,7 @@ export default function (adminConfiguration) {
         'Async retries must not duplicate the deterministic AI revision archive');
       const revisedMarkdown = await readTarget(jobTicketCode, createdJob.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, { ...createdJob, capsule_version: 3 }));
-      assert(!revisedMarkdown.includes(`Human-revised capsule version three ${marker}`));
+      assert(revisedMarkdown.includes(`Human-revised capsule version three ${marker}`));
       await readNamedNote(createdJob.capsule_short_code_id, 3,
         `Human-revised capsule version three ${marker}`);
       assert(!revisedMarkdown.includes(`AI-revised capsule version two ${marker}`),

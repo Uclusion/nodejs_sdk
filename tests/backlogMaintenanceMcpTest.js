@@ -39,7 +39,8 @@ export default function (adminConfiguration) {
           ?.find((entry) => entry.type === 'market_capability')?.object_versions || [];
       }, (capabilities) => capabilities.length >= 2);
       assert(ready.length >= 2, 'The human and planning AI must be ready before one-shot writes');
-      return { marketId, uclusionToken };
+      const humanId = (await client.users.get()).id;
+      return { marketId, uclusionToken, client, humanId };
     }
 
     function toolResult(raw) {
@@ -96,12 +97,32 @@ export default function (adminConfiguration) {
         .filter((message) => message.market_id === marketId && message.type === 'BACKLOG_MAINTENANCE');
     }
 
+    async function syncedComment(workspace, commentId) {
+      const versions = await pollFor(async () => {
+        const summary = await accountClient.summaries.versions(accountToken, [workspace.marketId]);
+        return summary.signatures?.find((entry) => entry.market_id === workspace.marketId)?.signatures
+          ?.filter((entry) => entry.type === 'comment')
+          .flatMap((entry) => entry.object_versions || [])
+          .find((entry) => entry.object_id_one === commentId);
+      }, (version) => version?.version);
+      assert(versions?.version, `Comment ${commentId} did not finish its UI/version push`);
+      return (await workspace.client.investibles.getMarketComments([
+        { id: commentId, version: versions.version }
+      ]))[0];
+    }
+
     it('claims a run once, delivers its report as one inbox item and clears the notice', async function () {
       this.timeout(900000);
       const workspace = await createWorkspace('Backlog maintenance with findings');
       const marker = randomUUID();
       const resolvedBug = await addBug(workspace, `Fixed bug ${marker}`);
-      const openBug = await addBug(workspace, `Open bug ${marker}`);
+      const humanCandidate = await workspace.client.investibles.createComment(
+        undefined, workspace.marketId, `Open bug ${marker}`, null, 'TODO');
+      const candidate = await syncedComment(workspace, humanCandidate.id);
+      assert.strictEqual(candidate.created_by, workspace.humanId,
+        'The candidate must have a human parent author who receives ordinary replies');
+      const openBug = { short_code_id: candidate.ticket_code, comment_id: candidate.id };
+      assert(openBug.short_code_id, 'The human candidate must have its exact bug code');
       await pollMcp(workspace, 'resolve', { short_code_id: resolvedBug.short_code_id });
 
       const notice = await noticeListing(workspace, resolvedBug.short_code_id);
@@ -120,7 +141,56 @@ export default function (adminConfiguration) {
       assert(!('backlog_maintenance' in whileClaimed),
         `find_work leaves out the notice while a claim is unexpired: ${JSON.stringify(whileClaimed)}`);
 
-      const report = `1. ${openBug.short_code_id} may be obsolete now that ${resolvedBug.short_code_id} is fixed.`;
+      const reason = `The fixed outcome ${marker} removes the open bug's premise`;
+      const proposedAction = 'Decide whether to resolve the open bug';
+      const report = `1. **${openBug.short_code_id}**, Open bug ${marker}: **obsolete**. ` +
+        `Evidence: ${resolvedBug.short_code_id}, ${reason}. Proposed action: ${proposedAction}.`;
+      const contextualWrite = toolResult(await mcpCall(adminConfiguration, workspace.uclusionToken,
+        'add_info', {
+          short_code_id: openBug.short_code_id, info: report,
+          is_silent: true, tz: 'America/Los_Angeles'
+        }));
+      assert.notStrictEqual(contextualWrite.isError, true, JSON.stringify(contextualWrite));
+      const context = contextualWrite.structuredContent;
+      assert(context?.short_code_id?.startsWith('C-'),
+        'A bug finding must be retained as a direct reply');
+      const candidateMarkdown = await pollFor(
+        async () => mcpText(await pollMcp(workspace, 'get_job', {
+          short_code_id: openBug.short_code_id, thread_only: true
+        })),
+        (markdown) => markdown.includes(context.short_code_id) && markdown.includes(reason)
+      );
+      assert(candidateMarkdown.includes(reason) && candidateMarkdown.includes(proposedAction),
+        'The candidate must retain its complete reason and proposed action before recording');
+      assert(candidateMarkdown.includes(resolvedBug.short_code_id),
+        'The completed source remains evidence in the saved finding');
+      assert(!candidateMarkdown.includes(`Resolved Bug ${openBug.short_code_id}`),
+        'Saving findings must leave the candidate open');
+      const savedContext = await syncedComment(workspace, context.comment_id);
+      assert.strictEqual(savedContext.is_silent, true);
+      const controlWrite = toolResult(await mcpCall(adminConfiguration, workspace.uclusionToken,
+        'add_info', {
+          short_code_id: openBug.short_code_id, info: `Ordinary reply control ${marker}`,
+          tz: 'America/Los_Angeles'
+        }));
+      assert.notStrictEqual(controlWrite.isError, true, JSON.stringify(controlWrite));
+      const control = controlWrite.structuredContent;
+      const controlledNotifications = await pollFor(() => getMessages(adminConfiguration),
+        (messages) => messages?.some((message) => message.market_id === workspace.marketId
+          && message.type_object_id === `UNREAD_REPLY_${control.comment_id}`));
+      assert(controlledNotifications.some((message) =>
+        message.type_object_id === `UNREAD_REPLY_${control.comment_id}`),
+      'The nonsilent reply must notify this human parent author');
+      // The silent comment's version push proves its stream handler finished. The
+      // positive reply exercises the same notification path, then allow the inbox index to settle.
+      await sleep(10000);
+      const contextNotifications = ((await getMessages(adminConfiguration)) || [])
+        .filter((message) => message.market_id === workspace.marketId
+          && (message.comment_id === context.comment_id
+            || message.type_object_id === `UNREAD_REPLY_${context.comment_id}`
+            || message.type_object_id === `REPLY_MENTION_${context.comment_id}`));
+      assert.deepStrictEqual(contextNotifications, [],
+        'The silent per-item finding must not add a human notification');
       const recorded = await runTool(workspace, { action: 'record', claim_id: claimId, report });
       assert.notStrictEqual(recorded.isError, true, `Recording must succeed: ${JSON.stringify(recorded)}`);
       assert.deepStrictEqual(recorded.structuredContent, { last_run: notice.through, report_delivered: true });
@@ -135,7 +205,6 @@ export default function (adminConfiguration) {
       const openBugLink = new RegExp(
         `<a href="[^"]*#c${openBug.comment_id}"[^>]*>${openBug.short_code_id}</a>`);
       assert.match(row.text || '', openBugLink, 'The report text links the open bug it names');
-
       const after = await findWork(workspace);
       assert(!('backlog_maintenance' in after), `Recording clears the notice: ${JSON.stringify(after)}`);
     });

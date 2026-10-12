@@ -385,12 +385,12 @@ export default function (adminConfiguration) {
       await readNote(defaultNote, defaultMarker);
     }).timeout(600000);
 
-    it('keeps AI-created job and task notes out of get_job (B-all-584)', async () => {
+    it('loads active ordinary notes without a capsule and preserves explicit note scope', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
-        name: `Hidden AI notes job ${marker}`,
-        description: 'Job whose regular AI notes should not become AI context.'
+        name: `Conditional AI notes job ${marker}`,
+        description: 'Ordinary notes supply context until this job has a current capsule.'
       });
       const jobTicketCode = await getTicketCode(job);
       const taskMarker = `Hidden AI notes task ${marker}`;
@@ -451,10 +451,16 @@ export default function (adminConfiguration) {
         'Full get_job did not reach both AI note barriers');
       const jobMarkdown = await readJob({ short_code_id: jobTicketCode });
       assert(jobMarkdown.includes(taskMarker), 'get_job must retain the ordinary task');
-      assert(!jobMarkdown.includes(jobNoteMarker),
-        'get_job must omit a regular AI-created job note by default');
-      assert(!jobMarkdown.includes(taskNoteMarker),
-        'get_job must omit a regular AI-created task note by default');
+      assert(jobMarkdown.includes(jobNoteMarker) && jobMarkdown.includes(taskNoteMarker),
+        'A whole-scope read without a capsule must load active ordinary job/task notes');
+      const initialMarkdown = await readJob({ short_code_id: jobTicketCode, initial_read: true });
+      assert(initialMarkdown.includes(jobNoteMarker) && initialMarkdown.includes(taskNoteMarker),
+        'An initial read without a capsule must load active ordinary notes');
+      const scopedTasks = await readJob({
+        short_code_id: jobTicketCode, initial_read: true, sections: ['tasks']
+      });
+      assert(!scopedTasks.includes(jobNoteMarker) && !scopedTasks.includes(taskNoteMarker),
+        'Explicit task sections must retain scope even with initial_read');
       const explicitNotes = await readJob({ short_code_id: jobTicketCode, sections: ['notes'] });
       assert(explicitNotes.includes(jobNoteMarker) && explicitNotes.includes(taskNoteMarker),
         'An explicit Notes section must include ordinary notes even with Show AI off');
@@ -463,7 +469,7 @@ export default function (adminConfiguration) {
       const shownJobNote = await adminClient.investibles.updateComment(jobNote.id,
         undefined, undefined, undefined, undefined, undefined, undefined,
         undefined, undefined, undefined, undefined, undefined, true, jobNote.version);
-      const replyMarker = `Ordinary note reply must not opt its body in ${marker}`;
+      const replyMarker = `Ordinary note context reply ${marker}`;
       await adminClient.investibles.createComment(job.investible.id, marketId, replyMarker, jobNote.id);
       const explicitWithReply = await pollFor(
         () => readJob({ short_code_id: jobNote.ticket_code, thread_only: true }),
@@ -472,9 +478,8 @@ export default function (adminConfiguration) {
       assert(explicitWithReply.includes(replyMarker));
       assert(explicitWithReply.includes(jobNoteMarker));
       const afterReply = await readJob({ short_code_id: jobTicketCode });
-      assert(!afterReply.includes(jobNoteMarker),
-        'Show AI and a reply must not inject an ordinary note body into a default read');
-      assert(!afterReply.includes(replyMarker));
+      assert(afterReply.includes(jobNoteMarker) && afterReply.includes(replyMarker),
+        'A default read without a capsule must retain the active note thread');
       assert(shownJobNote.is_visible, 'The fixture must exercise the Show AI override');
 
       await adminClient.investibles.updateComment(jobNote.id, undefined, true);
@@ -490,7 +495,106 @@ export default function (adminConfiguration) {
       assert(resolvedHistory.includes(jobNoteMarker));
       const afterResolve = await readJob({ short_code_id: jobTicketCode });
       assert(!afterResolve.includes(jobNoteMarker),
-        'Resolved status must not expose even a compressed ordinary note body by default');
+        'A resolved ordinary note still requires an explicit read');
+
+      const capsuleMarker = `Conditional notes current capsule ${marker}`;
+      const capsuleResponse = await pollMcp('set_design_capsule', {
+        job_id: jobTicketCode, capsule: `## Outcome\n${capsuleMarker}`
+      });
+      const capsule = JSON.parse(capsuleResponse).result?.structuredContent;
+      assert(capsule?.capsule_short_code_id, `Capsule missing: ${capsuleResponse}`);
+      const withCapsule = await pollFor(
+        () => readJob({ short_code_id: jobTicketCode }),
+        (markdown) => markdown.includes(capsuleMarker)
+      );
+      assert(withCapsule.includes(capsuleMarker));
+      assert(!withCapsule.includes(taskNoteMarker),
+        'A current capsule replaces ordinary-note context on default whole-scope reads');
+      const taskWithoutCapsule = await readJob({ short_code_id: task.ticket_code, initial_read: true });
+      assert(taskWithoutCapsule.includes(taskNoteMarker),
+        'A task without its own capsule must load ordinary notes despite the job capsule');
+      assert(!taskWithoutCapsule.includes(capsuleMarker),
+        'An independent task must not fall back to the job capsule');
+      const notesWithCapsule = await readJob({ short_code_id: jobTicketCode, sections: ['notes'] });
+      assert(notesWithCapsule.includes(taskNoteMarker) && !notesWithCapsule.includes(capsuleMarker),
+        'Explicit note scope must load notes without injecting a capsule body');
+
+      const grouped = await adminClient.investibles.createComment(
+        job.investible.id, marketId, `Grouped capsule context ${marker}`, task.id);
+      const groupedState = await commentState(grouped.id);
+      const taskCapsuleMarker = `Task capsule context ${marker}`;
+      const taskCapsuleResponse = await pollMcp('set_design_capsule', {
+        job_id: jobTicketCode, task_id: groupedState.ticket_code,
+        capsule: `## Outcome\n${taskCapsuleMarker}`
+      });
+      const taskCapsule = JSON.parse(taskCapsuleResponse).result?.structuredContent;
+      assert.strictEqual(taskCapsule?.normalized_target, task.ticket_code,
+        'A grouped task must select its parent task capsule');
+      const persistedCapsule = await commentState(taskCapsule.capsule_short_code_id);
+      const capsuleReplyMarker = `Resolved capsule discussion ${marker}`;
+      const capsuleReply = await adminClient.investibles.createComment(
+        job.investible.id, marketId, capsuleReplyMarker, persistedCapsule.id);
+      const rootReply = await commentState(capsuleReply.id, capsuleReplyMarker);
+      const capsuleAfterReply = await pollFor(() => commentState(persistedCapsule.id),
+        (comment) => comment.children?.includes(capsuleReply.id));
+      assert(capsuleAfterReply.children?.includes(capsuleReply.id));
+      const nestedMarker = `Nested capsule context ${marker}`;
+      const nestedResponse = await pollMcp('add_info', {
+        short_code_id: rootReply.ticket_code, info: nestedMarker,
+        tz: 'America/Los_Angeles'
+      });
+      const nested = JSON.parse(nestedResponse).result?.structuredContent;
+      assert(nested?.short_code_id, `Nested capsule reply missing: ${nestedResponse}`);
+      const nestedReply = await commentState(nested.short_code_id, nestedMarker);
+      const revisedReplyMarker = `Revised nested capsule context ${marker}`;
+      const revisedResponse = await pollMcp('add_info', {
+        update_info_short_code_id: nestedReply.ticket_code,
+        update_info_version: nestedReply.version, info: revisedReplyMarker,
+        tz: 'America/Los_Angeles'
+      });
+      assert.strictEqual(JSON.parse(revisedResponse).result?.structuredContent?.status, 'updated');
+      const deletedMarker = `Deleted capsule context ${marker}`;
+      const deletedReply = await adminClient.investibles.createComment(
+        job.investible.id, marketId, deletedMarker, capsuleReply.id);
+      await commentState(deletedReply.id);
+      await adminClient.investibles.deleteComment(deletedReply.id);
+      await adminClient.investibles.updateComment(capsuleReply.id, undefined, true);
+      const discussion = await pollFor(listHumanMarketComments, (items) =>
+        items.some((comment) => comment.id === nestedReply.id
+          && comment.body?.includes(revisedReplyMarker))
+        && items.some((comment) => comment.id === capsuleReply.id && comment.resolved === true)
+        && items.some((comment) => comment.id === deletedReply.id && comment.deleted === true));
+      assert(discussion.some((comment) => comment.id === capsuleReply.id && comment.resolved === true));
+      assert.strictEqual(discussion.find((comment) => comment.id === persistedCapsule.id)?.version,
+        capsuleAfterReply.version,
+        'Nested and edited capsule comments must not require a body-version change');
+      for (const targetCode of [task.ticket_code, groupedState.ticket_code]) {
+        const initial = await pollFor(
+          () => readJob({ short_code_id: targetCode, initial_read: true }),
+          (markdown) => markdown.includes(revisedReplyMarker) && !markdown.includes(deletedMarker)
+        );
+        assert(initial.includes(taskCapsuleMarker));
+        assert(initial.includes(capsuleReplyMarker),
+          'A whole-scope capsule read must include resolved discussion replies');
+        assert(initial.includes(revisedReplyMarker),
+          'A fresh read must load edited comments even at an unchanged capsule version');
+        assert(!initial.includes(deletedMarker) && !initial.includes(capsuleMarker));
+      }
+      const jobInitial = await readJob({ short_code_id: jobTicketCode, initial_read: true });
+      assert(jobInitial.includes(capsuleMarker) && !jobInitial.includes(taskCapsuleMarker),
+        'A job must keep its own capsule instead of a task capsule');
+      const isolatedReply = await readJob({
+        short_code_id: nestedReply.ticket_code, initial_read: true, thread_only: true
+      });
+      assert(isolatedReply.includes(revisedReplyMarker));
+      assert(!isolatedReply.includes(capsuleReplyMarker) && !isolatedReply.includes(taskCapsuleMarker),
+        'An explicit reply read must retain its subtree even with initial_read');
+      const scopedJob = await readJob({
+        short_code_id: jobTicketCode, initial_read: true, sections: ['tasks']
+      });
+      assert(!scopedJob.includes(capsuleMarker) && !scopedJob.includes(taskCapsuleMarker)
+        && !scopedJob.includes(revisedReplyMarker),
+      'An explicit section read must not inject capsule bodies or discussion');
     }).timeout(600000);
   });
 }

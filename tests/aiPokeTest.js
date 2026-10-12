@@ -690,6 +690,83 @@ export default function (adminConfiguration) {
         'Task mutation should target the task rather than its enclosing job');
     }).timeout(240000);
 
+    it('should Poke for silent AI job/task context while preserving other AI echoes', async () => {
+      const marker = randomUUID();
+      const { job, jobTicketCode, aiUserId } = await createCollaboratedJob(marker);
+      const task = await adminClient.investibles.createComment(
+        job.investible.id, marketId, `Silent context task ${marker}`, null, 'TODO');
+      const taskState = await findCommentByMarker(adminClient, marketId, `Silent context task ${marker}`);
+      assert(taskState?.ticket_code);
+      await aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai', message: `Added ${taskState.ticket_code} of ${jobTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+
+      async function addContext(targetCode, label, isSilent = true, fields = {}) {
+        const body = `${label} ${marker}`;
+        const response = await mcpCall(adminConfiguration, uclusionToken, 'add_info', {
+          short_code_id: targetCode, info: body, is_silent: isSilent,
+          tz: 'America/Los_Angeles', ...fields
+        });
+        const result = JSON.parse(response).result;
+        assert(result && !result.isError, `Context write failed: ${response}`);
+        const context = result.structuredContent;
+        const stored = await findCommentByMarker(adminClient, marketId, body);
+        assert.strictEqual(stored?.ticket_code, context.short_code_id);
+        assert.strictEqual(stored.is_silent, isSilent);
+        return { context, stored };
+      }
+
+      const jobNote = await addContext(jobTicketCode, 'Silent job note');
+      const taskNote = await addContext(taskState.ticket_code, 'Silent task note');
+      assert.strictEqual(taskNote.stored.associated_comment_id, task.id);
+      for (const note of [jobNote, taskNote]) {
+        assert.strictEqual(note.stored.created_by, aiUserId);
+        const received = await aiWebSocketRunner.waitForReceivedMessage({
+          event_type: 'poke_ai', message: `Added ${note.context.short_code_id} of ${jobTicketCode}`
+        }, MESSAGE_TIMEOUT_MS);
+        assertPokeEnvelope(received);
+      }
+
+      const capsuleCodes = [];
+      for (const taskCode of [undefined, taskState.ticket_code]) {
+        const response = await mcpCall(adminConfiguration, uclusionToken, 'set_design_capsule', {
+          job_id: jobTicketCode, ...(taskCode ? { task_id: taskCode } : {}),
+          capsule: `## Outcome\nSilent context capsule ${taskCode || jobTicketCode} ${marker}`
+        });
+        const result = JSON.parse(response).result;
+        assert(result && !result.isError, `Capsule write failed: ${response}`);
+        capsuleCodes.push(result.structuredContent.capsule_short_code_id);
+      }
+      for (const capsuleCode of capsuleCodes) {
+        const reply = await addContext(capsuleCode, `Silent capsule comment ${capsuleCode}`);
+        assert.strictEqual(reply.stored.created_by, aiUserId);
+        assert(reply.context.short_code_id.startsWith('C-'));
+        assertPokeEnvelope(await aiWebSocketRunner.waitForReceivedMessage({
+          event_type: 'poke_ai', message: `Added ${reply.context.short_code_id} of ${jobTicketCode}`
+        }, MESSAGE_TIMEOUT_MS));
+        const nested = await addContext(reply.context.short_code_id, `Silent nested comment ${capsuleCode}`);
+        assertPokeEnvelope(await aiWebSocketRunner.waitForReceivedMessage({
+          event_type: 'poke_ai', message: `Added ${nested.context.short_code_id} of ${jobTicketCode}`
+        }, MESSAGE_TIMEOUT_MS));
+        await assertNoPoke({ event_type: 'poke_ai', message: `Updated ${capsuleCode} of ${jobTicketCode}` },
+          BASELINE_QUIET_WINDOW_MS, 'Parent-only capsule version changes must not create a second Poke');
+      }
+
+      const suppressed = [
+        await addContext(jobTicketCode, 'Nonsilent AI note', false),
+        await addContext(jobNote.context.short_code_id, 'Silent ordinary-note reply'),
+        await addContext(capsuleCodes[0], 'Nonsilent capsule comment', false),
+        await addContext(jobTicketCode, 'Silent human-attributed note', true,
+          { for_human: true, is_my_lane: true })
+      ];
+      assert.strictEqual(suppressed[3].stored.created_by, adminId);
+      for (const write of suppressed) {
+        await assertNoPoke({
+          event_type: 'poke_ai', message: `Added ${write.context.short_code_id} of ${jobTicketCode}`
+        }, DUPLICATE_QUIET_WINDOW_MS, 'Other AI writes must retain their existing echo suppression');
+      }
+    }).timeout(600000);
+
     it('should name the new type when a human moves a suggestion to a task', async () => {
       // B-all-703: the task keeps its S- code, so the Poke says what it became and the
       // agent need not reread it. The web UI's Move to task sends only the new type.

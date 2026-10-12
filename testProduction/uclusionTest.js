@@ -15,6 +15,9 @@ import marketInvestiblesTest from '../tests/marketInvestiblesTest.js';
 import investmentsTest from '../tests/investmentsTest.js';
 import listsTest from '../tests/listsTest.js';
 import exportTest from '../tests/exportTest.js';
+import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
+import backlogMaintenanceMcpTest from '../tests/backlogMaintenanceMcpTest.js';
+import aiPokeTest from '../tests/aiPokeTest.js';
 
 const Amplify = awsAmplify.default;
 
@@ -58,4 +61,7 @@ describe('uclusion', () => {
   investmentsTest(adminConfiguration, userConfiguration, 2);
   listsTest(adminConfiguration, userConfiguration);
   exportTest(adminConfiguration);
+  viewNotesMcpTest(adminConfiguration);
+  backlogMaintenanceMcpTest(adminConfiguration);
+  aiPokeTest(adminConfiguration);
 });
