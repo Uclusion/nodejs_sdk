@@ -277,12 +277,20 @@ export function assertCompletionPackageTranscript({
   assert(!agentText.includes('Reply `all`, or tell me in your own words'),
     'A reply of `all` must not re-offer the completion package');
 
-  // T-Marketing-295: commit, push, the stage move with its sweep, then the
-  // clear last, carrying the terminal record.
-  assert.deepStrictEqual(mutations.map(workflowToolName),
-    ['change_job_stage', 'add_info', 'clear_notifications'],
+  // T-Marketing-295: commit, push, the stage move, then the clear last,
+  // carrying the terminal record. J-all-500: no completion sweep follows the
+  // stage move; once the package ends, a backlog maintenance run found by work
+  // discovery is the only other write.
+  const clearIndex = mutations.findIndex((call) =>
+    workflowToolName(call) === 'clear_notifications');
+  const packageMutations = clearIndex < 0 ? mutations : mutations.slice(0, clearIndex + 1);
+  assert.deepStrictEqual(packageMutations.map(workflowToolName),
+    ['change_job_stage', 'clear_notifications'],
     'Completion package performed an unauthorized or misordered mutation');
-  const [stage, sweep, clear] = mutations;
+  const [stage, clear] = packageMutations;
+  assert.deepStrictEqual(mutations.slice(packageMutations.length)
+    .filter((call) => workflowToolName(call) !== 'backlog_maintenance_run'), [],
+    'Only a backlog maintenance run may write after the completion package');
 
   const commitCalls = shellCalls.filter((entry) => gitOperation(entry.command, 'commit'));
   const pushCalls = shellCalls.filter((entry) => gitOperation(entry.command, 'push'));
@@ -319,36 +327,24 @@ export function assertCompletionPackageTranscript({
   assertExactInput(stage, { job_id: target.jobCode, from_stage: 'Doable', stage: 'Reviewable' },
     'Completion package stage transition');
 
-  const exportCalls = shellCalls.filter((entry) =>
-    isCompletionPackageExportCommand(entry.command, target.cliCommand));
-  assert.strictEqual(exportCalls.length, 1, 'Completion sweep must run one fresh workspace export');
-  const exportCall = exportCalls[0];
-  assert.strictEqual(exportCall.call.success, true, 'Completion-sweep workspace export must succeed');
-  assert(!/(?:^|\s)(?:-o|--output)(?:\s|=|$)/.test(exportCall.command),
-    'Completion sweep must use the configured export destination without an output override');
-  assert(stage.resultEventIndex < exportCall.call.eventIndex,
-    'Completion package must enter Reviewable before running its sweep export');
   assertReferenceLoaded(
     parsed,
     expectedSkillFiles,
     'references/completion.md',
-    exportCall.call.eventIndex,
-    'Completion-sweep reference'
+    clear.eventIndex,
+    'Completion-package reference'
   );
-  assert.strictEqual(sweep.input?.short_code_id, target.jobCode,
-    'Completion sweep result must be recorded on the exact triggering job');
-  assert(String(sweep.input?.info || '').includes(target.noCandidates),
-    'Completion sweep must record the explicit no-candidate result');
-  assert(exportCall.call.resultEventIndex < sweep.eventIndex,
-    'Completion sweep must finish its fresh export before recording the result');
-
   assert.strictEqual(clear.input?.short_code_id, target.jobCode,
     'Completion package must clear only the exact job');
   assert.strictEqual(clear.input?.record?.short_code_id, target.reviewCode,
     'The clear must carry the terminal record for the exact review');
   assert(String(clear.input?.record?.info || '').trim(),
     'The terminal record must state what completed');
-  assert(sweep.resultEventIndex < clear.eventIndex,
-    'The clear and its record must come after the completion sweep');
+  assert(stage.resultEventIndex < clear.eventIndex,
+    'The clear and its record must come after the stage move');
+  const exportCalls = shellCalls.filter((entry) =>
+    isCompletionPackageExportCommand(entry.command, target.cliCommand));
+  assert(exportCalls.every((entry) => clear.resultEventIndex < entry.call.eventIndex),
+    'A completion package must not export the workspace for a completion sweep');
   assertNoPrematureLaneSwitch(workflowCalls, allowedCodes, clear.resultEventIndex);
 }

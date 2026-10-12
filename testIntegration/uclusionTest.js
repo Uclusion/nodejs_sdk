@@ -22,6 +22,7 @@ import notificationsMcpTest from '../tests/notificationsMcpTest.js';
 import inlineDuplicateNotificationsMcpTest from '../tests/inlineDuplicateNotificationsMcpTest.js';
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import findWorkOrderingTest from '../tests/findWorkOrderingTest.js';
+import backlogMaintenanceMcpTest from '../tests/backlogMaintenanceMcpTest.js';
 import missingToolsMcpTest from '../tests/missingToolsMcpTest.js';
 import reopenMcpTest from '../tests/reopenMcpTest.js';
 import nextStageTest from '../tests/nextStageTest.js';
@@ -91,6 +92,7 @@ describe('uclusion', () => {
   inlineDuplicateNotificationsMcpTest(adminConfiguration, userConfiguration);
   viewNotesMcpTest(adminConfiguration);
   findWorkOrderingTest(adminConfiguration);
+  backlogMaintenanceMcpTest(adminConfiguration);
   missingToolsMcpTest(adminConfiguration);
   reopenMcpTest(adminConfiguration);
   nextStageTest(adminConfiguration);

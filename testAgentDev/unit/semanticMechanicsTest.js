@@ -71,7 +71,7 @@ describe('agent dev Codex semantic harness mechanics', () => {
       completionPackage: 'J-unit-1 has been reviewed. `all` does this, in order:\n\n' +
         '1. Commit only its reviewed changes.\n' +
         '2. Push only those commits.\n' +
-        '3. Move J-unit-1 from Doable to Reviewable and immediately run its completion sweep.\n' +
+        '3. Move J-unit-1 from Doable to Reviewable.\n' +
         '4. Clear only the notifications for J-unit-1, carrying the terminal record.\n\n' +
         'Reply `all`, or tell me in your own words what you want, here or on this review.'
     };

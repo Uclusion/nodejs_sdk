@@ -6,7 +6,7 @@ const DEFINITIONS = Object.freeze([
   Object.freeze({
     id: 'completion-package-full',
     phase: 'completion-package-full',
-    description: 'an agent-chat all reply performs the ordered completion package and sweep',
+    description: 'an agent-chat all reply performs the ordered completion package',
     target: 'full',
     codexSandbox: 'workspace-write',
     codexNetworkAccess: true,

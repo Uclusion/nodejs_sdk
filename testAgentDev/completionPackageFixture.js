@@ -6,10 +6,6 @@ import { getMessages } from '../src/utils.js';
 import { mcpCall, pollFor } from '../tests/commonTestFunctions.js';
 import { pollMcp, SemanticDevFixture } from './semanticFixture.js';
 
-export const NO_COMPLETION_CANDIDATES =
-  'No completion-sweep candidates: no open dependency blocker matched the triggering work, ' +
-  'and no unresolved job or bug became duplicate, obsolete, or in need of modification.';
-
 // T-Marketing-295: only `all` is tested (Q-Marketing-226 O-3).
 const PHASES = Object.freeze(['full']);
 
@@ -18,7 +14,7 @@ function completionPackage(jobCode, taskFile) {
     `1. Commit only its reviewed changes in the completion fixture repository:\n` +
     `   - \`${taskFile}\`.\n` +
     '2. Push only those commits.\n' +
-    `3. Move ${jobCode} from Doable to Reviewable and immediately run its completion sweep.\n` +
+    `3. Move ${jobCode} from Doable to Reviewable.\n` +
     `4. Clear only the notifications for ${jobCode}, carrying the terminal record.\n\n` +
     'Reply `all`, or tell me in your own words what you want, here or on this review.';
 }
@@ -374,7 +370,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
     phaseFixture.gitDirectory = gitDirectory;
     target.cliCommand = phaseFixture.expectedCliCommand;
     target.unrelatedFile = unrelatedFile;
-    target.exportFile = path.join(exportPath, `${this.marketId}.md`);
     target.remotePath = remotePath;
   }
 
@@ -401,9 +396,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
         cliCommand: target.cliCommand,
         taskFile: target.taskFile,
         unrelatedFile: target.unrelatedFile,
-        exportFile: target.exportFile,
-        remotePath: target.remotePath,
-        noCandidates: NO_COMPLETION_CANDIDATES
+        remotePath: target.remotePath
       } : null];
     }));
   }
@@ -430,7 +423,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
     const changedPaths = head === local.baselineHead ? [] : git(local.workspace, [
       'diff', '--name-only', local.baselineHead, head
     ], local.gitEnvironment).split('\n').filter(Boolean);
-    const exportFile = path.join(local.exportPath, `${this.marketId}.md`);
     return {
       baseline_head: local.baselineHead,
       head,
@@ -470,9 +462,7 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
         local.gitEnvironment
       ),
       unrelated_ready_content: local.unrelatedReadyContent.trimEnd(),
-      unrelated_baseline_content: local.unrelatedBaselineContent.trimEnd(),
-      export_file: exportFile,
-      export_exists: fs.existsSync(exportFile)
+      unrelated_baseline_content: local.unrelatedBaselineContent.trimEnd()
     };
   }
 
@@ -530,9 +520,6 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
           root_comment_id: comment.root_comment_id || null,
           created_by: comment.created_by
         })),
-        sweep_notes: jobComments.filter((comment) =>
-          comment.body?.includes(NO_COMPLETION_CANDIDATES)
-        ).map((comment) => ({ code: comment.ticket_code, body: comment.body })),
         target_notification_present: inbox.some((message) =>
           referencesCode(message, target.notificationCode)),
         review_notification_present: reviewReports.some((report) =>
@@ -560,13 +547,11 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       return job.stage_id === this.reviewableStageId &&
         job.review_reports.length === 1 &&
         job.review_reports[0].code?.startsWith('R-') &&
-        job.sweep_notes.length === 1 &&
         job.target_notification_present === false &&
         job.review_notification_present === false &&
         job.package_records.length === 1 &&
         state.decoy_notification_present === true &&
-        state.git?.head === state.git?.origin_head &&
-        state.git?.export_exists === true;
+        state.git?.head === state.git?.origin_head;
     };
     return pollFor(
       () => this.snapshotCompletion(phase),
@@ -662,17 +647,11 @@ export class CompletionPackageDevFixture extends SemanticDevFixture {
       'Full package must clear its identified nested notification');
     assert.strictEqual(afterJob.review_notification_present, false,
       'Full package must clear the completion review notification');
-    assert.strictEqual(afterJob.sweep_notes.length, 1,
-      'Full package must record exactly one completion sweep result');
-    assert.strictEqual(afterJob.sweep_notes[0].body.includes(NO_COMPLETION_CANDIDATES), true,
-      'Full package must record the explicit no-candidate completion result');
     assert.strictEqual(afterJob.package_records.length, 1,
       'Full package must record exactly one terminal reply');
     assert.strictEqual(afterJob.package_records[0].reply_id, target.review.id,
       'Full terminal reply must be recorded on the exact review root');
     assert.strictEqual(after.git.origin_head, after.git.head,
       'Full package must push its exact task-owned commit');
-    assert.strictEqual(after.git.export_exists, true,
-      'Full package must write the completion export to its configured ignored directory');
   }
 }

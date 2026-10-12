@@ -123,10 +123,12 @@ capsule-delta report ends in its completion package. The same package is
 carried as the immediately preceding agent prompt without adding a second paid
 turn or a resume harness. Only `all` is tested: any other reply is an ordinary
 instruction in the human's own words. The agent must order commit, local push,
-a fresh notification check, the Reviewable transition from Doable with its
-completion sweep, and last the exact-job clear carrying the terminal record,
-before any lane discovery. Durable grading forbids a second review or package
-prompt and preserves unrelated changes, notifications, and jobs. The catalog is
+a fresh notification check, the Reviewable transition from Doable, and last the
+exact-job clear carrying the terminal record, before any lane discovery. No
+completion sweep or workspace export runs before that clear; afterward a
+backlog maintenance run found by work discovery is the only other write.
+Durable grading forbids a second review or package prompt and preserves
+unrelated changes, notifications, and jobs. The catalog is
 defined by
 `completionPackageScenarios.js`, `completionPackageFixture.js`, and
 `completionPackageAssertions.js`.
@@ -194,8 +196,8 @@ Model and reasoning effort are managed defaults: the command and child
 environment contain no model or effort override. The longer completion
 phase has a 1,000,000-reported-token process ceiling; every other semantic
 process retains the 500,000-token ceiling. Only the completion phase enables
-workspace-write command networking, because its required fresh DEV export must
-reach Uclusion before the completion scan can run.
+workspace-write command networking, so that a backlog maintenance run's DEV
+export after the package can reach Uclusion.
 
 Each semantic prompt names its exact durable target. These headless processes
 use their explicit fixture instructions and do not consume unrelated retained
