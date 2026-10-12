@@ -8,7 +8,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, pollFor, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, pollFor, sleep } from './commonTestFunctions.js';
 import {
   deleteIntegrationTestMarket,
   INTEGRATION_TEST_SUB_TYPE
@@ -209,11 +209,11 @@ export default function (adminConfiguration) {
         renderedStateIsReady(markdown);
       const response = await pollFor(
         () => retryMcp('get_job', { short_code_id: shortCode }),
-        (candidate) => hasExpectedState(toolText(candidate)),
+        (candidate) => hasExpectedState(mcpText(candidate)),
         20,
         3000
       );
-      const markdown = toolText(response);
+      const markdown = mcpText(response);
       assert(hasExpectedState(markdown),
         `get_job ${shortCode} did not reach the expected state containing ${expectedMarker}: ${markdown}`);
       return markdown;
@@ -1082,7 +1082,10 @@ export default function (adminConfiguration) {
         createdCapsule.capsule_short_code_id, 'Capsule revision must retain the R named by the review');
       const revisedJob = await readTarget(jobTicketCode, revisedCapsule.capsule_short_code_id,
         (markdown) => hasCapsuleReference(markdown, revisedCapsule));
-      assert(!revisedJob.includes(`Review baseline version two ${marker}`));
+      assert(revisedJob.includes(`Review baseline version two ${marker}`),
+        `A default whole-job read must load the current capsule body: ${revisedJob}`);
+      assert(!revisedJob.includes(`Review baseline version one ${marker}`),
+        `A default whole-job read must omit the superseded capsule body: ${revisedJob}`);
       await readNamedNote(revisedCapsule.capsule_short_code_id, revisedCapsule.capsule_version,
         `Review baseline version two ${marker}`);
       // Wait through the capsule's async archive path before ruling out an implicit review close.

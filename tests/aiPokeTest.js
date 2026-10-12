@@ -710,8 +710,14 @@ export default function (adminConfiguration) {
         const result = JSON.parse(response).result;
         assert(result && !result.isError, `Context write failed: ${response}`);
         const context = result.structuredContent;
-        const stored = await findCommentByMarker(adminClient, marketId, body);
-        assert.strictEqual(stored?.ticket_code, context.short_code_id);
+        assert(context?.comment_id && context.short_code_id,
+          `Context write returned no comment identity: ${response}`);
+        const comments = await pollFor(listPlanningComments, (items) =>
+          items.some((comment) => comment.id === context.comment_id
+            && comment.ticket_code === context.short_code_id && comment.is_silent === isSilent));
+        const stored = comments.find((comment) => comment.id === context.comment_id);
+        assert.strictEqual(stored?.ticket_code, context.short_code_id,
+          `Context ${context.short_code_id} did not reach human hydration: ${JSON.stringify(stored)}`);
         assert.strictEqual(stored.is_silent, isSilent);
         return { context, stored };
       }

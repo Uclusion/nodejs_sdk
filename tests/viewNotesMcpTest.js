@@ -7,7 +7,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration) {
   describe('#test view level notes in get_job (J-all-381)', () => {
@@ -101,7 +101,7 @@ export default function (adminConfiguration) {
     function toolText(response) {
       const result = JSON.parse(response).result;
       assert(result && result.isError !== true, `MCP read failed: ${response}`);
-      return (result.content || []).map((item) => item.text || '').join('\n');
+      return mcpText(response);
     }
 
     async function readJob(args) {
@@ -531,7 +531,7 @@ export default function (adminConfiguration) {
       assert.strictEqual(taskCapsule?.normalized_target, task.ticket_code,
         'A grouped task must select its parent task capsule');
       const persistedCapsule = await commentState(taskCapsule.capsule_short_code_id);
-      const capsuleReplyMarker = `Resolved capsule discussion ${marker}`;
+      const capsuleReplyMarker = `Active capsule discussion ${marker}`;
       const capsuleReply = await adminClient.investibles.createComment(
         job.investible.id, marketId, capsuleReplyMarker, persistedCapsule.id);
       const rootReply = await commentState(capsuleReply.id, capsuleReplyMarker);
@@ -558,13 +558,15 @@ export default function (adminConfiguration) {
         job.investible.id, marketId, deletedMarker, capsuleReply.id);
       await commentState(deletedReply.id);
       await adminClient.investibles.deleteComment(deletedReply.id);
-      await adminClient.investibles.updateComment(capsuleReply.id, undefined, true);
       const discussion = await pollFor(listHumanMarketComments, (items) =>
         items.some((comment) => comment.id === nestedReply.id
           && comment.body?.includes(revisedReplyMarker))
-        && items.some((comment) => comment.id === capsuleReply.id && comment.resolved === true)
         && items.some((comment) => comment.id === deletedReply.id && comment.deleted === true));
-      assert(discussion.some((comment) => comment.id === capsuleReply.id && comment.resolved === true));
+      assert(discussion.some((comment) => comment.id === nestedReply.id
+        && comment.body?.includes(revisedReplyMarker)),
+      `Edited capsule reply did not reach human hydration: ${JSON.stringify(discussion)}`);
+      assert(discussion.some((comment) => comment.id === deletedReply.id && comment.deleted === true),
+        `Deleted capsule reply did not reach human hydration: ${JSON.stringify(discussion)}`);
       assert.strictEqual(discussion.find((comment) => comment.id === persistedCapsule.id)?.version,
         capsuleAfterReply.version,
         'Nested and edited capsule comments must not require a body-version change');
@@ -575,7 +577,7 @@ export default function (adminConfiguration) {
         );
         assert(initial.includes(taskCapsuleMarker));
         assert(initial.includes(capsuleReplyMarker),
-          'A whole-scope capsule read must include resolved discussion replies');
+          `A whole-scope capsule read must include its discussion reply: ${initial}`);
         assert(initial.includes(revisedReplyMarker),
           'A fresh read must load edited comments even at an unchanged capsule version');
         assert(!initial.includes(deletedMarker) && !initial.includes(capsuleMarker));

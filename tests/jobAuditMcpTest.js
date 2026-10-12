@@ -7,7 +7,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, sleep } from './commonTestFunctions.js';
 
 const REGION = 'us-west-2';
 export const INTEGRATION_TEST_SUB_TYPE = 'INTEGRATION_TEST';
@@ -498,16 +498,32 @@ export default function (adminConfiguration) {
       assert(!directlyHydratedAuditComments.some((comment) => firstRunAuditIds.has(comment.id)),
         `Machine-only audit notes reached direct human hydration: ${JSON.stringify(directlyHydratedAuditComments)}`);
 
-      const jobMarkdown = await pollFor(
-        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
-          short_code_id: jobTicketCode
-        }),
-        (markdown) => markdown.includes(syncBarrierMarker)
-      );
-      assert(jobMarkdown.includes(syncBarrierMarker),
-        'get_job did not reach the post-audit task barrier');
-      assert(!jobMarkdown.includes(firstRunId),
-        `Machine-only audit note reached ordinary get_job: ${jobMarkdown}`);
+      for (const arguments_ of [{}, { initial_read: true }]) {
+        const jobMarkdown = await pollFor(
+          async () => mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+            short_code_id: jobTicketCode, ...arguments_
+          })),
+          (markdown) => markdown.includes(syncBarrierMarker)
+        );
+        assert(jobMarkdown.includes(syncBarrierMarker),
+          `get_job ${JSON.stringify(arguments_)} did not reach the post-audit task barrier: ${jobMarkdown}`);
+        assert(!jobMarkdown.includes(firstRunId),
+          `Machine-only audit note reached default get_job ${JSON.stringify(arguments_)}: ${jobMarkdown}`);
+      }
+      const explicitNotes = mcpText(await pollMcp('get_job', {
+        short_code_id: jobTicketCode, sections: ['notes']
+      }));
+      for (const auditNote of firstRunAuditComments) {
+        assert(explicitNotes.includes(auditNote.ticket_code),
+          `Explicit Notes lost an audit checkpoint or final note: ${explicitNotes}`);
+        const auditThread = mcpText(await pollMcp('get_job', {
+          short_code_id: auditNote.ticket_code, thread_only: true
+        }));
+        assert(auditThread.includes(firstRunId) && auditThread.includes(auditNote.ticket_code),
+          `Explicit audit-thread read lost its record: ${auditThread}`);
+      }
+      assert(explicitNotes.includes(firstRunId),
+        `Explicit Notes lost the audit records: ${explicitNotes}`);
 
       const replay = parseMcpToolResult(await pollMcp('end_job_audit', {
         job_id: jobTicketCode,
