@@ -400,7 +400,7 @@ export default function (adminConfiguration, userConfiguration) {
         }).timeout(240000);
 
         // This file is registered by both the stage and production promotion suites.
-        it('notifies a Backlog participant without a job capability and excludes an uninvolved view member', async () => {
+        it('stores a participant follow through cleanup and notifies only Backlog followers', async () => {
             const {client: accountClient, accountToken} = await loginUserToAccountAndGetToken(adminConfiguration);
             const created = await accountClient.markets.createMarket({
                 market_type: 'PLANNING', name: 'Backlog participant notifications'
@@ -442,16 +442,47 @@ export default function (adminConfiguration, userConfiguration) {
                     message.market_id === marketId && message.comment_id === commentId));
             }
 
+            function participantFollow() {
+                return participantClient.markets.listInvestments(participant.id, [
+                    {type_object_id: `investible_${marketInfo.id}`, version: 1}
+                ]).then((rows) => rows.find((row) => row.type_object_id === `investible_${marketInfo.id}`));
+            }
+
+            assert.strictEqual(await participantFollow(), undefined,
+                'View membership alone must not create a job follow');
+
             const note = await participantClient.investibles.createComment(
                 jobId, marketId, 'I have participated by sharing context.', null, 'REPORT', undefined, [], 'BLUE');
             await waitForCommentPush(note.id);
-            const capabilities = await participantClient.markets.listInvestments(participant.id, [
-                {type_object_id: `investible_${marketInfo.id}`, version: 1}
-            ]);
-            assert.strictEqual(capabilities.length, 0,
-                'The note author must have no job capability so a capability-only recipient fix fails');
+            const storedFollow = await pollFor(participantFollow, (row) => row && !row.abstain);
+            assert(storedFollow && !storedFollow.abstain, 'The original note author must acquire a stored job follow');
+            assert(storedFollow.quantity == null, 'Following from a note must not cast a zero vote');
             assert.strictEqual((await commentMessages(adminConfiguration, note.id)).length, 0,
                 'An unmentioned note must remain quiet');
+
+            const skippable = created.stages.find((stage) => !stage.allows_assignment && stage.close_comments_on_entrance);
+            assert(skippable, 'The workspace must have a Skippable stage');
+            async function moveAndWait(currentStageId, stageId) {
+                const moved = await adminClient.investibles.stateChange(jobId,
+                    {current_stage_id: currentStageId, stage_id: stageId});
+                const movedInfo = moved.market_infos.find((info) => info.market_id === marketId);
+                assert.strictEqual(movedInfo.stage, stageId);
+                const settled = await pollFor(async () => {
+                    const versions = await accountClient.summaries.versions(accountToken, [marketId]);
+                    return versions.signatures?.find((entry) => entry.market_id === marketId)?.signatures
+                        ?.filter((entry) => entry.type === 'market_investible')
+                        .flatMap((entry) => entry.object_versions || [])
+                        .find((entry) => entry.object_id_one === marketInfo.id && entry.object_id_two === jobId);
+                }, (row) => row?.version >= movedInfo.version);
+                assert(settled?.version >= movedInfo.version,
+                    `Stage ${stageId} stream processing must finish before continuing`);
+            }
+            await moveAndWait(backlog.id, skippable.id);
+            await moveAndWait(skippable.id, backlog.id);
+            const cleanedFollow = await pollFor(participantFollow, (row) => row?.deleted);
+            assert(cleanedFollow?.deleted, 'The existing stage cleanup must still delete voting state');
+            assert.strictEqual(cleanedFollow.abstain, false, 'Voting cleanup must preserve the stored follow');
+            assert(cleanedFollow.quantity == null, 'Voting cleanup must not invent quantity');
 
             const workspacePresences = await pollFor(async () => {
                 const summaries = await accountClient.summaries.versions(accountToken, [marketId]);
