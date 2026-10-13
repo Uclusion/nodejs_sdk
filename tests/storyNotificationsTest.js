@@ -1,6 +1,7 @@
 import assert from 'assert';
-import {loginUserToAccount, loginUserToMarket, getMessages, loginUserToMarketInvite} from "../src/utils.js";
-import {pollFor} from "./commonTestFunctions.js";
+import {loginUserToAccount, loginUserToAccountAndGetToken, loginUserToMarket, getMessages,
+    loginUserToMarketInvite} from "../src/utils.js";
+import {mcpCall, mcpLogin, pollFor} from "./commonTestFunctions.js";
 
 export default function (adminConfiguration, userConfiguration) {
 
@@ -397,5 +398,138 @@ export default function (adminConfiguration, userConfiguration) {
                 throw error;
             });
         }).timeout(240000);
+
+        // This file is registered by both the stage and production promotion suites.
+        it('notifies a Backlog participant without a job capability and excludes an uninvolved view member', async () => {
+            const {client: accountClient, accountToken} = await loginUserToAccountAndGetToken(adminConfiguration);
+            const created = await accountClient.markets.createMarket({
+                market_type: 'PLANNING', name: 'Backlog participant notifications'
+            });
+            const marketId = created.market.id;
+            const adminClient = await loginUserToMarket(adminConfiguration, marketId);
+            const participantClient = await loginUserToMarketInvite(userConfiguration, created.market.invite_capability);
+            const participant = await participantClient.users.get();
+            await participantClient.markets.followGroup(marketId, [{user_id: participant.id, is_following: true}]);
+            const members = await pollFor(
+                () => participantClient.markets.listGroupMembers(marketId, [{id: participant.id, version: 1}]),
+                (rows) => rows.some((row) => row.id === participant.id && !row.deleted));
+            assert(members.some((row) => row.id === participant.id && !row.deleted),
+                'The participant must already be a view member before sending the note');
+
+            const backlog = created.stages.find((stage) => !stage.allows_assignment && !stage.close_comments_on_entrance);
+            assert(backlog, 'The workspace must have a Backlog stage');
+            const job = await adminClient.investibles.create({
+                groupId: marketId, name: 'Unassigned discussion', stageId: backlog.id
+            });
+            const jobId = job.investible.id;
+            const marketInfo = job.market_infos.find((info) => info.market_id === marketId);
+            assert.strictEqual(marketInfo.stage, backlog.id);
+            assert(!marketInfo.assigned?.length, 'The job must remain unassigned');
+
+            async function waitForCommentPush(commentId, version = 1) {
+                const pushed = await pollFor(async () => {
+                    const summaries = await accountClient.summaries.versions(accountToken, [marketId]);
+                    return summaries.signatures?.find((entry) => entry.market_id === marketId)?.signatures
+                        ?.filter((entry) => entry.type === 'comment')
+                        .flatMap((entry) => entry.object_versions || [])
+                        .find((entry) => entry.object_id_one === commentId);
+                }, (row) => row?.version >= version);
+                assert(pushed?.version >= version, `Comment ${commentId} must finish stream processing`);
+            }
+
+            function commentMessages(configuration, commentId) {
+                return getMessages(configuration).then((messages) => (messages || []).filter((message) =>
+                    message.market_id === marketId && message.comment_id === commentId));
+            }
+
+            const note = await participantClient.investibles.createComment(
+                jobId, marketId, 'I have participated by sharing context.', null, 'REPORT', undefined, [], 'BLUE');
+            await waitForCommentPush(note.id);
+            const capabilities = await participantClient.markets.listInvestments(participant.id, [
+                {type_object_id: `investible_${marketInfo.id}`, version: 1}
+            ]);
+            assert.strictEqual(capabilities.length, 0,
+                'The note author must have no job capability so a capability-only recipient fix fails');
+            assert.strictEqual((await commentMessages(adminConfiguration, note.id)).length, 0,
+                'An unmentioned note must remain quiet');
+
+            const workspacePresences = await pollFor(async () => {
+                const summaries = await accountClient.summaries.versions(accountToken, [marketId]);
+                return summaries.signatures?.find((entry) => entry.market_id === marketId)?.signatures
+                    ?.find((entry) => entry.type === 'market_capability')?.object_versions || [];
+            }, (rows) => rows.length >= 3);
+            assert(workspacePresences.length >= 3,
+                'Both humans and the planning AI must be provisioned before the one-shot suggestion write');
+            const token = await mcpLogin(adminConfiguration, adminClient, marketId);
+            const ready = await pollFor(
+                () => mcpCall(adminConfiguration, token, 'get_job', {short_code_id: marketInfo.ticket_code}),
+                (raw) => JSON.parse(raw).result?.isError !== true);
+            assert.notStrictEqual(JSON.parse(ready).result?.isError, true,
+                'MCP reads must be ready before the one-shot suggestion write');
+            const raw = await mcpCall(adminConfiguration, token, 'make_suggestion', {
+                job_id: marketInfo.ticket_code, suggestion: 'An AI idea for the unassigned Backlog job.'
+            });
+            const result = JSON.parse(raw).result;
+            assert.notStrictEqual(result?.isError, true, raw);
+            const suggestion = result.structuredContent;
+            assert(suggestion?.comment_id && suggestion.short_code_id, raw);
+            await waitForCommentPush(suggestion.comment_id);
+            const messages = await pollFor(
+                () => commentMessages(userConfiguration, suggestion.comment_id), (rows) => rows.length > 0);
+            assert.strictEqual(messages.length, 1, JSON.stringify(messages));
+            assert.strictEqual(messages[0].type_object_id, `UNREAD_COMMENT_${suggestion.comment_id}`);
+            assert.strictEqual(messages[0].link, `/${marketId}/${suggestion.short_code_id}`);
+            assert.strictEqual(messages[0].alert_type, 'AI_GENERATED');
+            assert.strictEqual((await commentMessages(adminConfiguration, suggestion.comment_id)).length, 0,
+                'The job creator and uninvolved view member must receive no suggestion row');
+
+            const [persisted] = await adminClient.investibles.getMarketComments([
+                {id: suggestion.comment_id, version: 1}
+            ]);
+            assert.strictEqual(persisted.comment_type, 'SUGGEST');
+            assert(!persisted.inline_market_id, 'The AI suggestion must exercise ordinary job comment delivery');
+            await participantClient.users.removeNotification(`UNREAD_COMMENT_${suggestion.comment_id}`);
+            const cleared = await pollFor(
+                () => commentMessages(userConfiguration, suggestion.comment_id), (rows) => rows.length === 0);
+            assert.strictEqual(cleared.length, 0, 'Remove only the observed suggestion row before verifying its update');
+            const updated = await adminClient.investibles.updateComment(suggestion.comment_id,
+                'A human updates the AI idea.', undefined, undefined, [], undefined, undefined,
+                undefined, undefined, undefined, undefined, undefined, undefined, persisted.version);
+            await waitForCommentPush(suggestion.comment_id, updated.version);
+            const updatedMessages = await pollFor(
+                () => commentMessages(userConfiguration, suggestion.comment_id), (rows) => rows.length > 0);
+            assert.strictEqual(updatedMessages.length, 1, 'An update must recreate one comment-specific participant row');
+            assert.strictEqual(updatedMessages[0].type_object_id, `UNREAD_COMMENT_${suggestion.comment_id}`);
+            assert.strictEqual(updatedMessages[0].link, `/${marketId}/${suggestion.short_code_id}`);
+            assert.strictEqual((await commentMessages(adminConfiguration, suggestion.comment_id)).length, 0);
+
+            const admin = await adminClient.users.get();
+            const mentionedNote = await participantClient.investibles.createComment(jobId, marketId,
+                'A note explicitly addressed to the otherwise uninvolved creator.', null, 'REPORT', undefined,
+                [{user_id: admin.id, external_id: admin.external_id}], 'BLUE');
+            await waitForCommentPush(mentionedNote.id);
+            const mentionedMessages = await pollFor(
+                () => commentMessages(adminConfiguration, mentionedNote.id), (rows) => rows.length > 0);
+            assert.strictEqual(mentionedMessages.length, 1, 'A Backlog note must retain explicit mention delivery');
+            assert.strictEqual((await commentMessages(userConfiguration, mentionedNote.id)).length, 0);
+
+            const silentRaw = await mcpCall(adminConfiguration, token, 'add_info', {
+                short_code_id: note.ticket_code, info: 'A silent reply to the human participant.',
+                tz: 'America/Los_Angeles', is_silent: true
+            });
+            const silent = JSON.parse(silentRaw).result;
+            assert.notStrictEqual(silent?.isError, true, silentRaw);
+            await waitForCommentPush(silent.structuredContent.comment_id, silent.structuredContent.version);
+            const [silentReply] = await adminClient.investibles.getMarketComments([
+                {id: silent.structuredContent.comment_id, version: silent.structuredContent.version}
+            ]);
+            assert.strictEqual(silentReply.investible_id, jobId);
+            assert.strictEqual(silentReply.comment_type, 'REPLY');
+            assert.strictEqual(silentReply.is_silent, true);
+            assert.strictEqual(silentReply.reply_id, note.id);
+            assert.strictEqual((await commentMessages(adminConfiguration, silent.structuredContent.comment_id)).length, 0);
+            assert.strictEqual((await commentMessages(userConfiguration, silent.structuredContent.comment_id)).length, 0,
+                'The human parent author must receive no row for the silent reply');
+        }).timeout(600000);
     });
 };
