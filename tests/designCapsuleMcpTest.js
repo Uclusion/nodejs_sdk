@@ -379,8 +379,8 @@ export default function (adminConfiguration) {
       const capsuleTool = tools.find((tool) => tool.name === 'set_design_capsule');
       assert.deepStrictEqual(
         Object.keys(capsuleTool.inputSchema.properties).sort(),
-        ['capsule', 'job_id', 'resolve_question_short_code_ids', 'task_id', 'update_capsule_short_code_id',
-          'update_capsule_version'],
+        ['capsule', 'job_id', 'resolve_question_short_code_ids', 'resolve_question_versions', 'task_id',
+          'update_capsule_short_code_id', 'update_capsule_version'],
         'Capsule writes must retain target/revision fields and optional answered-question resolution'
       );
       assert.deepStrictEqual(

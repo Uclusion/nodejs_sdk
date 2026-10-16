@@ -8,7 +8,7 @@ import {
   loginUserToMarketInvite
 } from '../src/utils.js';
 import { WebSocketRunner } from '../src/WebSocketRunner.js';
-import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, sleep } from './commonTestFunctions.js';
 
 const MESSAGE_TIMEOUT_MS = 120000;
 const DUPLICATE_QUIET_WINDOW_MS = 15000;
@@ -220,6 +220,46 @@ export default function (adminConfiguration) {
       );
     }
 
+    function structuredMcpResult(response) {
+      const result = JSON.parse(response).result;
+      assert(result && !result.isError, `MCP write was refused: ${mcpText(response)}`);
+      assert(result.structuredContent, `MCP write returned no state: ${response}`);
+      return result.structuredContent;
+    }
+
+    async function humanResolveQuestion(question, jobTicketCode) {
+      const responded = aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai', message: `Responded ${question.ticket_code} of ${jobTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+      const pending = await adminClient.investibles.updateComment(question.id, undefined, true);
+      assert.strictEqual(pending.resolved, true);
+      assert.strictEqual(pending.delegated, true);
+      assert.strictEqual(pending.included_in_capsule, false);
+      assert(Number.isInteger(pending.version) && pending.version > question.version);
+      assertPokeEnvelope(await responded);
+      return pending;
+    }
+
+    async function assertPendingQuestionMarkdown(jobTicketCode, question) {
+      for (const sections of [undefined, ['assistance']]) {
+        const response = await pollFor(
+          () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+            short_code_id: jobTicketCode, ...(sections ? { sections } : {})
+          }),
+          (frame) => mcpText(frame).includes(`Question version: ${question.version}.`)
+            && mcpText(frame).includes(question.ticket_code)
+        );
+        const markdown = mcpText(response);
+        assert.match(markdown, /#### Assistance/);
+        assert(markdown.includes(question.body.replace(/<[^>]*>/g, '')),
+          'Default assistance should retain the pending question evidence');
+        assert.match(markdown, new RegExp(
+          `#### (?:Resolved )?Question ${question.ticket_code}<a name="[^"]+"></a>[^\\n]*\\n`
+          + `pending AI handling\\nQuestion version: ${question.version}\\.`
+        ));
+      }
+    }
+
     it('should route a direct Poke AI action to an AI market-token subscription', async () => {
       const marker = `nodejs-sdk-direct-poke-${randomUUID()}`;
       const receivedPromise = aiWebSocketRunner.waitForReceivedMessage({
@@ -292,6 +332,102 @@ export default function (adminConfiguration) {
         (error) => error.code === WEBSOCKET_TIMEOUT_CODE,
         `Correlated Responded should not be delivered again within ${DUPLICATE_QUIET_WINDOW_MS}ms`
       );
+    }).timeout(240000);
+
+    it('should retain human-delegated questions until versioned capsule acknowledgement', async () => {
+      const marker = randomUUID();
+      const { jobTicketCode } = await createCollaboratedJob(marker);
+      const questionMarker = `Choose the retained capsule outcome ${marker}?`;
+      await pollMcp('ask_question', { job_id: jobTicketCode, question: questionMarker });
+      const question = await findCommentByMarker(adminClient, marketId, questionMarker);
+      assert(question?.ticket_code, 'The AI question should have a full code');
+      assert.notStrictEqual(question.created_by, adminId);
+      const capsule = `## Outcome\nRetain the existing result ${marker}.`;
+      const published = structuredMcpResult(await mcpCall(
+        adminConfiguration, uclusionToken, 'set_design_capsule', { job_id: jobTicketCode, capsule }
+      ));
+
+      const pending = await humanResolveQuestion(question, jobTicketCode);
+      await assertPendingQuestionMarkdown(jobTicketCode, pending);
+      const acknowledged = structuredMcpResult(await mcpCall(
+        adminConfiguration, uclusionToken, 'set_design_capsule', {
+          job_id: jobTicketCode, capsule,
+          resolve_question_short_code_ids: [question.ticket_code],
+          resolve_question_versions: { [question.ticket_code]: pending.version }
+        }
+      ));
+      assert.strictEqual(acknowledged.status, 'unchanged');
+      assert.strictEqual(acknowledged.capsule_short_code_id, published.capsule_short_code_id);
+      assert.strictEqual(acknowledged.capsule_version, published.capsule_version);
+      const [outcome] = acknowledged.question_resolutions;
+      assert.strictEqual(outcome.short_code_id, question.ticket_code);
+      assert.strictEqual(outcome.status, 'completed');
+      assert.strictEqual(outcome.resolved, true);
+      assert.strictEqual(outcome.delegated, false);
+      assert.strictEqual(outcome.included_in_capsule, true);
+      assert(outcome.question_version > pending.version);
+
+      const reopenPoke = aiWebSocketRunner.waitForReceivedMessage({
+        event_type: 'poke_ai', message: `Responded ${question.ticket_code} of ${jobTicketCode}`
+      }, MESSAGE_TIMEOUT_MS);
+      const reopened = await adminClient.investibles.updateComment(question.id, undefined, false);
+      assert.strictEqual(reopened.resolved, false);
+      assert.strictEqual(reopened.delegated, false);
+      assert.strictEqual(reopened.included_in_capsule, false);
+      assertPokeEnvelope(await reopenPoke);
+      const requeued = await humanResolveQuestion(reopened, jobTicketCode);
+      assert(requeued.version > outcome.question_version);
+      const stale = await mcpCall(adminConfiguration, uclusionToken, 'resolve', {
+        short_code_id: question.ticket_code, expected_question_version: pending.version,
+        included_in_capsule: true
+      });
+      assert.strictEqual(JSON.parse(stale).result.isError, true);
+      assert.match(mcpText(stale), /changed since the supplied evidence version/);
+      await assertPendingQuestionMarkdown(jobTicketCode, requeued);
+      const comments = await pollFor(listPlanningComments, (items) =>
+        items.some((item) => item.id === question.id && item.version >= requeued.version));
+      const retained = comments.find((item) => item.id === question.id);
+      assert.strictEqual(retained.version, requeued.version);
+      assert.strictEqual(retained.delegated, true);
+      assert.strictEqual(retained.included_in_capsule, false);
+    }).timeout(360000);
+
+    it('should consume delegated handling without a capsule and preserve it on retries', async () => {
+      const marker = randomUUID();
+      const { jobTicketCode } = await createCollaboratedJob(marker);
+      const questionMarker = `Choose without changing the capsule ${marker}?`;
+      await pollMcp('ask_question', { job_id: jobTicketCode, question: questionMarker });
+      const question = await findCommentByMarker(adminClient, marketId, questionMarker);
+      assert(question?.ticket_code);
+      const pending = await humanResolveQuestion(question, jobTicketCode);
+      const settled = structuredMcpResult(await mcpCall(adminConfiguration, uclusionToken, 'resolve', {
+        short_code_id: question.ticket_code, expected_question_version: pending.version
+      }));
+      assert.strictEqual(settled.resolved, true);
+      assert.strictEqual(settled.delegated, false);
+      assert.strictEqual(settled.included_in_capsule, false);
+      assert(settled.question_version > pending.version);
+      const retried = structuredMcpResult(await mcpCall(
+        adminConfiguration, uclusionToken, 'resolve', { short_code_id: question.ticket_code }
+      ));
+      assert.deepStrictEqual(retried, settled);
+      const humanRetry = await adminClient.investibles.updateComment(question.id, undefined, true);
+      assert.strictEqual(humanRetry.version, settled.question_version);
+      assert.strictEqual(humanRetry.resolved, true);
+      assert.strictEqual(humanRetry.delegated, false);
+      assert.strictEqual(humanRetry.included_in_capsule, false);
+      const response = await pollFor(
+        () => mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+          short_code_id: jobTicketCode, sections: ['assistance']
+        }),
+        (frame) => JSON.parse(frame).result?.isError !== true
+          && mcpText(frame).includes(`## Job ${jobTicketCode}`)
+          && !mcpText(frame).includes(question.ticket_code)
+      );
+      assert(JSON.parse(response).result && JSON.parse(response).result.isError !== true,
+        `Assistance read failed: ${mcpText(response)}`);
+      assert(mcpText(response).includes(`## Job ${jobTicketCode}`), 'Assistance should return the expected job');
+      assert(!mcpText(response).includes(questionMarker), 'Consumed handling should leave default assistance');
     }).timeout(240000);
 
     // S-all-228: with several questions open, every response hands back, not
