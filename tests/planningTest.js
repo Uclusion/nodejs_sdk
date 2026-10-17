@@ -115,6 +115,16 @@ export default function (adminConfiguration, userConfiguration) {
       }).then((comments) => {
         const comment = comments[0];
         assert(comment.investible_id === storyId, 'Investible id is incorrect');
+        return pollFor(
+          () => adminClient.markets.listInvestments(adminUserId, [{
+            type_object_id: `investible_${storyMarketInfoId}`, version: 1
+          }]),
+          (investments) => investments && investments.some((row) =>
+            row.type_object_id === `investible_${storyMarketInfoId}` && row.abstain === false));
+      }).then((investments) => {
+        assert(investments && investments.some((row) =>
+          row.type_object_id === `investible_${storyMarketInfoId}` && row.abstain === false),
+        'Moving the TODO must store the author job follow independently of the view follow');
         // First subscribe user to group or not allowed to assign to user
         return adminClient.markets.followGroup(marketId, [{user_id: userId, is_following: true}]);
       }).then(() => {
@@ -122,22 +132,31 @@ export default function (adminConfiguration, userConfiguration) {
       }).then(() => {
         return pollFor(() => getMessages(userConfiguration), (messages) =>
           messages.some((obj) =>
-            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId));
+            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId &&
+              obj.level === 'RED' && obj.alert_type === 'ASSIGNED'));
       }).then((messages) => {
         const newAssignment = messages.find(obj => {
           return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
         });
         assert(newAssignment, 'New assigned gets approve notification');
-        // The reassignment's removal of the old assignee's request is a separate async leg
-        // from the user-side generation just confirmed, so poll instead of one-shot (B-all-520)
+        assert(newAssignment.level === 'RED' && newAssignment.alert_type === 'ASSIGNED',
+          'The new assignee must receive the assigned approval request');
         return pollFor(() => getMessages(adminConfiguration), (messages) =>
+          messages.some((obj) =>
+            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId &&
+              obj.level === 'YELLOW' && obj.alert_type == null) &&
           !messages.some((obj) =>
-            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId));
+            obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId &&
+              obj.alert_type === 'ASSIGNED'));
       }).then((messages) => {
         const vote = messages.find(obj => {
           return obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId;
         });
-        assert(!vote, 'Updater does not get vote request');
+        assert(vote && vote.level === 'YELLOW' && vote.alert_type == null,
+          'The former assignee must retain the ordinary follower approval request');
+        assert(!messages.some((obj) =>
+          obj.type_object_id === 'UNREAD_JOB_APPROVAL_REQUEST_' + storyId && obj.alert_type === 'ASSIGNED'),
+        'The former assignee must not retain an assigned approval request');
         return userClient.markets.updateInvestment(storyId, 100, 0);
       }).then((investment) => {
         assert(investment.quantity === 100, 'Accepting planning investment should be 100');

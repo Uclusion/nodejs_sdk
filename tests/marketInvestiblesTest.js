@@ -15,6 +15,7 @@ export default function(adminConfiguration, userConfiguration) {
             let createdMarketId;
             let secondMarketId;
             let marketInvestibleId;
+            let marketInfoId;
             let otherAccountId;
             let otherUserExternalId;
             let inlineMarketId;
@@ -44,6 +45,7 @@ export default function(adminConfiguration, userConfiguration) {
                     assignments: [user.id]});
             }).then((investible) => {
                 marketInvestibleId = investible.investible.id;
+                marketInfoId = investible.market_infos[0].id;
                 return adminClient.investibles.createComment(marketInvestibleId, createdMarketId, 'body of my comment', null, 'QUESTION');
             }).then((comment) => {
                 createdCommentId = comment.id;
@@ -64,15 +66,16 @@ export default function(adminConfiguration, userConfiguration) {
                     return hasType('market') && hasType('investible')
                         && hasType('market_investible', 2) && hasType('market_capability')
                         && hasType('stage') && hasType('comment') && hasType('group')
-                        && hasType('group_capability');
+                        && hasType('group_capability') && hasType('investment');
                 });
-            }).then((versions) => {
+            }).then(async (versions) => {
                 let marketVersion = 0;
                 let investibleVersion = 0;
                 let marketInvestibleVersion = 0;
                 let marketCapabilityVersion = 0;
                 let stageVersion = 0;
                 let addressedVersion = 0;
+                let investmentVersion = 0;
                 let marketInvestibleSecondaryId = null;
                 let investibleIdOne = null;
                 let foundAnythingElse = false;
@@ -122,6 +125,11 @@ export default function(adminConfiguration, userConfiguration) {
                                     addressedVersion = version;
                                     assert(objectIdSecondary === adminUserId, 'Admin added a comment');
                                 }
+                                else if (aType === 'investment') {
+                                    assert(objectId === marketInfoId && objectIdSecondary === adminUserId && version === 1,
+                                        'The new job follow must identify the market info and original human author at version 1');
+                                    investmentVersion = version;
+                                }
                                 else {
                                     console.log(`Found unexpected type ${aType}`);
                                     foundAnythingElse = true;
@@ -134,12 +142,17 @@ export default function(adminConfiguration, userConfiguration) {
                 // groupVersion is 1 because group code updates are not saved as object versions
                 assert(marketVersion === 1 && investibleVersion === 1 && marketInvestibleVersion === 2
                     && marketCapabilityVersion === 1 && stageVersion === 1 && commentVersion === 1 &&
-                    addressedVersion === 0 && groupVersion === 1 && groupCapabilityVersion === 1,
-                    `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion} ${addressedVersion} ${groupVersion} ${groupCapabilityVersion}`);
+                    addressedVersion === 0 && investmentVersion === 1 && groupVersion === 1 && groupCapabilityVersion === 1,
+                    `incorrect version ${marketVersion} ${investibleVersion} ${marketInvestibleVersion} ${marketCapabilityVersion} ${stageVersion} ${commentVersion} ${addressedVersion} ${investmentVersion} ${groupVersion} ${groupCapabilityVersion}`);
                 assert(!foundAnythingElse, 'unchanged object present');
                 assert(marketInvestibleSecondaryId === marketInvestibleId, 'object id one is the market info id and secondary the investible');
                 assert(investibleIdOne === marketInvestibleId, 'object id one is the investible');
                 assert(commentId === createdCommentId, 'object id is created comment');
+                const follows = await adminClient.markets.listInvestments(adminUserId, [{
+                    type_object_id: `investible_${marketInfoId}`, version: 1
+                }]);
+                const follow = follows.find((row) => row.type_object_id === `investible_${marketInfoId}`);
+                assert(follow && !Object.hasOwn(follow, 'quantity'), 'The new job follow must have no quantity');
                 const inlineMarketOptions = {
                     market_type: 'DECISION',
                     parent_comment_id: createdCommentId
