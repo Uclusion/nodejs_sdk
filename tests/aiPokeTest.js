@@ -368,7 +368,7 @@ export default function (adminConfiguration) {
       assert(outcome.question_version > pending.version);
 
       const reopenPoke = aiWebSocketRunner.waitForReceivedMessage({
-        event_type: 'poke_ai', message: `Responded ${question.ticket_code} of ${jobTicketCode}`
+        event_type: 'poke_ai', message: `Updated ${question.ticket_code} of ${jobTicketCode}`
       }, MESSAGE_TIMEOUT_MS);
       const reopened = await adminClient.investibles.updateComment(question.id, undefined, false);
       assert.strictEqual(reopened.resolved, false);
