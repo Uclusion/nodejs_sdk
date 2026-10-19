@@ -6,7 +6,7 @@ import {
   loginUserToMarketAndGetToken,
   loginUserToMarketInvite
 } from '../src/utils.js';
-import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, mcpText, sleep } from './commonTestFunctions.js';
 
 export default function (adminConfiguration) {
   describe('#test short codes in AI content become internal-form links (B-all-528, C-all-1358, B-all-530, S-all-321)', () => {
@@ -160,7 +160,7 @@ export default function (adminConfiguration) {
         [...commentVersions].map(([id, version]) => ({ id, version })));
     }
 
-    it('stores an AI [CODE](#CODE) anchor as the link a bare code gets (B-all-679)', async () => {
+    it('stores canonical internal links and readable local file references (B-all-679, B-all-708)', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
         groupId: marketId,
@@ -168,11 +168,15 @@ export default function (adminConfiguration) {
         description: 'Job an AI anchor link will reference.'
       });
       const jobTicketCode = await getTicketCode(job);
+      const followPath = '/home/disrael/dev/uclusion_async/triggered/users_tables/user_capability_updated.py:69';
+      const approvalPath = '/home/disrael/dev/uclusion_async/user_event_handlers/user_capabilities/invite_to_market.py:112';
       // get_job renders every stored link as [CODE](#CODE) and agents copy that anchor.
       // get_job renders a dead #CODE href the same way, so only the stored body shows it.
       await pollMcp('add_info', {
         short_code_id: jobTicketCode,
-        info: `Anchor ${marker} points at [${jobTicketCode}](#${jobTicketCode}).`,
+        info: `Anchor ${marker} points at [${jobTicketCode}](#${jobTicketCode}). ` +
+          `See [**follow-insert handler**](${followPath}) and ` +
+          `[*approval notification path*](${approvalPath}) with [HTTPS docs](https://example.com/docs).`,
         tz: 'America/Los_Angeles'
       });
       const comments = await pollFor(listComments,
@@ -183,6 +187,26 @@ export default function (adminConfiguration) {
         `The anchor should be stored as the job's internal link: ${comment.body}`);
       assert(!comment.body.includes(`href="#${jobTicketCode}"`),
         `The anchor must not be stored as a page-relative #CODE link: ${comment.body}`);
+      assert(!comment.body.includes(followPath) && !comment.body.includes(approvalPath),
+        `Filesystem destinations must not survive as broken stored links: ${comment.body}`);
+      assert(comment.body.includes('<strong>follow-insert handler</strong>') &&
+        comment.body.includes('<em>approval notification path</em>'),
+        `Filesystem labels and inline formatting must survive: ${comment.body}`);
+      assert(comment.body.includes('<a href="https://example.com/docs">HTTPS docs</a>'),
+        `The HTTPS link must survive: ${comment.body}`);
+
+      const exported = await pollFor(
+        async () => mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+          short_code_id: jobTicketCode
+        })),
+        (markdown) => markdown.includes(marker) && markdown.includes('follow-insert handler') &&
+          markdown.includes('approval notification path')
+      );
+      assert(exported.includes('follow-insert handler') && exported.includes('approval notification path'),
+        `get_job must export readable filesystem labels: ${exported}`);
+      assert(exported.includes(`[${jobTicketCode}](#${jobTicketCode})`) &&
+        exported.includes('[HTTPS docs](https://example.com/docs)'),
+        `get_job must keep the internal and HTTPS links: ${exported}`);
     }).timeout(600000);
   });
 }

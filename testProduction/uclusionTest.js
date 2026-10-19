@@ -18,6 +18,7 @@ import exportTest from '../tests/exportTest.js';
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import backlogMaintenanceMcpTest from '../tests/backlogMaintenanceMcpTest.js';
 import aiPokeTest from '../tests/aiPokeTest.js';
+import shortCodeLinkTest from '../tests/shortCodeLinkTest.js';
 
 const Amplify = awsAmplify.default;
 
@@ -64,4 +65,5 @@ describe('uclusion', () => {
   viewNotesMcpTest(adminConfiguration);
   backlogMaintenanceMcpTest(adminConfiguration);
   aiPokeTest(adminConfiguration);
+  shortCodeLinkTest(adminConfiguration);
 });
