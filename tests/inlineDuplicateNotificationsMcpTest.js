@@ -82,14 +82,24 @@ export default function (adminConfiguration, userConfiguration) {
 
     // The AI user is created async on market creation, so retry until the tool answers.
     async function pollMcp(toolName, args) {
-      for (let i = 0; i < 10; i += 1) {
+      for (let i = 0; i <= 10; i += 1) {
+        let raw;
         try {
-          return await mcpCall(adminConfiguration, uclusionToken, toolName, args);
+          raw = await mcpCall(adminConfiguration, uclusionToken, toolName, args);
         } catch (error) {
+          if (i === 10) {
+            throw error;
+          }
           await sleep(3000);
+          continue;
         }
+        // A tool refusal still has HTTP 200. Fail before waiting for a question that was never
+        // created, and keep this outside the retry block to avoid repeating a refused write.
+        const response = JSON.parse(raw);
+        assert(!response.error && response.result && response.result.isError !== true,
+          `${toolName} failed for ${args.job_id} (${args.question}): ${raw}`);
+        return raw;
       }
-      return mcpCall(adminConfiguration, uclusionToken, toolName, args);
     }
 
     async function waitForSubscription(webSocketRunner) {
@@ -292,11 +302,8 @@ export default function (adminConfiguration, userConfiguration) {
     it('creates one notification per question when several are asked at once', async function () {
       this.timeout(600000);
       await reportingHttpErrors(async () => {
-        // T-all-2484's own words are that seven questions should be seven rows. Concurrency is what
-        // surfaced the defect, so it is worth covering, but this part is timing exposed in a way the
-        // assertion above is not. If it ever turns flaky in CI, delete it rather than retry it into
-        // stability; the invariant above is what actually guards the notification fix. J-all-429
-        // also pins the corrective refresh contract at a comment/job pair per question.
+        // Seven concurrent questions must all be created and produce one notification each.
+        // J-all-429 also pins the corrective refresh contract at a comment/job pair per question.
         const runMarker = randomUUID();
         const markers = [1, 2, 3, 4, 5, 6, 7]
           .map((index) => `Concurrent inline question ${index} ${runMarker}?`);
