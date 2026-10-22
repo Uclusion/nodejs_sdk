@@ -1028,11 +1028,13 @@ export default function (adminConfiguration) {
       assert(reviewTool, 'tools/list must retain ask_for_review');
       assert.deepStrictEqual(
         Object.keys(reviewTool.inputSchema.properties).sort(),
-        ['implementation_complete', 'job_id', 'report', 'update_review_short_code_id', 'uploaded_files'],
-        'ask_for_review must retain freeform reports and optional implementation completion'
+        ['completion_package', 'implementation_complete', 'job_id', 'report',
+          'update_review_short_code_id', 'uploaded_files'],
+        'ask_for_review must retain freeform reports and a separate optional completion package'
       );
       assert.strictEqual(reviewTool.inputSchema.properties.report.type, 'string',
         'Review delta content must remain freeform prose');
+      assert.strictEqual(reviewTool.inputSchema.properties.completion_package.type, 'string');
       assert.deepStrictEqual(reviewTool.inputSchema.oneOf.map((choice) => choice.required), [
         ['job_id', 'report'],
         ['update_review_short_code_id', 'report']
@@ -1051,17 +1053,35 @@ export default function (adminConfiguration) {
         capsule: capsuleV1
       }));
 
+      const stageBeforeRefusal = structuredResult(await retryMcp('get_job', {
+        short_code_id: jobTicketCode, stage_only: true
+      })).stage;
+      const refusedMarker = `Missing completion package ${marker}`;
+      assertRefusal(await retryMcp('ask_for_review', {
+        job_id: jobTicketCode,
+        report: refusedMarker,
+        implementation_complete: true
+      }), 'completion_package');
+
       const deltaMarker = `Delta review ${marker}`;
       const deltaReport = `${deltaMarker}: review ${createdCapsule.capsule_short_code_id}; ` +
         'implementation delta: added target-scoped capsule selection and conflict-safe updates; ' +
         'verified the integration boundary.';
+      const completionPackage = `Completion package ${marker}. ` +
+        'Reply all, or tell me in your own words what you want.';
       await retryMcp('ask_for_review', {
         job_id: jobTicketCode,
-        report: deltaReport
+        report: deltaReport,
+        completion_package: completionPackage
       });
 
       let comments = await waitForComments((items) =>
         items.some((comment) => comment.body?.includes(deltaMarker) && comment.ticket_code));
+      assert(!comments.some((comment) => comment.body?.includes(refusedMarker)),
+        'Missing completion_package must not create a review');
+      assert.strictEqual(structuredResult(await retryMcp('get_job', {
+        short_code_id: jobTicketCode, stage_only: true
+      })).stage, stageBeforeRefusal, 'Missing completion_package must not move the job');
       const deltaReview = comments.find((comment) => comment.body?.includes(deltaMarker));
       assert(deltaReview.ticket_code?.startsWith('R-'));
       const deltaReviewMarkdown = await readTarget(jobTicketCode, deltaMarker);
@@ -1070,6 +1090,22 @@ export default function (adminConfiguration) {
       assert(deltaReview.created_by && deltaReview.created_by !== adminId,
         'The review under test must be owned by the workspace AI user');
       assert.notStrictEqual(deltaReview.resolved, true, 'A new delta review must be open');
+      assert(deltaReview.body.endsWith(`<p><br/></p><p>${completionPackage}</p>`),
+        'The stored review must append the authored completion package after a paragraph break');
+
+      const updatedReport = `Updated ${deltaReport}`;
+      await retryMcp('ask_for_review', {
+        update_review_short_code_id: deltaReview.ticket_code,
+        report: updatedReport,
+        completion_package: completionPackage
+      });
+      comments = await waitForComments((items) => items.some((comment) =>
+        comment.id === deltaReview.id && comment.body?.includes(`Updated ${deltaMarker}`)));
+      const updatedReview = comments.find((comment) => comment.id === deltaReview.id);
+      assert(updatedReview.body.endsWith(`<p><br/></p><p>${completionPackage}</p>`),
+        'Updating the review must retain the authored completion package at the end');
+      assert.strictEqual(updatedReview.body.split(completionPackage).length - 1, 1,
+        'Updating the review must replace its body without accumulating the prior package');
 
       const capsuleV2 = `## Outcome\nReview baseline version two ${marker}.`;
       const revisedCapsule = structuredResult(await retryMcp('set_design_capsule', {
