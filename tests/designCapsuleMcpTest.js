@@ -1090,7 +1090,8 @@ export default function (adminConfiguration) {
       assert(deltaReview.created_by && deltaReview.created_by !== adminId,
         'The review under test must be owned by the workspace AI user');
       assert.notStrictEqual(deltaReview.resolved, true, 'A new delta review must be open');
-      assert(deltaReview.body.endsWith(`<p><br/></p><p>${completionPackage}</p>`),
+      assert(deltaReview.body.replace(/<br\s*\/>/g, '<br>')
+        .endsWith(`<p><br></p><p>${completionPackage}</p>`),
         'The stored review must append the authored completion package after a paragraph break');
 
       const updatedReport = `Updated ${deltaReport}`;
@@ -1102,7 +1103,8 @@ export default function (adminConfiguration) {
       comments = await waitForComments((items) => items.some((comment) =>
         comment.id === deltaReview.id && comment.body?.includes(`Updated ${deltaMarker}`)));
       const updatedReview = comments.find((comment) => comment.id === deltaReview.id);
-      assert(updatedReview.body.endsWith(`<p><br/></p><p>${completionPackage}</p>`),
+      assert(updatedReview.body.replace(/<br\s*\/>/g, '<br>')
+        .endsWith(`<p><br></p><p>${completionPackage}</p>`),
         'Updating the review must retain the authored completion package at the end');
       assert.strictEqual(updatedReview.body.split(completionPackage).length - 1, 1,
         'Updating the review must replace its body without accumulating the prior package');
