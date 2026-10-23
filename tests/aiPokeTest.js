@@ -255,7 +255,9 @@ export default function (adminConfiguration) {
           'Default assistance should retain the pending question evidence');
         assert.match(markdown, new RegExp(
           `#### (?:Resolved )?Question ${question.ticket_code}<a name="[^"]+"></a>[^\\n]*\\n`
-          + `pending AI handling\\nQuestion version: ${question.version}\\.`
+          + 'pending AI handling: a human resolved this and left the choice to you; '
+          + `make it, then resolve with expected_question_version ${question.version}\\.\\n`
+          + `Question version: ${question.version}\\.`
         ));
       }
     }
