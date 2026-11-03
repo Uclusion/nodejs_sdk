@@ -87,8 +87,8 @@ acceptance catalog. It creates one disposable UUID-marked `INTEGRATION_TEST`
 planning market and one human-owned Doable job with a literal actor-to-terminal
 lifecycle and exactly two resolved choices backed by the primary human's For
 votes. One fresh paid `codex exec --ephemeral --json` process must load the
-complete core Uclusion skill, the complete sibling `uclusion-design` skill,
-and that skill's complete examples reference before it creates the job's
+complete core Uclusion skill and its complete design role (`roles/design.md`)
+before it creates the job's
 capsule. The durable result must be exactly one current,
 pinned, job-scoped capsule. Each selected choice's exact `Q-` and `O-` evidence,
 descriptive link, and selected behavior must occur in the same claim block, so

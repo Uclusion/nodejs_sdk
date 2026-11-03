@@ -4,13 +4,10 @@ import {
   assertSkillLoadedBeforeSemanticMcp
 } from './semanticAssertions.js';
 
-const DESIGN_SKILL_RELATIVE_PATH = '.agents/skills/uclusion-design/SKILL.md';
-const DESIGN_EXAMPLES_RELATIVE_PATH =
-  '.agents/skills/uclusion-design/references/examples.md';
-const DESIGN_SKILL_START = '<!-- uclusion-design-skill:v1 -->';
-const DESIGN_SKILL_END = '<!-- /uclusion-design-skill:v1 -->';
-const DESIGN_EXAMPLES_START = '<!-- uclusion-design-reference:v1 -->';
-const DESIGN_EXAMPLES_END = '<!-- /uclusion-design-reference:v1 -->';
+// The design role ships inside the Uclusion skill and is opened by its name.
+const DESIGN_ROLE_RELATIVE_PATH = '.agents/skills/uclusion/roles/design.md';
+const DESIGN_ROLE_START = '<!-- uclusion-skill-reference:v1 -->';
+const DESIGN_ROLE_END = '<!-- /uclusion-skill-reference:v1 -->';
 const READ_ONLY_WORKFLOW_TOOLS = new Set([
   'find_work',
   'get_job',
@@ -271,29 +268,15 @@ export function assertDesignWritingTranscript({
     'Design-writing process may not mutate anything except the current capsule');
 
   const firstWrite = writes[0];
-  const designSkill = stagedFile(expectedSkillFiles, 'uclusion-design', 'SKILL.md');
+  const designRole = stagedFile(expectedSkillFiles, 'uclusion', 'roles/design.md');
   assertFileLoadedBeforeEvent(parsed, {
-    expectedPath: designSkill.path,
-    expectedContent: designSkill.content,
-    expectedRelativePath: DESIGN_SKILL_RELATIVE_PATH,
-    expectedStartSentinel: DESIGN_SKILL_START,
-    expectedEndSentinel: DESIGN_SKILL_END,
+    expectedPath: designRole.path,
+    expectedContent: designRole.content,
+    expectedRelativePath: DESIGN_ROLE_RELATIVE_PATH,
+    expectedStartSentinel: DESIGN_ROLE_START,
+    expectedEndSentinel: DESIGN_ROLE_END,
     beforeEventIndex: firstWrite.eventIndex,
-    label: 'Design-writing sibling skill'
-  });
-  const examples = stagedFile(
-    expectedSkillFiles,
-    'uclusion-design',
-    'references/examples.md'
-  );
-  assertFileLoadedBeforeEvent(parsed, {
-    expectedPath: examples.path,
-    expectedContent: examples.content,
-    expectedRelativePath: DESIGN_EXAMPLES_RELATIVE_PATH,
-    expectedStartSentinel: DESIGN_EXAMPLES_START,
-    expectedEndSentinel: DESIGN_EXAMPLES_END,
-    beforeEventIndex: firstWrite.eventIndex,
-    label: 'Design-writing examples reference'
+    label: 'Design role'
   });
   assertGetJobBeforeWrite(semanticCalls, targets.jobCode, firstWrite);
 }

@@ -35,14 +35,9 @@ function sourceTree(root) {
     '<!-- /uclusion-skill-reference:v1 -->\n');
   write(path.join(scripts, 'skills', 'uclusion', 'agents', 'openai.yaml'),
     'interface:\n  display_name: Uclusion\n');
-  write(path.join(scripts, 'skills', 'uclusion-design', 'SKILL.md'),
-    '---\nname: uclusion-design\ndescription: test\n---\n' +
-    '<!-- uclusion-design-skill:v1 -->\n<!-- /uclusion-design-skill:v1 -->\n');
-  write(path.join(scripts, 'skills', 'uclusion-design', 'references', 'examples.md'),
-    '<!-- uclusion-design-reference:v1 -->\n# Examples\n' +
-    '<!-- /uclusion-design-reference:v1 -->\n');
-  write(path.join(scripts, 'skills', 'uclusion-design', 'agents', 'openai.yaml'),
-    'interface:\n  display_name: Uclusion Design\n');
+  write(path.join(scripts, 'skills', 'uclusion', 'roles', 'design.md'),
+    '<!-- uclusion-skill-reference:v1 -->\n# Design role\n' +
+    '<!-- /uclusion-skill-reference:v1 -->\n');
 }
 
 describe('agent dev shipped source staging', () => {

@@ -13,14 +13,15 @@ const SKILL_PACKAGES = Object.freeze({
     relativePath: 'public/scripts/skills/uclusion',
     files: Object.freeze([
       'SKILL.md',
-      'references/backlog-maintenance.md',
+      'roles/backlog-maintenance.md',
       'references/capsule-dispatch.md',
       'references/delivery-common.md',
       'references/durable-records.md',
       'references/event-routing.md',
       'references/history-search.md',
-      'references/implementation-helper.md',
-      'references/investigation-helper.md',
+      'roles/implementation.md',
+      'roles/investigation.md',
+      'roles/design.md',
       'references/job-assistance.md',
       'references/job-context.md',
       'references/question-tools.md',
@@ -39,14 +40,15 @@ const SKILL_PACKAGES = Object.freeze({
     skillStart: '<!-- uclusion-skill:v1 -->',
     skillEnd: '<!-- /uclusion-skill:v1 -->',
     referenceStarts: Object.freeze({
-      'references/backlog-maintenance.md': '<!-- uclusion-skill-reference:v1 -->',
+      'roles/backlog-maintenance.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/capsule-dispatch.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/delivery-common.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/durable-records.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/event-routing.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/history-search.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/implementation-helper.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/investigation-helper.md': '<!-- uclusion-skill-reference:v1 -->',
+      'roles/implementation.md': '<!-- uclusion-skill-reference:v1 -->',
+      'roles/investigation.md': '<!-- uclusion-skill-reference:v1 -->',
+      'roles/design.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/job-assistance.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/job-context.md': '<!-- uclusion-skill-reference:v1 -->',
       'references/question-tools.md': '<!-- uclusion-skill-reference:v1 -->',
@@ -62,14 +64,15 @@ const SKILL_PACKAGES = Object.freeze({
       'references/completion.md': '<!-- uclusion-skill-reference:v1 -->'
     }),
     referenceEnds: Object.freeze({
-      'references/backlog-maintenance.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'roles/backlog-maintenance.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/capsule-dispatch.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/delivery-common.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/durable-records.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/event-routing.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/history-search.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/implementation-helper.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/investigation-helper.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'roles/implementation.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'roles/investigation.md': '<!-- /uclusion-skill-reference:v1 -->',
+      'roles/design.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/job-assistance.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/job-context.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/question-tools.md': '<!-- /uclusion-skill-reference:v1 -->',
@@ -83,22 +86,6 @@ const SKILL_PACKAGES = Object.freeze({
       'references/uploads.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/operations.md': '<!-- /uclusion-skill-reference:v1 -->',
       'references/completion.md': '<!-- /uclusion-skill-reference:v1 -->'
-    })
-  }),
-  'uclusion-design': Object.freeze({
-    relativePath: 'public/scripts/skills/uclusion-design',
-    files: Object.freeze([
-      'SKILL.md',
-      'references/examples.md',
-      'agents/openai.yaml'
-    ]),
-    skillStart: '<!-- uclusion-design-skill:v1 -->',
-    skillEnd: '<!-- /uclusion-design-skill:v1 -->',
-    referenceStarts: Object.freeze({
-      'references/examples.md': '<!-- uclusion-design-reference:v1 -->'
-    }),
-    referenceEnds: Object.freeze({
-      'references/examples.md': '<!-- /uclusion-design-reference:v1 -->'
     })
   })
 });
