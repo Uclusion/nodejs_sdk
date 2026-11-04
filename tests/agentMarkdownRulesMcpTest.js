@@ -186,7 +186,9 @@ export default function (adminConfiguration) {
         (text) => text.includes('A human resolved your suggestion without replying or voting'));
       assert(resolved.includes('its proposal is declined and the risk accepted. Revisit it only for new ' +
         'evidence, naming that evidence.'), resolved);
-      assert(resolved.includes('This suggestion is resolved and reopens only when a human asks.'), resolved);
+      // Resolved suggestions state no reopen rule; only the declined statement renders.
+      assert(!resolved.includes('reopens only'), resolved);
+      assert(!resolved.includes('This suggestion is resolved'), resolved);
       const settled = await pollFor(() => readJob(jobCode, { short_code_id: jobCode, sections: [] }),
         (text) => text.includes('You may approve this job.'));
       assert(settled.includes('You may approve this job.'), settled);
@@ -214,8 +216,9 @@ export default function (adminConfiguration) {
       await pollMcp('resolve', { short_code_id: questionCode });
       const closed = await pollFor(() => readJob(questionCode, { short_code_id: questionCode, thread_only: true }),
         (text) => text.includes('This question is resolved:'));
-      assert(closed.includes('This question is resolved: its options take no votes or comments, and it reopens ' +
-        'only when a human asks.'), closed);
+      assert(closed.includes('This question is resolved: its options take no votes or comments. Ask anything ' +
+        'new as a new question.'), closed);
+      assert(!closed.includes('reopens only'), closed);
       assert.strictEqual(
         (closed.match(/Its question is resolved, so this option takes no votes or comments\./g) || []).length, 2,
         closed);
