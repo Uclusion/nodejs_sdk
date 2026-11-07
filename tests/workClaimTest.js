@@ -7,7 +7,7 @@ import {
   loginUserToMarketInvite
 } from '../src/utils.js';
 import { WebSocketRunner } from '../src/WebSocketRunner.js';
-import { mcpLogin, sleep } from './commonTestFunctions.js';
+import { mcpCall, mcpLogin, sleep } from './commonTestFunctions.js';
 
 const CLAIM_TIMEOUT_MS = 30000;
 const SHORT_EXPIRY_SECONDS = 10;
@@ -110,6 +110,38 @@ export default function (adminConfiguration) {
       }, CLAIM_TIMEOUT_MS);
       runner.claimWork(uclusionToken, 'release', shortCodeId, messageId);
       return resultPromise;
+    }
+
+    async function nativeClaim(runner, agentId, candidates, work, expirySeconds) {
+      const messageId = randomUUID();
+      const received = runner.waitForReceivedMessage({ event_type: 'claim_result', message_id: messageId },
+        CLAIM_TIMEOUT_MS);
+      runner.send({ action: 'claim_work', identity: uclusionToken, message_id: messageId,
+        agent_id: agentId, operation: work ? 'release' : 'claim',
+        ...(work ? { short_code_id: work.short_code_id, work } : { short_code_ids: candidates }),
+        ...(expirySeconds ? { expiry_seconds: expirySeconds } : {}) });
+      return received;
+    }
+
+    async function mcp(name, args, agentId) {
+      const result = JSON.parse(await mcpCall(adminConfiguration, uclusionToken, name, args,
+        agentId ? { uclusionAgentId: agentId } : undefined)).result;
+      assert(result && !result.isError, JSON.stringify(result));
+      return result.structuredContent;
+    }
+
+    async function nativeRebind(runner, entries, expectRecovered) {
+      let result;
+      for (let i = 0; i < 12; i += 1) {
+        const received = runner.waitForReceivedMessage({ event_type: 'rebind_result' }, CLAIM_TIMEOUT_MS);
+        runner.send({ action: 'subscribe', identity: uclusionToken, is_ai: true, owned_claims: entries });
+        result = await received;
+        if ((result.claims || []).length === (expectRecovered ? entries.length : 0)) {
+          return result;
+        }
+        await sleep(3000);
+      }
+      return result;
     }
 
     // A lapsed or freed lock becomes claimable asynchronously, so retry the
@@ -282,6 +314,93 @@ export default function (adminConfiguration) {
       assert.strictEqual(stillDenied.claimed, false,
         'The failed theft should leave the original claim in place');
       await release(reconnected, shortCode);
+    }).timeout(300000);
+
+    it('keeps native roots distinct on one socket, canonicalizes aliases and retains subscriptions after lease release', async () => {
+      const agents = [randomUUID(), randomUUID()];
+      const question = await mcp('ask_question', { job_id: jobTicketCode,
+        question: `Claim canonical alias ${randomUUID()}?` });
+      const granted = await nativeClaim(holderRunner, agents[0], [question.short_code_id, jobTicketCode]);
+      assert.strictEqual(granted.claimed, true);
+      assert.strictEqual(granted.agent_id, agents[0]);
+      assert.strictEqual(granted.work.short_code_id, jobTicketCode);
+      assert.strictEqual((await nativeClaim(holderRunner, agents[1], [jobTicketCode])).claimed, false,
+        'Sharing a websocket must not share native ownership');
+      assert.strictEqual((await claim(holderRunner, jobTicketCode)).claimed, false,
+        'A legacy request on the same connection must not adopt a native grant');
+      assert.strictEqual((await nativeClaim(holderRunner, agents[1], [], granted.work)).released, false);
+      assert.strictEqual((await nativeClaim(rivalRunner, agents[1], [question.short_code_id])).claimed, false,
+        'An alias must not provide another lock');
+
+      await assert.rejects(() => mcp('set_agent_subscription', { action: 'subscribe',
+        short_code_id: jobTicketCode }), /native caller identity/);
+      assert.deepStrictEqual((await nativeClaim(holderRunner, agents[0], [jobTicketCode])).work, granted.work,
+        'A failed subscription must leave a recoverable claim');
+      const subscribed = await mcp('set_agent_subscription', { action: 'subscribe', short_code_id: jobTicketCode }, agents[0]);
+      assert.strictEqual(subscribed.agent_id, granted.agent_id);
+      assert.deepStrictEqual(subscribed.work, granted.work);
+      // Human-guided selection can subscribe without claiming.
+      await mcp('set_agent_subscription', { action: 'subscribe', short_code_id: jobTicketCode }, agents[1]);
+      assert.strictEqual((await nativeClaim(holderRunner, agents[0], [], granted.work)).released, true);
+      const marker = randomUUID();
+      const poked = holderRunner.waitForReceivedMessage({ event_type: 'poke_ai', message: marker }, CLAIM_TIMEOUT_MS);
+      holderRunner.pokeAI(uclusionToken, marker, { short_code_id: jobTicketCode });
+      assert.deepStrictEqual((await poked).routing.subscriber_agent_ids, [...agents].sort(),
+        'Lease release must not end either retained assignment subscription');
+      for (const agent of agents) {
+        await mcp('set_agent_subscription', { action: 'unsubscribe', short_code_id: jobTicketCode }, agent);
+      }
+      // A legacy grant must likewise not become native just because the socket matches.
+      await claim(holderRunner, jobTicketCode);
+      assert.strictEqual((await nativeClaim(holderRunner, agents[0], [jobTicketCode])).claimed, false);
+      await release(holderRunner, jobTicketCode);
+    }).timeout(300000);
+
+    it('reconciles overlapping retries to one candidate for a native agent', async () => {
+      const created = await adminClient.investibles.create({ groupId: marketId,
+        name: `Concurrent native candidates ${randomUUID()}`, description: 'Overlapping claim retries.' });
+      const candidates = [jobTicketCode, await getTicketCode(created)];
+      const agent = randomUUID();
+      const results = await Promise.all(Array.from({ length: 5 }, () => nativeClaim(holderRunner, agent, candidates)));
+      const grants = results.filter((result) => result.claimed);
+      assert(grants.length > 0);
+      assert.strictEqual(new Set(grants.map((grant) => grant.work.id)).size, 1,
+        'One native retry sequence must not acquire multiple candidates');
+      assert(results.every((result) => result.claimed || result.uncertain),
+        'A contending same-agent operation must remain explicitly unconfirmed');
+      const reconciled = await nativeClaim(holderRunner, agent, candidates);
+      assert.deepStrictEqual(reconciled.work, grants[0].work);
+      const rival = randomUUID();
+      const other = await nativeClaim(rivalRunner, rival, candidates);
+      assert.strictEqual(other.claimed, true, 'The other candidate must not be held by an unknown duplicate grant');
+      assert.notStrictEqual(other.work.id, reconciled.work.id);
+      await nativeClaim(holderRunner, agent, [], reconciled.work);
+      await nativeClaim(rivalRunner, rival, [], other.work);
+    }).timeout(300000);
+
+    it('recovers only the recorded native owner and refuses a reassigned claim even after its new holder disconnects', async () => {
+      const first = await startAiRunner();
+      const next = await startAiRunner();
+      extraRunners.push(first, next);
+      const agents = [randomUUID(), randomUUID()];
+      const granted = await nativeClaim(first, agents[0], [jobTicketCode]);
+      const entry = { agent_id: agents[0], work: granted.work };
+      assert.strictEqual(granted.claimed, true);
+      const live = await nativeRebind(next, [entry], false);
+      assert.deepStrictEqual(live.claims, [], 'A live old connection prevents handoff');
+      first.terminate();
+      const rebound = await nativeRebind(next, [entry], true);
+      assert.deepStrictEqual(rebound.claims, [entry]);
+      assert.strictEqual((await nativeClaim(next, agents[1], [], granted.work)).released, false);
+      await nativeClaim(next, agents[0], [], granted.work);
+      const newOwner = await nativeClaim(next, agents[1], [jobTicketCode]);
+      assert.strictEqual(newOwner.claimed, true);
+      next.terminate();
+      const rejected = await nativeRebind(holderRunner, [entry], false);
+      assert.deepStrictEqual(rejected.claims, [], 'A dead connection does not erase the recorded native owner');
+      const trueOwner = { agent_id: agents[1], work: newOwner.work };
+      assert.deepStrictEqual((await nativeRebind(holderRunner, [trueOwner], true)).claims, [trueOwner]);
+      await nativeClaim(holderRunner, agents[1], [], newOwner.work);
     }).timeout(300000);
   });
 }

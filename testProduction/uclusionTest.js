@@ -18,6 +18,7 @@ import exportTest from '../tests/exportTest.js';
 import viewNotesMcpTest from '../tests/viewNotesMcpTest.js';
 import backlogMaintenanceMcpTest from '../tests/backlogMaintenanceMcpTest.js';
 import aiPokeTest from '../tests/aiPokeTest.js';
+import workClaimTest from '../tests/workClaimTest.js';
 import shortCodeLinkTest from '../tests/shortCodeLinkTest.js';
 import agentMarkdownRulesMcpTest from '../tests/agentMarkdownRulesMcpTest.js';
 
@@ -66,6 +67,7 @@ describe('uclusion', () => {
   viewNotesMcpTest(adminConfiguration);
   backlogMaintenanceMcpTest(adminConfiguration);
   aiPokeTest(adminConfiguration);
+  workClaimTest(adminConfiguration);
   shortCodeLinkTest(adminConfiguration);
   agentMarkdownRulesMcpTest(adminConfiguration);
 });

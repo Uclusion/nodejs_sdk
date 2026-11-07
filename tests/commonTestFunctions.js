@@ -106,7 +106,7 @@ export async function mcpLogin(configuration, marketClient, marketId) {
 }
 
 // MCP is just a post - JSON-RPC tools/call against the investibles mcp endpoint
-export async function mcpCall(configuration, uclusionToken, toolName, args) {
+export async function mcpCall(configuration, uclusionToken, toolName, args, meta) {
     const response = await fetch(configuration.baseURL.replace('https://', 'https://investibles.') + '/mcp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: uclusionToken },
@@ -114,7 +114,7 @@ export async function mcpCall(configuration, uclusionToken, toolName, args) {
             jsonrpc: '2.0',
             id: 1,
             method: 'tools/call',
-            params: { name: toolName, arguments: args }
+            params: { name: toolName, arguments: args, ...(meta ? { _meta: meta } : {}) }
         })
     });
     if (!response.ok) {

@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { randomUUID } from 'crypto';
+import AWS from 'aws-sdk';
 import {
   loginUserToAccountAndGetToken,
   loginUserToIdentity,
@@ -27,6 +28,7 @@ export default function (adminConfiguration) {
     let planningStages;
     let uclusionToken;
     let aiWebSocketRunner;
+    const fixtureAgentId = randomUUID();
 
     before(async function () {
       this.timeout(300000);
@@ -188,6 +190,7 @@ export default function (adminConfiguration) {
         assignments: [adminId]
       });
       const jobTicketCode = await getTicketCode(job);
+      await subscription(jobTicketCode, fixtureAgentId);
       const collaboratorMarker = `AI collaborator note ${marker}`;
       await pollMcp('add_info', {
         short_code_id: jobTicketCode,
@@ -263,7 +266,7 @@ export default function (adminConfiguration) {
     }
 
     it('should route a direct Poke AI action to an AI market-token subscription', async () => {
-      const marker = `nodejs-sdk-direct-poke-${randomUUID()}`;
+      const marker = `Start nodejs-sdk-direct-poke-${randomUUID()}`;
       const receivedPromise = aiWebSocketRunner.waitForReceivedMessage({
         event_type: 'poke_ai',
         message: marker
@@ -273,6 +276,204 @@ export default function (adminConfiguration) {
       assertPokeEnvelope(received);
     }).timeout(180000);
 
+    async function subscription(shortCode, agentId, action = 'subscribe', extra = {}) {
+      return structuredMcpResult(await mcpCall(adminConfiguration, uclusionToken,
+        'set_agent_subscription', { short_code_id: shortCode, action, ...extra },
+        { uclusionAgentId: agentId }));
+    }
+
+    async function manualRouting(shortCode, bootstrap = false) {
+      const message = `${bootstrap ? 'Start' : 'Updated'} ${shortCode} probe-${randomUUID()}`;
+      const received = aiWebSocketRunner.waitForReceivedMessage({ event_type: 'poke_ai', message },
+        MESSAGE_TIMEOUT_MS);
+      aiWebSocketRunner.pokeAI(marketToken, message, { short_code_id: shortCode });
+      return (await received).routing;
+    }
+
+    async function nativeClaim(agentId, shortCode, work) {
+      const messageId = randomUUID();
+      const received = aiWebSocketRunner.waitForReceivedMessage({ event_type: 'claim_result', message_id: messageId },
+        MESSAGE_TIMEOUT_MS);
+      aiWebSocketRunner.send({ action: 'claim_work', identity: uclusionToken, message_id: messageId,
+        agent_id: agentId, operation: work ? 'release' : 'claim', short_code_id: shortCode,
+        ...(work ? { work } : {}) });
+      return received;
+    }
+
+    async function replayableCommentEvent(commentId) {
+      // Promotion environments use separate AWS accounts with the dev stack.
+      assert(['https://dev.api.uclusion.com/v1', 'https://stage.api.uclusion.com/v1',
+        'https://production.api.uclusion.com/v1'].includes(adminConfiguration.baseURL));
+      const dynamodb = new AWS.DynamoDB({ region: 'us-west-2' });
+      const { Item } = await dynamodb.getItem({ TableName: 'uclusion-markets-dev-comments',
+        Key: { id: { S: commentId } }, ConsistentRead: true }).promise();
+      assert.strictEqual(Item?.market_id?.S, marketId, 'Only this integration fixture may be replayed');
+      return { Records: [{ eventName: 'INSERT', eventID: randomUUID(), eventSource: 'aws:dynamodb',
+        dynamodb: { Keys: { id: { S: commentId } }, NewImage: Item } }] };
+    }
+
+    async function replayCommentEvent(event, message, messageId) {
+      const received = aiWebSocketRunner.waitForReceivedMessage({ event_type: 'poke_ai', message,
+        ...(messageId ? { message_id: messageId } : {}) }, MESSAGE_TIMEOUT_MS);
+      await invokeCommentEvent(event);
+      return received;
+    }
+
+    async function invokeCommentEvent(event) {
+      const lambda = new AWS.Lambda({ region: 'us-west-2', maxRetries: 0,
+        httpOptions: { timeout: 190000 } });
+      const response = await lambda.invoke({ FunctionName: 'uclusion-async-dev-comments_triggered',
+        InvocationType: 'RequestResponse', Payload: JSON.stringify(event) }).promise();
+      assert.strictEqual(response.StatusCode, 200);
+      assert(!response.FunctionError, Buffer.from(response.Payload || '').toString('utf8'));
+    }
+
+    it('suppresses new manual continuations without subscribers, including old-client requests', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({ groupId: marketId,
+        name: `Unsubscribed manual work ${marker}`, description: 'Only Start may bootstrap delivery.' });
+      const jobCode = await getTicketCode(job);
+      for (const target of [undefined, { short_code_id: jobCode }]) {
+        const message = `Updated ${jobCode} probe-${randomUUID()}`;
+        aiWebSocketRunner.pokeAI(marketToken, message, target);
+        await assertNoPoke({ event_type: 'poke_ai', message }, DUPLICATE_QUIET_WINDOW_MS,
+          'Neither missing target nor connected legacy clients permit unsubscribed continuations');
+      }
+      assert.deepStrictEqual((await manualRouting(jobCode, true)).subscriber_agent_ids, []);
+    }).timeout(240000);
+
+    it('keeps an automatic response suppressed when the same stream event is replayed after subscription', async () => {
+      const marker = randomUUID();
+      const { job, jobTicketCode } = await createCollaboratedJob(marker);
+      await subscription(jobTicketCode, fixtureAgentId, 'unsubscribe');
+      const question = structuredMcpResult(await pollMcp('ask_question', {
+        job_id: jobTicketCode, question: `Unsubscribed response ${marker}?` }));
+      const body = `No subscriber answer ${marker}`;
+      const created = await adminClient.investibles.createComment(job.investible.id, marketId,
+        body, question.comment_id);
+      const reply = created.ticket_code ? created : await findCommentByMarker(adminClient, marketId, body);
+      const message = `Responded ${reply.ticket_code} of ${jobTicketCode}`;
+      await assertNoPoke({ event_type: 'poke_ai', message }, DUPLICATE_QUIET_WINDOW_MS,
+        'AI collaboration alone must not emit a response without a subscriber');
+      const replay = await replayableCommentEvent(reply.id);
+      await invokeCommentEvent(replay);
+      await subscription(jobTicketCode, fixtureAgentId);
+      await invokeCommentEvent(replay);
+      await assertNoPoke({ event_type: 'poke_ai', message }, DUPLICATE_QUIET_WINDOW_MS,
+        'A saved suppression must not revive when subscribers change');
+      const nextBody = `New subscribed answer ${marker}`;
+      const nextCreated = await adminClient.investibles.createComment(job.investible.id, marketId,
+        nextBody, question.comment_id);
+      const next = nextCreated.ticket_code ? nextCreated
+        : await findCommentByMarker(adminClient, marketId, nextBody);
+      const emitted = await aiWebSocketRunner.waitForReceivedMessage({ event_type: 'poke_ai',
+        message: `Responded ${next.ticket_code} of ${jobTicketCode}` }, MESSAGE_TIMEOUT_MS);
+      assert.deepStrictEqual(emitted.routing.subscriber_agent_ids, [fixtureAgentId]);
+    }).timeout(300000);
+
+    it('keeps concurrent work subscriptions through nested replies and snapshots manual and automatic Pokes', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({ groupId: marketId,
+        name: `Subscribed work ${marker}`, description: 'Subscription metadata has no semantic side effects.' });
+      const jobCode = await getTicketCode(job);
+      const agents = [randomUUID(), randomUUID()];
+      const notificationsBefore = mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_notifications', {}));
+      const stageBefore = mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+        short_code_id: jobCode, stage_only: true }));
+      const writes = await Promise.all(agents.map((agent) => subscription(jobCode, agent)));
+      assert(writes.every((write) => write.subscribed && write.work.kind === 'job'
+        && write.work.short_code_id === jobCode));
+      assert.strictEqual((await subscription(jobCode, agents[0])).agent_id, agents[0]);
+      await assertNoPoke({ event_type: 'poke_ai', message: `Updated ${jobCode}` },
+        BASELINE_QUIET_WINDOW_MS, 'Membership changes must not emit semantic Pokes');
+      assert.strictEqual(mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_notifications', {})),
+        notificationsBefore, 'Membership changes must not notify the human');
+      assert.strictEqual(mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_job', {
+        short_code_id: jobCode, stage_only: true })), stageBefore, 'Membership changes must not change stage');
+      const beforeRelease = await manualRouting(jobCode);
+      assert.strictEqual(beforeRelease.version, 1);
+      assert.deepStrictEqual(beforeRelease.subscriber_agent_ids, [...agents].sort());
+
+      const question = structuredMcpResult(await pollMcp('ask_question', { job_id: jobCode,
+        question: `Subscribed question ${marker}?`,
+        options: [{ name: 'One option', description: 'Exercise inline ancestry.' }],
+        initial_vote: { new_option_index: 0, certainty: 3, reason: 'Exercise the selected path.' } }));
+      const nested = await subscription(question.options[0].short_code_id, agents[0]);
+      assert.deepStrictEqual(nested.work, writes[0].work, 'Inline option must resolve to the same canonical job');
+      const reply = await adminClient.investibles.createComment(job.investible.id, marketId,
+        `Answer ${marker}`, question.comment_id);
+      const replied = reply.ticket_code ? reply : await findCommentByMarker(adminClient, marketId, `Answer ${marker}`);
+      const response = await aiWebSocketRunner.waitForReceivedMessage({ event_type: 'poke_ai',
+        message: `Responded ${replied.ticket_code} of ${jobCode}` }, MESSAGE_TIMEOUT_MS);
+      assert.deepStrictEqual(response.routing, beforeRelease,
+        'The actual human response path must carry the same work and subscriber snapshot');
+      const replayEvent = await replayableCommentEvent(replied.id);
+      const firstReplay = await replayCommentEvent(replayEvent, response.message);
+      assert.deepStrictEqual(firstReplay.routing, beforeRelease);
+      assert.deepStrictEqual((await subscription(replied.ticket_code, agents[0], 'unsubscribe')).work, writes[0].work);
+      const afterRelease = await manualRouting(jobCode);
+      assert.deepStrictEqual(afterRelease.subscriber_agent_ids, [agents[1]]);
+      const retried = await replayCommentEvent(replayEvent, response.message, firstReplay.message_id);
+      assert.deepStrictEqual(retried.routing, firstReplay.routing,
+        'A successful stream send followed by replay must retain its saved recipients after release');
+      assert.deepStrictEqual(beforeRelease.subscriber_agent_ids, [...agents].sort(),
+        'A release must not change an already emitted snapshot');
+      await subscription(jobCode, agents[1], 'unsubscribe');
+      assert.deepStrictEqual((await manualRouting(jobCode, true)).subscriber_agent_ids, []);
+      await assert.rejects(() => mcpCall(adminConfiguration, uclusionToken, 'set_agent_subscription', {
+        short_code_id: jobCode, action: 'subscribe' }), /native caller identity/);
+    }).timeout(300000);
+
+    it('replaces a moved bug subscription without releasing its new job or crossing workspace scope', async () => {
+      const marker = randomUUID();
+      const agent = randomUUID();
+      const created = await adminClient.investibles.createComment(undefined, marketId,
+        `Subscribed standalone bug ${marker}`, null, 'TODO');
+      const bug = created.ticket_code ? created
+        : await findCommentByMarker(adminClient, marketId, `Subscribed standalone bug ${marker}`);
+      const originalClaim = await nativeClaim(agent, bug.ticket_code);
+      assert.strictEqual(originalClaim.claimed, true);
+      const original = await subscription(bug.ticket_code, agent);
+      assert.deepStrictEqual(original.work, originalClaim.work);
+      assert.strictEqual(original.work.kind, 'bug');
+      const emitted = await manualRouting(bug.ticket_code);
+      await pollMcp('add_job', { name: `Moved subscribed bug ${marker}`,
+        description: 'Move while retaining the emitted snapshot.', bug_short_code_ids: [bug.ticket_code] });
+      const rival = randomUUID();
+      const rivalClaim = await nativeClaim(rival, bug.ticket_code);
+      assert.strictEqual(rivalClaim.claimed, true);
+      assert.strictEqual(rivalClaim.work.kind, 'job');
+      assert.strictEqual((await nativeClaim(agent, bug.ticket_code)).claimed, false,
+        'The original bug lease must not bypass a denied new job claim');
+      assert.deepStrictEqual((await manualRouting(bug.ticket_code, true)).subscriber_agent_ids, [],
+        'An unfinished automatic handoff must not subscribe to denied work');
+      await nativeClaim(rival, rivalClaim.work.short_code_id, rivalClaim.work);
+      const currentClaim = await nativeClaim(agent, bug.ticket_code);
+      assert.strictEqual(currentClaim.claimed, true);
+      const current = await subscription(bug.ticket_code, agent);
+      assert.deepStrictEqual(current.work, currentClaim.work);
+      assert.strictEqual(current.work.kind, 'job');
+      assert.notStrictEqual(current.work.id, original.work.id);
+      const released = await subscription(bug.ticket_code, agent, 'unsubscribe', { work_id: original.work.id });
+      assert.strictEqual(released.subscribed, false);
+      assert.strictEqual((await nativeClaim(agent, originalClaim.work.short_code_id, originalClaim.work)).released, true);
+      assert.strictEqual((await nativeClaim(rival, current.work.short_code_id)).claimed, false,
+        'Releasing the recorded bug lease must leave the new job lease intact');
+      assert.deepStrictEqual((await manualRouting(bug.ticket_code)).subscriber_agent_ids, [agent]);
+      assert.strictEqual(emitted.work.kind, 'bug');
+      assert.deepStrictEqual(emitted.subscriber_agent_ids, [agent]);
+      const foreignMarket = await accountClient.markets.createMarket({
+        name: `Subscription scope ${marker}`, market_type: 'PLANNING' });
+      await loginUserToMarketInvite(adminConfiguration, foreignMarket.market.invite_capability);
+      const foreignClient = await loginUserToMarket(adminConfiguration, foreignMarket.market.id);
+      const foreignToken = await mcpLogin(adminConfiguration, foreignClient, foreignMarket.market.id);
+      await assert.rejects(() => mcpCall(adminConfiguration, foreignToken, 'set_agent_subscription', {
+        short_code_id: bug.ticket_code, action: 'unsubscribe', work_id: original.work.id },
+      { uclusionAgentId: agent }), /authenticated target/);
+      await subscription(current.work.short_code_id, agent, 'unsubscribe');
+      await nativeClaim(agent, currentClaim.work.short_code_id, currentClaim.work);
+    }).timeout(300000);
+
     it('should emit one compound Responded poke when the last open assistance is answered', async () => {
       const marker = randomUUID();
       const job = await adminClient.investibles.create({
@@ -281,6 +482,7 @@ export default function (adminConfiguration) {
         description: 'Fresh job containing exactly one AI-authored question.'
       });
       const jobTicketCode = await getTicketCode(job);
+      await subscription(jobTicketCode, fixtureAgentId);
       const questionMarker = `AI question awaiting one human response ${marker}?`;
       await pollMcp('ask_question', {
         job_id: jobTicketCode,
@@ -444,6 +646,7 @@ export default function (adminConfiguration) {
         description: 'Job with two open AI questions answered in one sitting.'
       });
       const jobTicketCode = await getTicketCode(job);
+      await subscription(jobTicketCode, fixtureAgentId);
       const firstMarker = `First AI question of a pair ${marker}?`;
       const secondMarker = `Second AI question of a pair ${marker}?`;
       await pollMcp('ask_question', {
@@ -539,6 +742,7 @@ export default function (adminConfiguration) {
         : await findCommentByMarker(adminClient, marketId, bugMarker);
       assert(persistedBug?.ticket_code, 'Standalone bug should have a ticket code');
       const bugTicketCode = persistedBug.ticket_code;
+      await subscription(bugTicketCode, fixtureAgentId);
       // Standalone market-level TODOs do not emit Added — that path is for
       // investible-attached tasks when AI already collaborates. Collaboration
       // for the later Responded hand-backs comes from createCollaboratedJob
@@ -626,6 +830,7 @@ export default function (adminConfiguration) {
         description: 'Job whose AI-authored question receives a human question inside its option.'
       });
       const jobTicketCode = await getTicketCode(job);
+      await subscription(jobTicketCode, fixtureAgentId);
       const parentMarker = `AI parent question with an option ${marker}?`;
       await pollMcp('ask_question', {
         job_id: jobTicketCode,
@@ -942,7 +1147,7 @@ export default function (adminConfiguration) {
       assertPokeEnvelope(await convertedPromise);
     }).timeout(240000);
 
-    it('should name the new type when a human moves a task to a bug', async () => {
+    it('suppresses task-to-bug conversion until the new canonical bug has a subscriber', async () => {
       // B-all-703: the web UI's Move to bug only sets a severity, which takes the task out
       // of its job, so the stored type stays a task and only the job membership changes.
       const marker = randomUUID();
@@ -960,15 +1165,20 @@ export default function (adminConfiguration) {
         : await findCommentByMarker(adminClient, marketId, taskMarker);
       assert(persistedTask?.ticket_code, 'Human-created task should have a ticket code');
 
-      const convertedPromise = aiWebSocketRunner.waitForReceivedMessage({
+      const convertedSignature = {
         event_type: 'poke_ai',
         message: `Updated ${persistedTask.ticket_code} of ${jobTicketCode} converted to bug`
-      }, MESSAGE_TIMEOUT_MS);
+      };
       const bug = await adminClient.investibles.alterComment(persistedTask.id, 'RED');
       assert(!bug.investible_id, 'Move to bug should take the task out of its job');
       assert.strictEqual(bug.ticket_code, persistedTask.ticket_code,
         'Move to bug keeps the task short code');
-      assertPokeEnvelope(await convertedPromise);
+      await assertNoPoke(convertedSignature, DUPLICATE_QUIET_WINDOW_MS,
+        'The former job subscription must not become membership in a new standalone bug');
+      assert.deepStrictEqual((await manualRouting(bug.ticket_code, true)).subscriber_agent_ids, []);
+      const subscribed = await subscription(bug.ticket_code, fixtureAgentId);
+      assert.strictEqual(subscribed.work.kind, 'bug');
+      assert.deepStrictEqual((await manualRouting(bug.ticket_code)).subscriber_agent_ids, [fixtureAgentId]);
     }).timeout(240000);
 
     it('should defer a blocker Added event until the job is Blocked and causally readable', async () => {
@@ -1139,6 +1349,7 @@ export default function (adminConfiguration) {
         description: 'Fresh human-authored job with no AI comments, replies, votes, or approvals.'
       });
       const jobTicketCode = await getTicketCode(job);
+      await subscription(jobTicketCode, fixtureAgentId);
       const updatedSignature = {
         event_type: 'poke_ai',
         message: `Updated ${jobTicketCode} description change`

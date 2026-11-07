@@ -176,8 +176,8 @@ class WebSocketRunner {
         this.socket.send(typeof action === 'string' ? action : JSON.stringify(action));
     }
 
-    pokeAI(idToken, message) {
-        this.send({ action: 'poke_ai', identity: idToken, message });
+    pokeAI(idToken, message, target) {
+        this.send({ action: 'poke_ai', identity: idToken, message, ...(target ? { target } : {}) });
     }
 
     claimWork(idToken, operation, shortCodeId, messageId, expirySeconds = undefined) {
