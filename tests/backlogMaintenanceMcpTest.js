@@ -143,11 +143,12 @@ export default function (adminConfiguration) {
 
       const reason = `The fixed outcome ${marker} removes the open bug's premise`;
       const proposedAction = 'Decide whether to resolve the open bug';
-      const report = `1. **${openBug.short_code_id}**, Open bug ${marker}: **obsolete**. ` +
+      const finding = `1. **${openBug.short_code_id}**, Open bug ${marker}: **obsolete**. ` +
         `Evidence: ${resolvedBug.short_code_id}, ${reason}. Proposed action: ${proposedAction}.`;
+      const report = `1. [Open bug ${marker} (${openBug.short_code_id})](#${openBug.short_code_id}). ${reason}.`;
       const contextualWrite = toolResult(await mcpCall(adminConfiguration, workspace.uclusionToken,
         'add_info', {
-          short_code_id: openBug.short_code_id, info: report,
+          short_code_id: openBug.short_code_id, info: finding,
           is_silent: true, tz: 'America/Los_Angeles'
         }));
       assert.notStrictEqual(contextualWrite.isError, true, JSON.stringify(contextualWrite));
@@ -202,8 +203,14 @@ export default function (adminConfiguration) {
       assert.strictEqual(row.level, 'YELLOW');
       assert.strictEqual(row.alert_type, 'AI_GENERATED');
       assert.strictEqual(row.inbox_only, true);
+      assert.strictEqual(row.since, notice.since, 'The notification preserves the exact claimed start');
+      assert.strictEqual(row.through, notice.through, 'The notification preserves the exact claimed end');
+      assert((row.text || '').includes(reason), 'The compact report keeps the causal reason');
+      for (const detail of [notice.since, notice.through, 'Evidence:', 'Proposed action:', proposedAction]) {
+        assert(!(row.text || '').includes(detail), 'Window fields and analysis details stay outside the report');
+      }
       const openBugLink = new RegExp(
-        `<a href="[^"]*#c${openBug.comment_id}"[^>]*>${openBug.short_code_id}</a>`);
+        `<a href="[^"]*#c${openBug.comment_id}"[^>]*>Open bug ${marker} \\(${openBug.short_code_id}\\)</a>`);
       assert.match(row.text || '', openBugLink, 'The report text links the open bug it names');
       const after = await findWork(workspace);
       assert(!('backlog_maintenance' in after), `Recording clears the notice: ${JSON.stringify(after)}`);
