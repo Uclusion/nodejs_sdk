@@ -32,7 +32,15 @@ export default function(adminConfiguration, userConfiguration) {
                 }).then((versions) => {
                         const { signatures } = versions;
                         console.dir(signatures);
-                        assert(signatures.length === 1, "Should be associated with a single market after activity");
+                        // Deleted audit IDs still produce an envelope with empty version lists.
+                        const populatedMarkets = signatures.filter((market) => market.signatures
+                            .some((component) => component.object_versions.length > 0));
+                        assert.strictEqual(populatedMarkets.length, 1,
+                            'Should be associated with a single populated market after activity');
+                        const [market] = populatedMarkets;
+                        assert(market.signatures.some((component) => component.type === 'market'
+                            && component.object_versions.some((version) => version.object_id_one === market.market_id)),
+                            'The populated summary must include its market record');
                         return signatures;
                     }).then(() => {
                         return loginUserToAccount(adminConfiguration);

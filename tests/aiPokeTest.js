@@ -421,7 +421,7 @@ export default function (adminConfiguration) {
       await subscription(jobCode, agents[1], 'unsubscribe');
       assert.deepStrictEqual((await manualRouting(jobCode, true)).subscriber_agent_ids, []);
       await assert.rejects(() => mcpCall(adminConfiguration, uclusionToken, 'set_agent_subscription', {
-        short_code_id: jobCode, action: 'subscribe' }), /native caller identity/);
+        short_code_id: jobCode, action: 'subscribe' }).then(structuredMcpResult), /native caller identity/);
     }).timeout(300000);
 
     it('replaces a moved bug subscription without releasing its new job or crossing workspace scope', async () => {
@@ -469,7 +469,7 @@ export default function (adminConfiguration) {
       const foreignToken = await mcpLogin(adminConfiguration, foreignClient, foreignMarket.market.id);
       await assert.rejects(() => mcpCall(adminConfiguration, foreignToken, 'set_agent_subscription', {
         short_code_id: bug.ticket_code, action: 'unsubscribe', work_id: original.work.id },
-      { uclusionAgentId: agent }), /authenticated target/);
+      { uclusionAgentId: agent }).then(structuredMcpResult), /authenticated target/);
       await subscription(current.work.short_code_id, agent, 'unsubscribe');
       await nativeClaim(agent, currentClaim.work.short_code_id, currentClaim.work);
     }).timeout(300000);
