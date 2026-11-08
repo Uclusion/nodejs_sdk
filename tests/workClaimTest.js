@@ -43,12 +43,7 @@ export default function (adminConfiguration) {
       // This is the same market-scoped token used by the CLI proxy.
       uclusionToken = await mcpLogin(adminConfiguration, adminClient, marketId);
 
-      const job = await adminClient.investibles.create({
-        groupId: marketId,
-        name: 'Job whose short code the claim lock protects',
-        description: 'Two idle agents race to claim this job.'
-      });
-      jobTicketCode = await getTicketCode(job);
+      jobTicketCode = await createClaimJob('Legacy claim lock');
 
       holderRunner = await startAiRunner();
       rivalRunner = await startAiRunner();
@@ -208,6 +203,15 @@ export default function (adminConfiguration) {
       return ticketCode;
     }
 
+    async function createClaimJob(name) {
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `${name} ${randomUUID()}`,
+        description: 'Two idle agents race to claim this job.'
+      });
+      return getTicketCode(job);
+    }
+
     it('should grant the lock to the first claimant and deny the second until release', async () => {
       const granted = await claim(holderRunner, jobTicketCode);
       assert.strictEqual(granted.claimed, true, 'First claimant should get the lock');
@@ -317,6 +321,7 @@ export default function (adminConfiguration) {
     }).timeout(300000);
 
     it('keeps native roots distinct on one socket, canonicalizes aliases and retains subscriptions after lease release', async () => {
+      const jobTicketCode = await createClaimJob('Native owner and subscription');
       const agents = [randomUUID(), randomUUID()];
       const question = await mcp('ask_question', { job_id: jobTicketCode,
         question: `Claim canonical alias ${randomUUID()}?` });
@@ -357,9 +362,9 @@ export default function (adminConfiguration) {
     }).timeout(300000);
 
     it('reconciles overlapping retries to one candidate for a native agent', async () => {
-      const created = await adminClient.investibles.create({ groupId: marketId,
-        name: `Concurrent native candidates ${randomUUID()}`, description: 'Overlapping claim retries.' });
-      const candidates = [jobTicketCode, await getTicketCode(created)];
+      // A previous failed case may still hold its lease. This race needs two free candidates.
+      const candidates = [await createClaimJob('Concurrent native candidate A'),
+        await createClaimJob('Concurrent native candidate B')];
       const agent = randomUUID();
       const results = await Promise.all(Array.from({ length: 5 }, () => nativeClaim(holderRunner, agent, candidates)));
       const grants = results.filter((result) => result.claimed);
@@ -379,6 +384,7 @@ export default function (adminConfiguration) {
     }).timeout(300000);
 
     it('recovers only the recorded native owner and refuses a reassigned claim even after its new holder disconnects', async () => {
+      const jobTicketCode = await createClaimJob('Native owner recovery');
       const first = await startAiRunner();
       const next = await startAiRunner();
       extraRunners.push(first, next);

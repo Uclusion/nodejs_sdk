@@ -359,14 +359,20 @@ export default function (adminConfiguration, userConfiguration) {
       const marker = randomUUID();
       const context = await makeMcpQuestion(marker,
         { new_option_index: 0, certainty: 3, reason: `Valid baseline ${marker}` });
-      const inlineVersions = await accountClient.summaries.versions(
-        accountToken, [context.question.inline_market_id]);
-      const stageReferences = inlineVersions.signatures
-        .find((entry) => entry.market_id === context.question.inline_market_id).signatures
-        .filter((entry) => entry.type === 'stage').flatMap((entry) => entry.object_versions || [])
-        .map((entry) => ({ id: entry.object_id_one, version: entry.version }));
-      const stages = await context.client.markets.listStages(stageReferences);
-      const proposed = stages.find((stage) => stage.name === 'Proposed');
+      // Option visibility can precede the Proposed stage's summary projection.
+      const proposed = await pollFor(async () => {
+        const inlineVersions = await accountClient.summaries.versions(
+          accountToken, [context.question.inline_market_id]);
+        const stageReferences = (inlineVersions.signatures
+          ?.find((entry) => entry.market_id === context.question.inline_market_id)?.signatures || [])
+          .filter((entry) => entry.type === 'stage').flatMap((entry) => entry.object_versions || [])
+          .map((entry) => ({ id: entry.object_id_one, version: entry.version }));
+        if (!stageReferences.length) {
+          return undefined;
+        }
+        const stages = await context.client.markets.listStages(stageReferences);
+        return stages.find((stage) => stage.name === 'Proposed');
+      }, Boolean);
       assert(proposed, 'The inline fixture must have a non-Approvable stage');
       const unavailable = context.options.find((option) => option.investible.name === `Second ${marker}`);
       await context.client.investibles.stateChange(unavailable.investible.id, {
