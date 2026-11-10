@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import AWS from 'aws-sdk';
 import {
   loginUserToAccountAndGetToken,
@@ -182,7 +182,7 @@ export default function (adminConfiguration) {
           .map((version) => version.object_id_one)))];
     }
 
-    async function createCollaboratedJob(marker) {
+    async function createCollaboratedJob(marker, { subscribe = true } = {}) {
       const job = await adminClient.investibles.create({
         groupId: marketId,
         name: `AI collaborator event ${marker}`,
@@ -190,7 +190,9 @@ export default function (adminConfiguration) {
         assignments: [adminId]
       });
       const jobTicketCode = await getTicketCode(job);
-      await subscription(jobTicketCode, fixtureAgentId);
+      if (subscribe) {
+        await subscription(jobTicketCode, fixtureAgentId);
+      }
       const collaboratorMarker = `AI collaborator note ${marker}`;
       await pollMcp('add_info', {
         short_code_id: jobTicketCode,
@@ -276,10 +278,44 @@ export default function (adminConfiguration) {
       assertPokeEnvelope(received);
     }).timeout(180000);
 
-    async function subscription(shortCode, agentId, action = 'subscribe', extra = {}) {
+    async function subscription(shortCode, agentId, extra = {}) {
       return structuredMcpResult(await mcpCall(adminConfiguration, uclusionToken,
-        'set_agent_subscription', { short_code_id: shortCode, action, ...extra },
+        'set_agent_subscription', { short_code_id: shortCode, ...extra },
         { uclusionAgentId: agentId }));
+    }
+
+    async function assertPermanentSubscription(args, agentId) {
+      await assert.rejects(() => mcpCall(adminConfiguration, uclusionToken, 'set_agent_subscription', args,
+        { uclusionAgentId: agentId }).then(structuredMcpResult), /subscriptions are permanent/);
+    }
+
+    // A Claude Code or Cursor session's ID is name-based (version 5), derived from its delivery consumer.
+    function consumerAgentId(consumer) {
+      const bytes = createHash('sha1').update(`uclusion-integration:${consumer}`).digest().subarray(0, 16);
+      bytes[6] = (bytes[6] & 0x0f) | 0x50;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = bytes.toString('hex');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+
+    async function savedPokeDecision(messageId) {
+      // Promotion environments use separate AWS accounts with the dev stack.
+      assert(['https://dev.api.uclusion.com/v1', 'https://stage.api.uclusion.com/v1',
+        'https://production.api.uclusion.com/v1'].includes(adminConfiguration.baseURL));
+      const dynamodb = new AWS.DynamoDB({ region: 'us-west-2' });
+      const { Item } = await dynamodb.getItem({ TableName: 'uclusion-async-dev-ai-poke-routing',
+        Key: { workspace_id: { S: marketId }, message_id: { S: messageId } }, ConsistentRead: true }).promise();
+      return { decision: Item?.decision?.S, routing: Item?.routing_json?.S && JSON.parse(Item.routing_json.S) };
+    }
+
+    async function storedBugSubscribers(commentId) {
+      assert(['https://dev.api.uclusion.com/v1', 'https://stage.api.uclusion.com/v1',
+        'https://production.api.uclusion.com/v1'].includes(adminConfiguration.baseURL));
+      const dynamodb = new AWS.DynamoDB({ region: 'us-west-2' });
+      const { Item } = await dynamodb.getItem({ TableName: 'uclusion-markets-dev-comments',
+        Key: { id: { S: commentId } }, ConsistentRead: true }).promise();
+      assert.strictEqual(Item?.market_id?.S, marketId, 'Only this integration fixture may be read');
+      return Item?.agent_subscribers?.SS || [];
     }
 
     async function manualRouting(shortCode, bootstrap = false) {
@@ -344,8 +380,7 @@ export default function (adminConfiguration) {
 
     it('keeps an automatic response suppressed when the same stream event is replayed after subscription', async () => {
       const marker = randomUUID();
-      const { job, jobTicketCode } = await createCollaboratedJob(marker);
-      await subscription(jobTicketCode, fixtureAgentId, 'unsubscribe');
+      const { job, jobTicketCode } = await createCollaboratedJob(marker, { subscribe: false });
       const question = structuredMcpResult(await pollMcp('ask_question', {
         job_id: jobTicketCode, question: `Unsubscribed response ${marker}?` }));
       const body = `No subscriber answer ${marker}`;
@@ -390,9 +425,9 @@ export default function (adminConfiguration) {
         notificationsBefore, 'Membership changes must not notify the human');
       assert.strictEqual(mcpText(await mcpCall(adminConfiguration, uclusionToken, 'get_job', {
         short_code_id: jobCode, stage_only: true })), stageBefore, 'Membership changes must not change stage');
-      const beforeRelease = await manualRouting(jobCode);
-      assert.strictEqual(beforeRelease.version, 1);
-      assert.deepStrictEqual(beforeRelease.subscriber_agent_ids, [...agents].sort());
+      const snapshot = await manualRouting(jobCode);
+      assert.strictEqual(snapshot.version, 1);
+      assert.deepStrictEqual(snapshot.subscriber_agent_ids, [...agents].sort());
 
       const question = structuredMcpResult(await pollMcp('ask_question', { job_id: jobCode,
         question: `Subscribed question ${marker}?`,
@@ -405,26 +440,25 @@ export default function (adminConfiguration) {
       const replied = reply.ticket_code ? reply : await findCommentByMarker(adminClient, marketId, `Answer ${marker}`);
       const response = await aiWebSocketRunner.waitForReceivedMessage({ event_type: 'poke_ai',
         message: `Responded ${replied.ticket_code} of ${jobCode}` }, MESSAGE_TIMEOUT_MS);
-      assert.deepStrictEqual(response.routing, beforeRelease,
+      assert.deepStrictEqual(response.routing, snapshot,
         'The actual human response path must carry the same work and subscriber snapshot');
       const replayEvent = await replayableCommentEvent(replied.id);
       const firstReplay = await replayCommentEvent(replayEvent, response.message);
-      assert.deepStrictEqual(firstReplay.routing, beforeRelease);
-      assert.deepStrictEqual((await subscription(replied.ticket_code, agents[0], 'unsubscribe')).work, writes[0].work);
-      const afterRelease = await manualRouting(jobCode);
-      assert.deepStrictEqual(afterRelease.subscriber_agent_ids, [agents[1]]);
+      assert.deepStrictEqual(firstReplay.routing, snapshot);
+      // Subscriptions are permanent: a release request is refused and changes nothing.
+      await assertPermanentSubscription({ short_code_id: replied.ticket_code, action: 'unsubscribe' }, agents[0]);
+      const later = randomUUID();
+      // Already installed guidance still names the action.
+      assert.strictEqual((await subscription(jobCode, later, { action: 'subscribe' })).subscribed, true);
+      assert.deepStrictEqual((await manualRouting(jobCode)).subscriber_agent_ids, [...agents, later].sort());
       const retried = await replayCommentEvent(replayEvent, response.message, firstReplay.message_id);
       assert.deepStrictEqual(retried.routing, firstReplay.routing,
-        'A successful stream send followed by replay must retain its saved recipients after release');
-      assert.deepStrictEqual(beforeRelease.subscriber_agent_ids, [...agents].sort(),
-        'A release must not change an already emitted snapshot');
-      await subscription(jobCode, agents[1], 'unsubscribe');
-      assert.deepStrictEqual((await manualRouting(jobCode, true)).subscriber_agent_ids, []);
+        'A successful stream send followed by replay must retain its saved recipients after a later subscription');
       await assert.rejects(() => mcpCall(adminConfiguration, uclusionToken, 'set_agent_subscription', {
-        short_code_id: jobCode, action: 'subscribe' }).then(structuredMcpResult), /native caller identity/);
+        short_code_id: jobCode }).then(structuredMcpResult), /native caller identity/);
     }).timeout(300000);
 
-    it('replaces a moved bug subscription without releasing its new job or crossing workspace scope', async () => {
+    it('keeps a moved bug subscription, adds the new job subscription and stays within workspace scope', async () => {
       const marker = randomUUID();
       const agent = randomUUID();
       const created = await adminClient.investibles.createComment(undefined, marketId,
@@ -454,8 +488,9 @@ export default function (adminConfiguration) {
       assert.deepStrictEqual(current.work, currentClaim.work);
       assert.strictEqual(current.work.kind, 'job');
       assert.notStrictEqual(current.work.id, original.work.id);
-      const released = await subscription(bug.ticket_code, agent, 'unsubscribe', { work_id: original.work.id });
-      assert.strictEqual(released.subscribed, false);
+      await assertPermanentSubscription({ short_code_id: bug.ticket_code, work_id: original.work.id }, agent);
+      assert.deepStrictEqual(await storedBugSubscribers(original.work.id), [agent],
+        'The former bug keeps its subscription after the move');
       assert.strictEqual((await nativeClaim(agent, originalClaim.work.short_code_id, originalClaim.work)).released, true);
       assert.strictEqual((await nativeClaim(rival, current.work.short_code_id)).claimed, false,
         'Releasing the recorded bug lease must leave the new job lease intact');
@@ -468,10 +503,45 @@ export default function (adminConfiguration) {
       const foreignClient = await loginUserToMarket(adminConfiguration, foreignMarket.market.id);
       const foreignToken = await mcpLogin(adminConfiguration, foreignClient, foreignMarket.market.id);
       await assert.rejects(() => mcpCall(adminConfiguration, foreignToken, 'set_agent_subscription', {
-        short_code_id: bug.ticket_code, action: 'unsubscribe', work_id: original.work.id },
-      { uclusionAgentId: agent }).then(structuredMcpResult), /authenticated target/);
-      await subscription(current.work.short_code_id, agent, 'unsubscribe');
+        short_code_id: current.work.short_code_id }, { uclusionAgentId: randomUUID() }).then(structuredMcpResult));
+      assert.deepStrictEqual((await manualRouting(current.work.short_code_id)).subscriber_agent_ids, [agent],
+        'Another workspace cannot subscribe to this work');
       await nativeClaim(agent, currentClaim.work.short_code_id, currentClaim.work);
+    }).timeout(300000);
+
+    it('records a human option vote as subscribed for a consumer-derived Claude Code or Cursor subscriber', async () => {
+      const marker = randomUUID();
+      const job = await adminClient.investibles.create({ groupId: marketId,
+        name: `Consumer subscriber ${marker}`,
+        description: 'A session without native identity subscribes with its delivery consumer.' });
+      const jobTicketCode = await getTicketCode(job);
+      const agent = consumerAgentId(`session-claude-${marker}`);
+      assert.match(agent, UUID_PATTERN);
+      const subscribed = await subscription(jobTicketCode, agent);
+      assert.strictEqual(subscribed.subscribed, true);
+      assert.strictEqual(subscribed.agent_id, agent);
+      const questionMarker = `Consumer subscriber vote ${marker}?`;
+      const question = structuredMcpResult(await pollMcp('ask_question', { job_id: jobTicketCode,
+        question: questionMarker,
+        options: [{ name: `Vote target ${marker}`, description: 'The human votes for this option.' }],
+        initial_vote: { new_option_index: 0, certainty: 3, reason: 'Exercise a human vote on an inline option.' } }));
+      const parentQuestion = await findCommentByMarker(adminClient, marketId, questionMarker);
+      assert(parentQuestion?.inline_market_id, 'AI-authored question should have an inline market');
+      const optionCode = question.options[0].short_code_id.split('_').pop();
+      const inlineAdminClient = await pollLogin(parentQuestion.inline_market_id);
+      const optionIds = await pollFor(() => listMarketInvestibleIds(parentQuestion.inline_market_id),
+        (ids) => ids.length > 0);
+      assert.strictEqual(optionIds.length, 1, 'The question should have exactly one option to vote on');
+      const responded = aiWebSocketRunner.waitForReceivedMessage({ event_type: 'poke_ai',
+        message: `Responded ${optionCode} of ${question.short_code_id}` }, MESSAGE_TIMEOUT_MS);
+      await inlineAdminClient.markets.updateInvestment(optionIds[0], 100, 0);
+      const received = await responded;
+      assertPokeEnvelope(received);
+      assert.deepStrictEqual(received.routing.subscriber_agent_ids, [agent]);
+      assert.deepStrictEqual(received.routing.work, subscribed.work);
+      const saved = await savedPokeDecision(received.message_id);
+      assert.strictEqual(saved.decision, 'subscribed', 'The saved emission decision must record the subscriber');
+      assert.deepStrictEqual(saved.routing.subscriber_agent_ids, [agent]);
     }).timeout(300000);
 
     it('should emit one compound Responded poke when the last open assistance is answered', async () => {

@@ -320,7 +320,7 @@ export default function (adminConfiguration) {
       await release(reconnected, shortCode);
     }).timeout(300000);
 
-    it('keeps native roots distinct on one socket, canonicalizes aliases and retains subscriptions after lease release', async () => {
+    it('keeps native roots distinct on one socket, canonicalizes aliases and keeps permanent subscriptions after lease release', async () => {
       const jobTicketCode = await createClaimJob('Native owner and subscription');
       const agents = [randomUUID(), randomUUID()];
       const question = await mcp('ask_question', { job_id: jobTicketCode,
@@ -352,9 +352,8 @@ export default function (adminConfiguration) {
       holderRunner.pokeAI(uclusionToken, marker, { short_code_id: jobTicketCode });
       assert.deepStrictEqual((await poked).routing.subscriber_agent_ids, [...agents].sort(),
         'Lease release must not end either retained assignment subscription');
-      for (const agent of agents) {
-        await mcp('set_agent_subscription', { action: 'unsubscribe', short_code_id: jobTicketCode }, agent);
-      }
+      await assert.rejects(() => mcp('set_agent_subscription', { action: 'unsubscribe',
+        short_code_id: jobTicketCode }, agents[0]), /subscriptions are permanent/);
       // A legacy grant must likewise not become native just because the socket matches.
       await claim(holderRunner, jobTicketCode);
       assert.strictEqual((await nativeClaim(holderRunner, agents[0], [jobTicketCode])).claimed, false);
