@@ -3,6 +3,7 @@ import AbortController from 'abort-controller';
 import awsAmplify from 'aws-amplify';
 import usersTest from '../tests/usersTest.js';
 import ssoTest from '../tests/ssoTest.js';
+import humanCheckTest from '../tests/humanCheckTest.js';
 import groupTest from '../tests/groupTest.js';
 import inlineNotificationsTest from '../tests/inlineNotificationsTest.js';
 import storyNotificationsTest from '../tests/storyNotificationsTest.js';
@@ -65,6 +66,7 @@ const userConfiguration = {
 describe('uclusion', () => {
   usersTest(adminConfiguration, userConfiguration);
   ssoTest(adminConfiguration, userConfiguration);
+  humanCheckTest(adminConfiguration);
   groupTest(adminConfiguration, userConfiguration);
   inlineNotificationsTest(adminConfiguration, userConfiguration);
   storyNotificationsTest(adminConfiguration, userConfiguration);
