@@ -10,7 +10,7 @@ import {
 import { mcpCall, mcpLogin, mcpText, pollFor, sleep } from './commonTestFunctions.js';
 
 // J-all-517: the agent Markdown states what a record's own state allows, a Requires Input job
-// names the stage it returns to, and a whole-list connection gets tool names and fields only.
+// names the stage it returns to, and every connection gets complete tool descriptions.
 export default function (adminConfiguration) {
   describe('#test agent Markdown rules, next stage and tool description types (J-all-517)', () => {
     let accountClient;
@@ -240,47 +240,21 @@ export default function (adminConfiguration) {
       return envelope.result.tools;
     }
 
-    // Description annotations anywhere in a schema; a property named description is a field.
-    function descriptionAnnotations(schema, path = '') {
-      if (Array.isArray(schema)) {
-        return schema.flatMap((child, index) => descriptionAnnotations(child, `${path}[${index}]`));
-      }
-      if (!schema || typeof schema !== 'object') {
-        return [];
-      }
-      const found = typeof schema.description === 'string' ? [path || '/'] : [];
-      for (const [key, value] of Object.entries(schema)) {
-        if (key === 'properties' && value && typeof value === 'object') {
-          for (const [name, child] of Object.entries(value)) {
-            found.push(...descriptionAnnotations(child, `${path}/${name}`));
-          }
-        } else if (key !== 'description') {
-          found.push(...descriptionAnnotations(value, `${path}/${key}`));
-        }
-      }
-      return found;
-    }
-
-    it('lists tool names and fields without descriptions for a whole-list connection', async () => {
+    it('keeps complete tool descriptions for legacy and current connections', async () => {
       const undeclared = await listTools();
       const onDemand = await listTools('on-demand');
       const wholeList = await listTools('whole-list');
       assert.deepStrictEqual(onDemand, undeclared, 'An on-demand connection gets the full catalog');
+      assert.deepStrictEqual(wholeList, undeclared, 'A whole-list connection gets the full catalog');
       assert(undeclared.every((tool) => tool.description), 'The full catalog describes every tool');
-      assert(descriptionAnnotations(undeclared.map((tool) => tool.inputSchema)).length > 0);
-      assert.deepStrictEqual(wholeList.map((tool) => tool.name), undeclared.map((tool) => tool.name));
-      for (const tool of wholeList) {
-        assert.strictEqual(tool.description, undefined, `${tool.name} keeps its description`);
-        assert.deepStrictEqual(descriptionAnnotations(tool.inputSchema), [],
-          `${tool.name} keeps field descriptions`);
-        const full = undeclared.find((candidate) => candidate.name === tool.name);
-        assert.deepStrictEqual(tool.annotations, full.annotations, `${tool.name} annotations differ`);
-        assert.deepStrictEqual(Object.keys(tool.inputSchema.properties || {}),
-          Object.keys(full.inputSchema.properties || {}), `${tool.name} fields differ`);
-      }
-      const askQuestion = wholeList.find((tool) => tool.name === 'ask_question');
-      assert(askQuestion.inputSchema.properties.options.items.properties.description,
-        'A field named description is a field and stays');
+      const getJob = undeclared.find((tool) => tool.name === 'get_job');
+      assert(getJob.inputSchema.properties.short_code_id.description,
+        'The full catalog describes tool arguments');
+      const askQuestion = undeclared.find((tool) => tool.name === 'ask_question');
+      assert(askQuestion.inputSchema.properties.initial_vote.properties.new_option_index.description,
+        'The full catalog describes nested arguments');
+      assert.strictEqual(askQuestion.inputSchema.properties.options.items.properties.description.type, 'string',
+        'A field named description remains part of the schema');
     }).timeout(120000);
   });
 }
