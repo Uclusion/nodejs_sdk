@@ -303,7 +303,8 @@ export class WorkClaimsDevFixture {
       webUiRoot: this.webUiRoot,
       workspace,
       client: 'codex',
-      cliCommand: expectedCliCommand
+      cliCommand: expectedCliCommand,
+      workClaims: true
     });
     let closed = false;
     return {

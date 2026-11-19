@@ -25,6 +25,7 @@ import {
   completionPackagePrompt
 } from './completionPackageScenarios.js';
 import { buildTokenBreakdownPlan } from './tokenBreakdownScenarios.js';
+import { buildDesignHandoffPlan } from './designHandoffScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
@@ -37,12 +38,14 @@ const SEMANTIC_PLAN_BUILDERS = Object.freeze({
 const WORK_CLAIMS_CATALOG = 'work-claims';
 const QUESTION_GATE_CATALOG = 'question-gate';
 const TOKEN_BREAKDOWN_CATALOG = 'token-breakdown';
+const DESIGN_HANDOFF_CATALOG = 'design-handoff';
 
 function selectedCatalog(argv) {
   const index = argv.indexOf('--catalog');
   const catalog = index === -1 ? 'triggers' : argv[index + 1];
   if (catalog !== 'triggers' && catalog !== WORK_CLAIMS_CATALOG &&
       catalog !== QUESTION_GATE_CATALOG && catalog !== TOKEN_BREAKDOWN_CATALOG &&
+      catalog !== DESIGN_HANDOFF_CATALOG &&
       !Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog)) {
     throw new Error(`Unknown agent dev catalog ${catalog || '(missing)'}`);
   }
@@ -55,8 +58,9 @@ const semanticCatalog = Object.hasOwn(SEMANTIC_PLAN_BUILDERS, catalog);
 const workClaimsCatalog = catalog === WORK_CLAIMS_CATALOG;
 const questionGateCatalog = catalog === QUESTION_GATE_CATALOG;
 const tokenBreakdownCatalog = catalog === TOKEN_BREAKDOWN_CATALOG;
+const designHandoffCatalog = catalog === DESIGN_HANDOFF_CATALOG;
 const defaultArtifactDir = semanticCatalog || workClaimsCatalog || questionGateCatalog ||
-  tokenBreakdownCatalog
+  tokenBreakdownCatalog || designHandoffCatalog
   ? path.join(directory, 'artifacts', catalog)
   : path.join(directory, 'artifacts');
 const artifactDir = path.resolve(
@@ -87,7 +91,9 @@ let plan = semanticCatalog
       ? buildQuestionGatePlan()
       : tokenBreakdownCatalog
         ? buildTokenBreakdownPlan()
-        : buildSessionMatrix();
+        : designHandoffCatalog
+          ? buildDesignHandoffPlan()
+          : buildSessionMatrix();
 const clientIndex = process.argv.indexOf('--client');
 if (clientIndex !== -1) {
   const client = process.argv[clientIndex + 1];
@@ -110,7 +116,8 @@ if (phaseIndex !== -1) {
   }
   plan = narrowed;
 }
-if (semanticCatalog || workClaimsCatalog || questionGateCatalog || tokenBreakdownCatalog) {
+if (semanticCatalog || workClaimsCatalog || questionGateCatalog || tokenBreakdownCatalog ||
+    designHandoffCatalog) {
   options.catalog = catalog;
   options.sessions = plan;
   options.reportProgress = (message) => process.stdout.write(`${message}\n`);
@@ -163,19 +170,25 @@ const result = await runAfterPendingMarketCleanup(marketCleanup, async () => (
         ? (await import('./questionGateHarness.js')).executeQuestionGateHarness(options)
         : tokenBreakdownCatalog
           ? (await import('./tokenBreakdownHarness.js')).executeTokenBreakdownHarness(options)
-          : executeHarness(options)
+          : designHandoffCatalog
+            ? (await import('./designHandoffHarness.js')).executeDesignHandoffHarness(options)
+            : executeHarness(options)
 ));
 if (result.status === 'passed' && phaseIndex === -1 && clientIndex === -1 && result.store) {
   result.store.publishLastGreen();
 }
 const passed = result.results.filter((entry) => entry.status === 'passed').length;
-const summary = semanticCatalog || workClaimsCatalog || questionGateCatalog ||
+const summary = designHandoffCatalog
+  ? `Agent dev design-handoff evidence ${result.status}: ` +
+    `${result.results[0]?.checkpoints?.length || 0}/3 checkpoints; workflow verdict requires analysis. ` +
+    `Artifacts: ${artifactDir}\n`
+  : semanticCatalog || workClaimsCatalog || questionGateCatalog ||
   tokenBreakdownCatalog
   ? `Agent dev ${catalog} catalog ${result.status}: ` +
     `${passed}/${plan.length} live phases passed. Artifacts: ${artifactDir}\n`
   : `Agent dev gate ${result.status}: ${passed}/${plan.length} sessions passed. ` +
     `Artifacts: ${artifactDir}\n`;
 process.stdout.write(summary);
-if (result.status !== 'passed') {
+if (result.status !== 'passed' && !(designHandoffCatalog && result.status === 'recorded')) {
   process.exitCode = 1;
 }

@@ -436,7 +436,7 @@ export async function executeTokenBreakdownHarness({
       let fixture;
       const result = { status: 'failed', client: session.client, scenario: session.id };
       try {
-        fixture = await factory.create(session);
+        fixture = await factory.create({ ...session, tokenAudit: true });
         factory.sensitiveValues().forEach((value) => secrets.add(value));
         (fixture.sensitiveValues || []).forEach((value) => secrets.add(value));
         installTokenManifest(fixture, webUiRoot);

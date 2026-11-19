@@ -184,6 +184,29 @@ process.
 
 ## Codex semantic policy
 
+`npm run testAgentDevDesignHandoff` selects the separate `design-handoff`
+catalog. It reuses the ordinary Codex terminal launcher and observes its native
+control socket and real child threads in an isolated HOME and workspace. Three independent text-card
+tasks exceed the configured two-helper limit (three concurrent threads including
+the coordinator). It collects task designer requests, scoped capsule handoffs
+while Approvable, implementation after a fixture-human stage change, queued
+sibling continuation, and later task feedback for manual analysis. Participant
+prompts contain ordinary target requests; evaluation stays outside the workspace.
+The catalog stages `TEST_AGENT_DEV_WEB_UI_ROOT` without deployment, verifies
+source hashes, and preserves protocol events, child lineage, native rollouts and
+durable snapshots so the analyst can verify actual coordinator/role reads.
+After the first two checkpoints, inspect the evidence and write
+`{"continue":true}` or `{"continue":false}` to the reported control file outside
+the workspace. The run reports `recorded`, with no automatic workflow verdict
+or last-green publication. Mechanical failures remain failures.
+Its whole session has a twenty-minute timeout and a 4,000,000 aggregate reported-token
+ceiling across root and children. Native usage notifications and a 500ms rollout
+monitor enforce that ceiling; accounting continues through shutdown and missing
+participant usage fails closed. The larger explicit bound covers the whole helper
+tree; it does not change the existing single-agent catalogs' limits. It uses
+managed model/effort defaults, workspace-write with command networking disabled,
+DEV-only marked fixtures, guarded cleanup, and no whole-session retry.
+
 Every semantic invocation uses an isolated temporary HOME, config, workspace,
 and fresh ephemeral thread. It passes `--ignore-user-config` and configures the
 fresh market's Uclusion MCP server as required. Semantic catalogs use the
@@ -211,9 +234,10 @@ output, so neither is added twice. Missing or malformed usage fails closed.
 There are no whole-session retries; a semantic failure is preserved as a
 failure.
 
-The source package is staged directly from the exact customer-shipped native
-paths. The harness hashes and byte-verifies both complete sibling skill
-packages after staging for Claude, Cursor, or Codex. Each semantic trace must
+The source package is staged from the candidate installer's declared inventory
+and native bootstrap templates. The harness hashes every source file and staged
+file, rendering the claims/audit feature references with the installer's own
+renderer and the fixture's actual feature settings. Each semantic trace must
 prove that the Uclusion skill EOF sentinel loaded before its first Uclusion MCP
 call; the design-writing catalog additionally proves the sibling design skill
 and its examples from their exact entry markers through their EOF sentinels

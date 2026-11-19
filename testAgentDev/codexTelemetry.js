@@ -202,7 +202,8 @@ export function extractConversationRecordsFromProtobuf(payload) {
 
 export async function startCodexTelemetryReceiver({
   host = '127.0.0.1',
-  timeoutMs = 5000
+  timeoutMs = 5000,
+  multipleConversations = false
 } = {}) {
   const conversationRecords = [];
   const errors = [];
@@ -271,18 +272,29 @@ export async function startCodexTelemetryReceiver({
       if (errors.length) {
         throw errors[0];
       }
+      const matching = multipleConversations
+        ? conversationRecords.filter((record) => record.conversation_id === conversationId)
+        : conversationRecords;
+      if (multipleConversations) {
+        // Resuming an ordinary helper emits another conversation-start event
+        // for the same native identity. Keep model correlation per thread.
+        assert(matching.length > 0, `Codex OTel has no model record for ${conversationId}`);
+        assert.strictEqual(new Set(matching.map((record) => record.model)).size, 1,
+          `Codex OTel exposed conflicting models for ${conversationId}`);
+      } else {
+        assert.strictEqual(
+          matching.length,
+          1,
+          `Codex OTel must expose exactly one conversation-start record for ` +
+            `${conversationId}; found ${JSON.stringify(matching)}`
+        );
+      }
       assert.strictEqual(
-        conversationRecords.length,
-        1,
-        `Codex OTel must expose exactly one conversation-start record for ` +
-          `${conversationId}; found ${JSON.stringify(conversationRecords)}`
-      );
-      assert.strictEqual(
-        conversationRecords[0].conversation_id,
+        matching[0].conversation_id,
         conversationId,
         `Codex OTel conversation id did not match JSONL thread ${conversationId}`
       );
-      return conversationRecords[0].model;
+      return matching[0].model;
     },
     async close() {
       if (!server.listening) {

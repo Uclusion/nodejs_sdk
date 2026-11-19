@@ -2,90 +2,21 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
+import { spawnSync } from 'child_process';
+import { fileURLToPath } from 'url';
 
-const STUBS = Object.freeze({
-  claude: 'public/scripts/CLAUDE.md',
-  codex: 'public/scripts/AGENTS.md',
-  cursor: 'public/scripts/uclusion.mdc'
-});
-const SKILL_PACKAGES = Object.freeze({
-  uclusion: Object.freeze({
-    relativePath: 'public/scripts/skills/uclusion',
-    files: Object.freeze([
-      'SKILL.md',
-      'roles/backlog-maintenance.md',
-      'references/capsule-dispatch.md',
-      'references/delivery-common.md',
-      'references/durable-records.md',
-      'references/event-routing.md',
-      'roles/implementation.md',
-      'roles/design.md',
-      'references/job-context.md',
-      'references/question-tools.md',
-      'references/session-handoff.md',
-      'references/standing-instructions.md',
-      'references/work-discovery.md',
-      'references/pokes.md',
-      'references/reading.md',
-      'references/operations.md',
-      'references/completion.md',
-      'references/audit.md',
-      'references/claims.md',
-      'references/uploads.md',
-      'agents/openai.yaml'
-    ]),
-    skillStart: '<!-- uclusion-skill:v1 -->',
-    skillEnd: '<!-- /uclusion-skill:v1 -->',
-    referenceStarts: Object.freeze({
-      'roles/backlog-maintenance.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/capsule-dispatch.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/delivery-common.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/durable-records.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/event-routing.md': '<!-- uclusion-skill-reference:v1 -->',
-      'roles/implementation.md': '<!-- uclusion-skill-reference:v1 -->',
-      'roles/design.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/job-context.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/question-tools.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/session-handoff.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/standing-instructions.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/work-discovery.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/pokes.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/reading.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/audit.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/claims.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/uploads.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/operations.md': '<!-- uclusion-skill-reference:v1 -->',
-      'references/completion.md': '<!-- uclusion-skill-reference:v1 -->'
-    }),
-    referenceEnds: Object.freeze({
-      'roles/backlog-maintenance.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/capsule-dispatch.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/delivery-common.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/durable-records.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/event-routing.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'roles/implementation.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'roles/design.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/job-context.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/question-tools.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/session-handoff.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/standing-instructions.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/work-discovery.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/pokes.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/reading.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/audit.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/claims.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/uploads.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/operations.md': '<!-- /uclusion-skill-reference:v1 -->',
-      'references/completion.md': '<!-- /uclusion-skill-reference:v1 -->'
-    })
-  })
-});
+const SKILL_PATH = 'public/scripts/skills/uclusion';
 const STUB_START = '<!-- uclusion-workflow:v1 -->';
 const STUB_END = '<!-- /uclusion-workflow:v1 -->';
 const PLACEHOLDER = '{{UCLUSION_CLI}}';
+const LAYOUT_READER = fileURLToPath(new URL('./sourcePackageLayout.py', import.meta.url));
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+function fingerprint(bytes) {
+  return { bytes: bytes.length, sha256: sha256(bytes) };
 }
 
 function readRequired(filePath) {
@@ -117,119 +48,109 @@ function allRegularFiles(root, current = root) {
   return files.sort();
 }
 
-function validateSource(root) {
+function readLayout(root, features) {
+  const result = spawnSync('python3', [LAYOUT_READER, root, JSON.stringify(features)], {
+    encoding: 'utf8',
+    env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' },
+    timeout: 30000,
+    maxBuffer: 1024 * 1024
+  });
+  assert.strictEqual(result.status, 0,
+    `Cannot read the shipped installer inventory: ${result.error?.message || result.stderr}`);
+  return JSON.parse(result.stdout);
+}
+
+function validateSource(root, layout) {
   const metadata = { root, stubs: {}, skills: {} };
-  for (const [client, relativePath] of Object.entries(STUBS)) {
+  for (const [client, relativePath] of Object.entries(layout.stubs)) {
     const sourcePath = path.join(root, relativePath);
     const bytes = readRequired(sourcePath);
     const text = bytes.toString('utf8');
     assert(text.includes(STUB_START) && text.includes(STUB_END),
       `${sourcePath} is missing resident workflow markers`);
     assert(text.includes(PLACEHOLDER), `${sourcePath} is missing ${PLACEHOLDER}`);
-    metadata.stubs[client] = {
-      relativePath,
-      bytes: bytes.length,
-      sha256: sha256(bytes)
-    };
+    metadata.stubs[client] = { relativePath, ...fingerprint(bytes) };
   }
-  for (const [name, specification] of Object.entries(SKILL_PACKAGES)) {
-    const skillRoot = path.join(root, specification.relativePath);
-    const expectedFiles = [...specification.files].sort();
-    const actualFiles = allRegularFiles(skillRoot);
-    assert.deepStrictEqual(actualFiles, expectedFiles,
-      `Shipped ${name} skill must contain exactly ${JSON.stringify(expectedFiles)}`);
-    const files = {};
-    for (const relativePath of actualFiles) {
-      const sourcePath = path.join(skillRoot, relativePath);
-      const bytes = readRequired(sourcePath);
-      const text = bytes.toString('utf8');
-      const startMarker = relativePath === 'SKILL.md'
-        ? specification.skillStart
-        : specification.referenceStarts[relativePath];
-      const endMarker = relativePath === 'SKILL.md'
-        ? specification.skillEnd
-        : specification.referenceEnds[relativePath];
-      if (startMarker) {
-        assert(text.includes(startMarker),
-          `${sourcePath} does not contain ${startMarker}`);
-      }
-      if (endMarker) {
-        assert(text.trimEnd().endsWith(endMarker),
-          `${sourcePath} does not end with ${endMarker}`);
-        assert(!startMarker || text.indexOf(startMarker) < text.lastIndexOf(endMarker),
-          `${sourcePath} has misordered package markers`);
-      }
-      files[relativePath] = {
-        bytes: bytes.length,
-        sha256: sha256(bytes)
-      };
+  const skillRoot = path.join(root, SKILL_PATH);
+  const expectedFiles = [...layout.files].sort();
+  for (const relative of expectedFiles) {
+    assert(!path.isAbsolute(relative) && !relative.split('/').includes('..'),
+      `Installer package path escapes its skill: ${relative}`);
+  }
+  // README is the maintainer guide, deliberately excluded by the installer.
+  const actualFiles = allRegularFiles(skillRoot).filter((name) =>
+    name !== 'README.md' || expectedFiles.includes(name));
+  assert.deepStrictEqual(actualFiles, expectedFiles,
+    `Shipped uclusion skill must contain exactly the installer's package inventory`);
+  const files = {};
+  for (const relativePath of actualFiles) {
+    const sourcePath = path.join(skillRoot, relativePath);
+    const bytes = readRequired(sourcePath);
+    const text = bytes.toString('utf8');
+    if (relativePath.endsWith('.md')) {
+      const marker = relativePath === 'SKILL.md' ? 'uclusion-skill' : 'uclusion-skill-reference';
+      const start = `<!-- ${marker}:v1 -->`;
+      const end = `<!-- /${marker}:v1 -->`;
+      assert(text.includes(start), `${sourcePath} does not contain ${start}`);
+      assert(text.trimEnd().endsWith(end), `${sourcePath} does not end with ${end}`);
+      assert(text.indexOf(start) < text.lastIndexOf(end),
+        `${sourcePath} has misordered package markers`);
     }
-    metadata.skills[name] = files;
+    files[relativePath] = fingerprint(bytes);
   }
-  // Preserve the original single-package metadata for existing artifact
-  // consumers while exposing both complete packages to new catalogs.
-  metadata.skill = metadata.skills.uclusion;
+  metadata.skills.uclusion = files;
+  metadata.skill = files;
   return metadata;
 }
 
-function copySkillPackage(sourceRoot, targetRoot) {
-  fs.cpSync(sourceRoot, targetRoot, { recursive: true, force: true });
-}
-
-function assertStagedPackage(target, expectedFiles, name) {
-  const stagedFiles = allRegularFiles(target);
-  assert.deepStrictEqual(stagedFiles, Object.keys(expectedFiles),
-    `Staged ${name} package differs from its recursively hashed source package`);
-  for (const relativePath of stagedFiles) {
-    const bytes = readRequired(path.join(target, relativePath));
-    assert.deepStrictEqual({ bytes: bytes.length, sha256: sha256(bytes) },
-      expectedFiles[relativePath],
-      `Staged ${name}/${relativePath} bytes differ from the validated source`);
-  }
-}
-
 export function inspectSourcePackage(webUiRoot) {
-  return validateSource(path.resolve(webUiRoot));
+  const root = path.resolve(webUiRoot);
+  return validateSource(root, readLayout(root, { workClaims: false, tokenAudit: false }));
 }
 
-export function stageSourcePackage({ webUiRoot, workspace, client, cliCommand }) {
+export function stageSourcePackage({
+  webUiRoot, workspace, client, cliCommand, workClaims = false, tokenAudit = false
+}) {
   const sourceRoot = path.resolve(webUiRoot);
-  const sourceMetadata = validateSource(sourceRoot);
-  const sourceStub = path.join(sourceRoot, STUBS[client]);
+  const layout = readLayout(sourceRoot, { workClaims, tokenAudit });
+  const sourceMetadata = validateSource(sourceRoot, layout);
+  assert(Object.hasOwn(layout.stubs, client), `Unknown client ${client}`);
+  const sourceStub = path.join(sourceRoot, layout.stubs[client]);
   const rendered = fs.readFileSync(sourceStub, 'utf8').split(PLACEHOLDER).join(cliCommand);
   assert(!rendered.includes(PLACEHOLDER), 'Rendered resident stub still has CLI placeholders');
-
-  let stubTarget;
-  let skillsRoot;
-  if (client === 'claude') {
-    stubTarget = path.join(workspace, 'CLAUDE.md');
-    skillsRoot = path.join(workspace, '.claude', 'skills');
-  } else if (client === 'codex') {
-    stubTarget = path.join(workspace, 'AGENTS.md');
-    skillsRoot = path.join(workspace, '.agents', 'skills');
-  } else if (client === 'cursor') {
-    stubTarget = path.join(workspace, '.cursor', 'rules', 'uclusion.mdc');
-    skillsRoot = path.join(workspace, '.cursor', 'skills');
-  } else {
-    throw new Error(`Unknown client ${client}`);
-  }
+  const destinations = {
+    claude: ['CLAUDE.md', '.claude/skills'],
+    codex: ['AGENTS.md', '.agents/skills'],
+    cursor: ['.cursor/rules/uclusion.mdc', '.cursor/skills']
+  };
+  const [stub, skillsDirectory] = destinations[client];
+  const stubTarget = path.join(workspace, stub);
+  const target = path.join(workspace, skillsDirectory, 'uclusion');
   fs.mkdirSync(path.dirname(stubTarget), { recursive: true });
   fs.writeFileSync(stubTarget, rendered);
-  const skills = {};
-  for (const [name, specification] of Object.entries(SKILL_PACKAGES)) {
-    const target = path.join(skillsRoot, name);
-    copySkillPackage(path.join(sourceRoot, specification.relativePath), target);
-    assertStagedPackage(target, sourceMetadata.skills[name], name);
-    skills[name] = {
-      target,
-      files: sourceMetadata.skills[name]
-    };
+  const stagedFiles = {};
+  for (const [relative, expectedSource] of Object.entries(sourceMetadata.skill)) {
+    const source = readRequired(path.join(sourceRoot, SKILL_PATH, relative));
+    assert.deepStrictEqual(fingerprint(source), expectedSource,
+      `Source changed while staging uclusion/${relative}`);
+    const bytes = Object.hasOwn(layout.renderedFeatures, relative)
+      ? Buffer.from(layout.renderedFeatures[relative]) : source;
+    const destination = path.join(target, relative);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, bytes);
+    stagedFiles[relative] = fingerprint(bytes);
+    assert.deepStrictEqual(fingerprint(readRequired(destination)), stagedFiles[relative],
+      `Staged uclusion/${relative} differs from installer-rendered bytes`);
   }
+  assert.deepStrictEqual(allRegularFiles(target), Object.keys(stagedFiles),
+    'Staged uclusion package differs from the installer inventory');
   return {
     stubTarget,
-    skills,
-    skillTarget: skills.uclusion.target,
+    skills: { uclusion: { target, files: stagedFiles } },
+    skillTarget: target,
     renderedStubSha256: sha256(Buffer.from(rendered)),
-    skill: sourceMetadata.skill
+    skill: stagedFiles,
+    sourceSkill: sourceMetadata.skill,
+    features: { workClaims, tokenAudit }
   };
 }

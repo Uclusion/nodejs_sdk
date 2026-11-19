@@ -10,6 +10,7 @@ Exit codes: 0 stopped by the harness, 3 the session exited, 4 timed out.
 
 import argparse
 import importlib.util
+import json
 import os
 from pathlib import Path
 import select
@@ -25,12 +26,19 @@ def stop_private_codex(codex, workspace):
     expected = Path(workspace).resolve().parent / 'home' / '.codex'
     if home != expected:
         raise RuntimeError('Refusing to stop a Codex daemon outside the fixture home')
-    subprocess.run([codex, 'app-server', 'daemon', 'stop'],
-                   capture_output=True, text=True, timeout=15, check=True)
+    stop_error = None
+    try:
+        subprocess.run([codex, 'app-server', 'daemon', 'stop'],
+                       capture_output=True, text=True, timeout=5, check=True)
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+        stop_error = error
     # On Linux daemon stop leaves an updater running from the private home.
     # A pidfd keeps termination tied to that exact process, including PID reuse.
     if not hasattr(os, 'pidfd_open') or not Path('/proc').is_dir():
-        return
+        if stop_error:
+            raise stop_error
+        return {'daemon_stop': 'completed', 'terminated_private_processes': []}
+    terminated = []
     for entry in Path('/proc').iterdir():
         if not entry.name.isdigit():
             continue
@@ -39,17 +47,20 @@ def stop_private_codex(codex, workspace):
             descriptor = os.pidfd_open(int(entry.name))
             argv = [part.decode() for part in (entry / 'cmdline').read_bytes().split(b'\0') if part]
             if (argv and Path(argv[0]).is_relative_to(home)
-                    and argv[1:] == ['app-server', 'daemon', 'pid-update-loop']):
+                    and argv[1:2] == ['app-server']):
                 signal.pidfd_send_signal(descriptor, signal.SIGTERM)
                 if not select.select([descriptor], [], [], 3)[0]:
                     signal.pidfd_send_signal(descriptor, signal.SIGKILL)
                     if not select.select([descriptor], [], [], 2)[0]:
-                        raise RuntimeError('The fixture Codex updater did not stop')
+                        raise RuntimeError('A fixture Codex daemon process did not stop')
+                terminated.append(int(entry.name))
         except (FileNotFoundError, ProcessLookupError, PermissionError, UnicodeError):
             continue
         finally:
             if descriptor is not None:
                 os.close(descriptor)
+    return {'daemon_stop': type(stop_error).__name__ if stop_error else 'completed',
+            'terminated_private_processes': terminated}
 
 
 def main():
@@ -60,6 +71,7 @@ def main():
                         help='The directory the session runs in.')
     parser.add_argument('--log', required=True, help='Where to copy the terminal output.')
     parser.add_argument('--stop', required=True, help='A file whose creation ends the session.')
+    parser.add_argument('--input', help='Optional JSONL file of subsequent ordinary terminal inputs.')
     parser.add_argument('--timeout', type=float, required=True, help='Seconds before giving up.')
     parser.add_argument('command', nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -79,6 +91,7 @@ def main():
     deadline = time.monotonic() + args.timeout
     with open(args.log, 'wb') as log:
         terminal = install.DemoCodexTerminal(command, {**os.environ, 'TERM': 'xterm-256color'}, log)
+        delivered_inputs = 0
         try:
             while True:
                 if os.path.exists(args.stop):
@@ -88,6 +101,17 @@ def main():
                 if time.monotonic() >= deadline:
                     return 4
                 terminal.drain()
+                if args.input and os.path.isfile(args.input):
+                    with open(args.input, encoding='utf-8') as inputs:
+                        lines = inputs.read().splitlines()
+                    for line in lines[delivered_inputs:]:
+                        text = json.loads(line)['text']
+                        if not isinstance(text, str) or '\n' in text or '\r' in text:
+                            raise ValueError('Terminal input must be one ordinary text line')
+                        os.write(terminal.master, b'\x1b[200~' + text.encode('utf-8') + b'\x1b[201~')
+                        terminal.drain(timeout=0.05)
+                        os.write(terminal.master, b'\r')
+                        delivered_inputs += 1
         finally:
             try:
                 install.stop_demo_session(terminal.process)
@@ -95,7 +119,8 @@ def main():
                 try:
                     terminal.close()
                 finally:
-                    stop_private_codex(command[0], args.workspace)
+                    cleanup = stop_private_codex(command[0], args.workspace)
+                    print(json.dumps({'native_cleanup': cleanup}), flush=True)
 
 
 if __name__ == '__main__':

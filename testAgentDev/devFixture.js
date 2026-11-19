@@ -589,7 +589,8 @@ export class DevFixtureFactory {
       webUiRoot: this.webUiRoot,
       workspace,
       client: session.client,
-      cliCommand: expectedCliCommand
+      cliCommand: expectedCliCommand,
+      tokenAudit: session.tokenAudit === true
     });
     pokeSocket = new WebSocketRunner({
       wsUrl: this.configuration.websocketURL,

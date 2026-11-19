@@ -221,7 +221,7 @@ function proxyArgs(fixture) {
   return [fixture.proxyPath, fixture.marketId, 'dev', ...(fixture.proxyExtraArgs || [])];
 }
 
-function codexMcpOverride(fixture) {
+export function codexMcpOverride(fixture) {
   const args = proxyArgs(fixture).map(tomlString).join(', ');
   return 'mcp_servers.Uclusion={ enabled = true, required = true, command = "python3", args = [' +
     `${args}], env = ${tomlInlineTable(fixture.proxyEnvironment)}, ` +

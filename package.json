@@ -36,6 +36,7 @@
     "testAgentDevOnboarding": "node testAgentDev/run.js --catalog onboarding",
     "testAgentDevWorkClaims": "node testAgentDev/run.js --catalog work-claims",
     "testAgentDevQuestionGate": "node testAgentDev/run.js --catalog question-gate",
+    "testAgentDevDesignHandoff": "node testAgentDev/run.js --catalog design-handoff",
     "testAgentDevDesignWriting": "node testAgentDev/run.js --catalog design-writing",
     "testAgentDevStageAuthorization": "node testAgentDev/run.js --catalog stage-authorization",
     "testAgentDevCompletionPackage": "node testAgentDev/run.js --catalog completion-package",

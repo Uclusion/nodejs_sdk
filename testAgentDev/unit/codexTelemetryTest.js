@@ -169,6 +169,21 @@ describe('Codex OTel model resolver', () => {
     }
   });
 
+  it('correlates resumed helpers without relaxing single-process identity checks', async () => {
+    const receiver = await startCodexTelemetryReceiver({ timeoutMs: 100, multipleConversations: true });
+    try {
+      await postProtobuf(receiver.endpoint, payload('root-model', 'root'));
+      await postProtobuf(receiver.endpoint, payload('child-model', 'child', { duplicate: true }));
+      assert.strictEqual(await receiver.resolvedModel('root'), 'root-model');
+      assert.strictEqual(await receiver.resolvedModel('child'), 'child-model');
+      await assert.rejects(receiver.resolvedModel('missing'), /no model record/);
+      await postProtobuf(receiver.endpoint, payload('changed-model', 'child'));
+      await assert.rejects(receiver.resolvedModel('child'), /conflicting models/);
+    } finally {
+      await receiver.close();
+    }
+  });
+
   it('fails closed on malformed or non-protobuf OTLP', async () => {
     const receiver = await startCodexTelemetryReceiver({ timeoutMs: 50 });
     try {
