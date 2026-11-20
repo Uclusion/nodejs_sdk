@@ -261,6 +261,8 @@ export class NativeCodexSession {
     for (let index = 0; index < pending.length; index += 1) {
       const id = pending[index];
       if (threads[id]) continue;
+      const metadata = this.lastThreads.get(id) || await this.readThread(id, false);
+      if (metadata?.threadSource === 'thread_title') continue;
       const current = await this.readThread(id, true);
       const thread = structuredClone(current || this.lastThreads.get(id) || { id, turns: [] });
       if (thread.threadSource === 'thread_title') continue;

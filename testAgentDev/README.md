@@ -104,6 +104,25 @@ exact marked market. Its executable scenario, fixture, and grader are
 `designWritingScenarios.js`, `designWritingFixture.js`, and
 `designWritingAssertions.js`.
 
+`npm run testAgentDevQuestionClosure` runs two fresh Codex processes in one
+disposable marked DEV market. The first receives an ordinary request to continue
+a design discussion. The fixture contains a withdrawn options question, two
+answered explanation questions inside an option, an unwritten storyboard task
+capsule, and a genuinely unanswered screenshot choice. Durable grading requires
+the three obsolete or answered questions to resolve without claiming capsule
+inclusion, while preserving the current capsule and the unfinished task and
+question. The second process must reconcile a real 30-to-15-minute expiry change
+into an existing capsule and confirm inclusion. Neither process may mutate the
+other job. This uses the existing native Codex launcher so subscription identity
+and real designer helpers work. Each process has a ten-minute timeout, a 500,000
+aggregate root/helper token ceiling and at most three threads, with managed
+model defaults and command networking disabled in its isolated workspace.
+Source staging, isolated authentication and guarded market cleanup use the shared
+semantic harness. Candidate skill files are staged locally; the served runtime
+header comes from the current DEV deployment.
+The catalog is `questionClosureScenarios.js`, `questionClosureFixture.js` and
+`questionClosureAssertions.js`.
+
 `npm run testAgentDevStageAuthorization` runs two fresh Codex processes against
 two separate human-owned Approvable jobs. The negative process receives an
 exact Start after a real AI-recommended option was selected by the primary

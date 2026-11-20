@@ -293,6 +293,7 @@ export async function executeSemanticHarness({
         }
       }
       results.push(sessionResult);
+      store.sanitizeTrace?.(store.tracePath(runtimeSession));
       store.finishSession(runtimeSession, sessionResult, agentResult?.modelRecord || null);
       reportProgress(
         `${sessionResult.status === 'passed' ? 'Passed' : 'Failed'} live phase ` +

@@ -67,4 +67,14 @@ describe('native continuing-session accounting', () => {
     session.request = async () => { throw new Error('Transport closed'); };
     await assert.rejects(session.histories(), /Transport closed/);
   });
+
+  it('identifies ephemeral title threads before requesting unsupported full histories', async () => {
+    session.threadIds = new Set(['root', 'title']);
+    session.request = async (_method, { threadId, includeTurns }) => {
+      if (threadId === 'title') assert.strictEqual(includeTurns, false);
+      return { thread: { id: threadId,
+        threadSource: threadId === 'title' ? 'thread_title' : 'user', turns: [] } };
+    };
+    assert.deepStrictEqual(Object.keys(await session.histories()), ['root']);
+  });
 });

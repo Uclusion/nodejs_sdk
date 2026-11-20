@@ -385,8 +385,9 @@ describe('agent dev Codex semantic harness mechanics', () => {
             inspectSourcePackage: () => ({ files: {} }),
             preflightClient: () => ({ status: 'passed', client_version: 'codex-unit' }),
             createFixture: () => fakeFixture,
-            async runAgentSession() {
+            async runAgentSession({ tracePath }) {
               paidCalls += 1;
+              fs.writeFileSync(tracePath, JSON.stringify({ metadata: { [secret]: secret } }) + '\n');
               return {
                 processResult: {
                   timedOut: false,

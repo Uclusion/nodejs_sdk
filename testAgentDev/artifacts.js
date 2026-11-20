@@ -42,10 +42,16 @@ function redactValue(value, secrets, seen = new WeakSet()) {
   if (Array.isArray(value)) {
     return value.map((entry) => redactValue(entry, secrets, seen));
   }
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [
-    key,
-    redactValue(entry, secrets, seen)
-  ]));
+  const usedKeys = new Set();
+  return Object.fromEntries(Object.entries(value).map(([key, entry]) => {
+    const base = redactText(key, secrets);
+    let redactedKey = base;
+    for (let suffix = 1; usedKeys.has(redactedKey); suffix += 1) {
+      redactedKey = `${base} [${suffix}]`;
+    }
+    usedKeys.add(redactedKey);
+    return [redactedKey, redactValue(entry, secrets, seen)];
+  }));
 }
 
 function assertNoSecret(bytes, secrets, label) {

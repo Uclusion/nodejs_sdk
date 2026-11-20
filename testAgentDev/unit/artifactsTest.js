@@ -58,6 +58,35 @@ describe('agent dev artifact store', () => {
     assert.strictEqual(decoded.nested.secret, '[REDACTED]');
   });
 
+  it('redacts registered auth metadata in field names as well as values', () => {
+    const files = setup();
+    const store = new ArtifactStore({ ...files, runId: 'metadata-keys' });
+    store.registerSensitiveValues(['auth-mode-canary']);
+    const session = buildSessionMatrix()[0];
+    fs.writeFileSync(store.tracePath(session), JSON.stringify({
+      'auth-mode-canary_account': 'auth-mode-canary'
+    }) + '\n');
+    store.sanitizeTrace(store.tracePath(session));
+    store.finishSession(session, { status: 'passed' });
+    store.validateTraces();
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(store.tracePath(session), 'utf8')),
+      { '[REDACTED]_account': '[REDACTED]' });
+  });
+
+  it('preserves every entry when sensitive keys and literal redaction markers collide', () => {
+    const files = setup();
+    const store = new ArtifactStore({ ...files, runId: 'key-collisions' });
+    store.registerSensitiveValues(['secret-one', 'secret-two']);
+    const session = buildSessionMatrix()[0];
+    const evidence = { 'secret-one': 'first', 'secret-two': 'second',
+      '[REDACTED]': 'literal marker', '[REDACTED] [1]': 'literal suffix' };
+    fs.writeFileSync(store.tracePath(session), JSON.stringify(evidence) + '\n');
+    store.validateTraces();
+    const saved = JSON.parse(fs.readFileSync(store.tracePath(session), 'utf8'));
+    assert.deepStrictEqual(Object.values(saved), Object.values(evidence));
+    assert.strictEqual(Object.keys(saved).length, 4);
+  });
+
   it('rejects malformed JSON in a failed-run trace', () => {
     const files = setup();
     const store = new ArtifactStore({ ...files, runId: 'invalid' });

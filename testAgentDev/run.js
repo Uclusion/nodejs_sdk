@@ -26,6 +26,7 @@ import {
 } from './completionPackageScenarios.js';
 import { buildTokenBreakdownPlan } from './tokenBreakdownScenarios.js';
 import { buildDesignHandoffPlan } from './designHandoffScenarios.js';
+import { buildQuestionClosurePlan, questionClosurePrompt } from './questionClosureScenarios.js';
 
 const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   semantic: buildSemanticPlan,
@@ -33,7 +34,8 @@ const SEMANTIC_PLAN_BUILDERS = Object.freeze({
   onboarding: buildOnboardingPlan,
   'design-writing': buildDesignWritingPlan,
   'stage-authorization': buildStageAuthorizationPlan,
-  'completion-package': buildCompletionPackagePlan
+  'completion-package': buildCompletionPackagePlan,
+  'question-closure': buildQuestionClosurePlan
 });
 const WORK_CLAIMS_CATALOG = 'work-claims';
 const QUESTION_GATE_CATALOG = 'question-gate';
@@ -136,6 +138,18 @@ if (semanticCatalog || workClaimsCatalog || questionGateCatalog || tokenBreakdow
         new fixtureModule.DesignWritingDevFixture(fixtureOptions),
       buildPrompt: designWritingPrompt,
       assertTranscript: assertionsModule.assertDesignWritingTranscript
+    };
+  } else if (catalog === 'question-closure') {
+    const [fixtureModule, assertionsModule, nativeModule] = await Promise.all([
+      import('./questionClosureFixture.js'),
+      import('./questionClosureAssertions.js'),
+      import('./questionClosureNativeSession.js')
+    ]);
+    options.dependencies = {
+      createFixture: (fixtureOptions) => new fixtureModule.QuestionClosureDevFixture(fixtureOptions),
+      buildPrompt: questionClosurePrompt,
+      runAgentSession: nativeModule.runQuestionClosureNativeSession,
+      assertTranscript: assertionsModule.assertQuestionClosureTranscript
     };
   } else if (catalog === 'stage-authorization') {
     const [fixtureModule, assertionsModule] = await Promise.all([

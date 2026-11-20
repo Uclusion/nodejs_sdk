@@ -38,6 +38,7 @@
     "testAgentDevQuestionGate": "node testAgentDev/run.js --catalog question-gate",
     "testAgentDevDesignHandoff": "node testAgentDev/run.js --catalog design-handoff",
     "testAgentDevDesignWriting": "node testAgentDev/run.js --catalog design-writing",
+    "testAgentDevQuestionClosure": "node testAgentDev/run.js --catalog question-closure",
     "testAgentDevStageAuthorization": "node testAgentDev/run.js --catalog stage-authorization",
     "testAgentDevCompletionPackage": "node testAgentDev/run.js --catalog completion-package",
     "testAgentDevTokenBreakdown": "node testAgentDev/run.js --catalog token-breakdown",
