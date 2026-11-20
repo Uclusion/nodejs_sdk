@@ -1,0 +1,58 @@
+[
+  {
+    "id": "configuration",
+    "contract": "Existing Codex concurrency settings require an affirmative override, aliases remain valid, and native configuration preserves unrelated settings.",
+    "source": "public/scripts/uclusionInstall.py",
+    "anchors": ["configure_codex_concurrency", "configure_codex_integration"],
+    "tests": ["public.scripts.tests.test_uclusion_codex_concurrency", "public.scripts.tests.test_uclusion_install_codex.CodexIntegrationConfigTests"]
+  },
+  {
+    "id": "native-inbox",
+    "contract": "Only the root retains native delivery services; inbox admission and retry handling preserve distinct pokes without duplicate delivery.",
+    "source": "public/scripts/uclusionCodexNative.py",
+    "anchors": ["_root_owner", "_run_connections", "class NativeInbox"],
+    "tests": ["public.scripts.tests.test_uclusion_codex_native.NativeOwnershipTests", "public.scripts.tests.test_uclusion_codex_native.NativeInboxTests"]
+  },
+  {
+    "id": "native-history",
+    "contract": "Update notices respect idle ownership, and audit history follows real descendants without resuming idle threads or charging replay twice.",
+    "source": "public/scripts/uclusionCodexNative.py",
+    "anchors": ["_collect_descendant_history", "_deliver_update_notice"],
+    "tests": ["public.scripts.tests.test_uclusion_codex_native.NativeNoticeTests", "public.scripts.tests.test_uclusion_codex_native.NativeCatalogAccountingTests", "public.scripts.tests.test_uclusion_codex_native.NativeDescendantHistoryTests"]
+  },
+  {
+    "id": "proxy-stdio",
+    "contract": "The MCP stdio proxy preserves protocol behavior, startup failure handling, response statistics, and served-catalog accounting.",
+    "source": "public/scripts/uclusionMCPProxy.py",
+    "anchors": ["serve_startup_failure", "class ResponseStats", "def main"],
+    "tests": ["public.scripts.tests.test_uclusion_mcp_proxy_stdio"]
+  },
+  {
+    "id": "audit-storage",
+    "contract": "Concurrent audit storage maintains durable identities, checkpoints and leases without losing or duplicating updates.",
+    "source": "public/scripts/uclusionTokenAudit.py",
+    "anchors": ["class TokenAuditStore", "claim_checkpoint", "complete_checkpoint"],
+    "tests": ["public.scripts.tests.test_uclusion_token_audit.StorageConcurrencyTests"]
+  },
+  {
+    "id": "audit-transport",
+    "contract": "Codex usage and OTLP/outbox collection preserve per-response accounting, retries, and publication boundaries.",
+    "source": "public/scripts/uclusionTokenAudit.py",
+    "anchors": ["class Codex", "class Otlp", "class TokenAuditProxy"],
+    "tests": ["public.scripts.tests.test_uclusion_token_audit.CodexAuditTests", "public.scripts.tests.test_uclusion_token_audit.OtlpAndOutboxTests"]
+  },
+  {
+    "id": "audit-hardening",
+    "contract": "Malformed, repeated or partial audit evidence and Claude cache counters are handled without inventing usage or corrupting durable accounting.",
+    "source": "public/scripts/uclusionTokenAudit.py",
+    "anchors": ["class Claude", "class TokenAuditStore"],
+    "tests": ["public.scripts.tests.test_uclusion_token_audit.HardeningRegressionTests", "public.scripts.tests.test_uclusion_token_audit.ClaudeAuditTests"]
+  },
+  {
+    "id": "skill-installer",
+    "contract": "The installed skill package is coherent, shared collaboration guidance reaches working roles, and package/stub failures preserve existing user state.",
+    "source": "public/scripts/uclusionInstall.py",
+    "anchors": ["install_skill", "WORKFLOW_ASSET_PATHS"],
+    "tests": ["public.scripts.tests.test_uclusion_install_skills.SkillPackageContractTests", "public.scripts.tests.test_uclusion_install_skills.SkillAndStubInstallerTests", "public.scripts.tests.test_uclusion_install_skills.WorkflowBundleFetcherTests"]
+  }
+]

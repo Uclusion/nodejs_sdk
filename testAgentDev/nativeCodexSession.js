@@ -11,7 +11,8 @@ import { DEFAULT_MAX_STDERR_BYTES, DEFAULT_MAX_TRACE_BYTES } from './process.js'
 // ordinary user turns. This adapter never manufactures participant tool calls.
 export class NativeCodexSession {
   constructor({ fixture, tracePath, env, telemetryEndpoint, timeoutMs = 1200000,
-    tokenCeiling = 4000000, maxThreads = 3 }) {
+    tokenCeiling = 4000000, maxThreads = 3, model, reasoningEffort, networkAccess = false,
+    maxTraceBytes = DEFAULT_MAX_TRACE_BYTES }) {
     this.fixture = fixture;
     this.tracePath = tracePath;
     this.env = isolatedSessionEnvironment(env, 'codex', fixture);
@@ -19,6 +20,10 @@ export class NativeCodexSession {
     this.timeoutMs = timeoutMs;
     this.tokenCeiling = tokenCeiling;
     this.maxThreads = maxThreads;
+    this.model = model;
+    this.reasoningEffort = reasoningEffort;
+    this.networkAccess = networkAccess;
+    this.maxTraceBytes = maxTraceBytes;
     this.requests = new Map();
     this.usage = new Map();
     this.threadIds = new Set();
@@ -35,7 +40,7 @@ export class NativeCodexSession {
     const record = { direction, at: Date.now(), message };
     const line = `${JSON.stringify(record)}\n`;
     this.traceBytes += Buffer.byteLength(line);
-    assert(this.traceBytes <= DEFAULT_MAX_TRACE_BYTES, 'Native trace exceeded 16 MiB');
+    assert(this.traceBytes <= this.maxTraceBytes, `Native trace exceeded ${this.maxTraceBytes} bytes`);
     fs.appendFileSync(this.tracePath, line);
   }
 
@@ -152,7 +157,9 @@ export class NativeCodexSession {
     // invocation overrides would select a different native runtime.
     fs.writeFileSync(path.join(this.env.CODEX_HOME, 'config.toml'), [
       'approval_policy="never"', 'sandbox_mode="workspace-write"',
-      'sandbox_workspace_write={network_access=false}',
+      ...(this.model ? [`model=${JSON.stringify(this.model)}`] : []),
+      ...(this.reasoningEffort ? [`model_reasoning_effort=${JSON.stringify(this.reasoningEffort)}`] : []),
+      `sandbox_workspace_write={network_access=${this.networkAccess}}`,
       `features={plugins=false,apps=false,remote_plugin=false,multi_agent_v2={enabled=true,max_concurrent_threads_per_session=${this.maxThreads}}}`,
       `projects.${JSON.stringify(this.fixture.workspace)}={trust_level="trusted"}`,
       `otel={log_user_prompt=false,exporter={otlp-http={endpoint=${JSON.stringify(this.telemetryEndpoint)},protocol="binary"}}}`,
