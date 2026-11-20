@@ -123,6 +123,28 @@ header comes from the current DEV deployment.
 The catalog is `questionClosureScenarios.js`, `questionClosureFixture.js` and
 `questionClosureAssertions.js`.
 
+`node testAgentDev/bugCollaborationProbe.js` records an exploratory native
+standalone-bug collaboration case. It recreates the original concurrency-default
+request without a number or instructions to ask a question, gives local Python
+verification authority, and sends only `Start B-…` to a real coordinator. Set
+`TEST_AGENT_DEV_BUG_CHOICE_PHASE=settled` for the control with a primary-human
+choice of four helpers; the default `unresolved` phase leaves the choice open.
+The regular source/auth/artifact inputs below apply. To vary instructions while
+holding editable project code fixed, set
+`TEST_AGENT_DEV_IMPLEMENTATION_SOURCE_ROOT` to the baseline source snapshot.
+That snapshot must contain `public/scripts`, `checkWorkflowAssetPins.py`, and
+`countArtifactTokens.py`; the probe checks the verification files before creating
+a market and copies them into its workspace. Both conditions should use identical
+runtime script bytes. The probe allows
+three threads, ten minutes and 4,000,000 aggregate reported tokens per process,
+then uses guarded exact-market cleanup. Its ordinary harness result covers
+mechanical capture, role/reference reads and original-evidence preservation;
+it does not automatically grade the collaboration decision or publish a
+last-green marker. Analyze the native messages, confirmed tool calls, durable
+records and source diff together: distinguish a proposed reversible draft from
+an agreed or completed fix, and distinguish a product decision from another
+permission request. The settled control must not reopen the unchanged choice.
+
 `npm run testAgentDevStageAuthorization` runs two fresh Codex processes against
 two separate human-owned Approvable jobs. The negative process receives an
 exact Start after a real AI-recommended option was selected by the primary

@@ -333,9 +333,23 @@ function isSimpleExactSkillReadCommand(
   if (['bash', 'dash', 'sh', 'zsh'].includes(executable)) {
     const commandFlagIndex = tokens.findIndex((token, index) =>
       index > executableIndex && /^-[^-]*c/.test(token));
-    return commandFlagIndex !== -1 && tokens[commandFlagIndex + 1] !== undefined &&
+    let innerCommand = tokens[commandFlagIndex + 1];
+    // Credit only canonical, single-quoted Bash/Zsh wrappers. In particular,
+    // shellTokens cannot prove double-quoted escapes or a +B wrapper's braces.
+    const braceWrapper = String(command).trim().match(
+      /^(?:\/[A-Za-z0-9_.-]+)*\/?(?:bash|zsh)\s+-(?:l)?c\s+'([^']*)'$/
+    );
+    if (braceWrapper && braceWrapper[1] === innerCommand &&
+        !/[\\'"`$]/.test(innerCommand)) {
+      innerCommand = innerCommand.replace(
+        /(^|\s)([A-Za-z0-9_./-]*)\{([A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)+)\}([A-Za-z0-9_./-]*)(?=\s|$)/g,
+        (_match, boundary, prefix, names, suffix) => boundary + names.split(',')
+          .map((name) => prefix + name + suffix).join(' ')
+      );
+    }
+    return commandFlagIndex !== -1 && innerCommand !== undefined &&
       isSimpleExactSkillReadCommand(
-        tokens[commandFlagIndex + 1],
+        innerCommand,
         expectedSkillPath,
         expectedSkillContent,
         expectedSkillRelativePath,

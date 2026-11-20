@@ -10,6 +10,7 @@ import {
   MAX_CODEX_REPORTED_TOKENS,
   assertSemanticTranscript,
   assertSkillLoadedBeforeSemanticMcp,
+  assertFileLoadedBeforeEvent,
   assertCodexUsageWithinCeiling
 } from '../semanticAssertions.js';
 import { executeSemanticHarness } from '../semanticHarness.js';
@@ -25,6 +26,30 @@ import {
 import { isCompletionPackageExportCommand } from '../completionPackageAssertions.js';
 
 describe('agent dev Codex semantic harness mechanics', () => {
+  it('credits a static Bash filename list only with the exact complete read output', () => {
+    const relative = '.agents/skills/uclusion/references/collaboration.md';
+    const content = '<!-- uclusion-skill-reference:v1 -->\nShared procedure.\n' +
+      '<!-- /uclusion-skill-reference:v1 -->\n';
+    const proof = (command, text = content) => assertFileLoadedBeforeEvent({
+      successfulReadEvidence: [{ name: 'Shell', input: { command },
+        eventIndex: 0, resultEventIndex: 1, fragments: [{ eventIndex: 1, text }] }]
+    }, { expectedPath: `/tmp/probe/${relative}`, expectedRelativePath: relative,
+      expectedContent: content, expectedStartSentinel: '<!-- uclusion-skill-reference:v1 -->',
+      expectedEndSentinel: '<!-- /uclusion-skill-reference:v1 -->', beforeEventIndex: 2 });
+    const filenames = '.agents/skills/uclusion/references/{collaboration,helper-conversation}.md';
+    assert.doesNotThrow(() => proof(`/bin/bash -lc 'cat ${filenames}'`));
+    for (const command of [
+      `/bin/sh -c 'cat ${filenames}'`,
+      `/bin/bash -lc 'echo ${filenames}'`,
+      `/bin/bash -lc 'cat "${filenames}"'`,
+      `/bin/bash -lc 'cat $ROOT/references/{collaboration,helper-conversation}.md'`,
+      `/bin/bash +B -lc 'cat ${filenames} ; cat /tmp/alternate.md'`,
+      `/bin/bash -lc "cat ${filenames.replace('{', '\\{')} ; cat /tmp/alternate.md"`,
+      "/bin/bash -lc 'cat .agents/skills/uclusion/references/{helper-conversation,completion}.md'"
+    ]) assert.throws(() => proof(command));
+    assert.throws(() => proof(`/bin/bash -lc 'cat ${filenames}'`, 'Shared procedure.\n'));
+  });
+
   it('plans the semantic, standalone-bug and completion-package Codex phases', () => {
     const plan = buildSemanticPlan();
     const standaloneBugPlan = buildStandaloneBugConversionPlan();

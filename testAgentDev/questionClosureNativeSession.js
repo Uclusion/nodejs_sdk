@@ -37,7 +37,8 @@ export async function runQuestionClosureNativeSession({
   const startedAt = Date.now();
   const telemetry = await startCodexTelemetryReceiver({ multipleConversations: true });
   const native = new NativeCodexSession({ fixture, tracePath, env: sourceEnv,
-    telemetryEndpoint: telemetry.endpoint, timeoutMs, tokenCeiling: 500000, maxThreads: 3 });
+    telemetryEndpoint: telemetry.endpoint, timeoutMs,
+    tokenCeiling: session.codexReportedTokenCeiling ?? 500000, maxThreads: 3 });
   let threads;
   let failure;
   let outcome;
