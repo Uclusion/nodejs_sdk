@@ -598,5 +598,85 @@ export default function (adminConfiguration) {
         && !scopedJob.includes(revisedReplyMarker),
       'An explicit section read must not inject capsule bodies or discussion');
     }).timeout(600000);
+
+    it('shows AI sub notes by code on a view note read and in full on their own read (J-all-525)', async () => {
+      const marker = randomUUID();
+      const escaped = (code) => code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const job = await adminClient.investibles.create({
+        groupId: marketId,
+        name: `Sub notes job ${marker}`,
+        description: 'Job whose view holds an AI note with sub notes.'
+      });
+      const jobTicketCode = await getTicketCode(job);
+      const tz = 'America/Los_Angeles';
+
+      const mainMarker = `Lesson for nearly all work ${marker}`;
+      const created = await pollMcp('add_view_note', { view_short_code_id: jobTicketCode, note: mainMarker });
+      const noteCode = JSON.parse(created).result?.structuredContent?.short_code_id;
+      assert(noteCode && noteCode.startsWith('R-'), `Expected an R- ticket code in: ${created}`);
+      const noteRow = await commentState(noteCode, mainMarker);
+
+      const subMarker = `Grouped testing lessons ${marker}`;
+      const subResponse = await pollMcp('add_info', { short_code_id: noteCode, is_sub_note: true, info: subMarker, tz });
+      const sub = JSON.parse(subResponse).result?.structuredContent;
+      assert(sub?.short_code_id, `Sub note creation failed: ${subResponse}`);
+      assert.strictEqual(sub.reply_id, noteRow.id, `A sub note must be a reply on the note: ${subResponse}`);
+      const ordinaryMarker = `Ordinary reply shown in full ${marker}`;
+      const ordinaryResponse = await pollMcp('add_info', { short_code_id: noteCode, info: ordinaryMarker, tz });
+      const ordinary = JSON.parse(ordinaryResponse).result?.structuredContent;
+      assert(ordinary?.short_code_id, `Ordinary reply creation failed: ${ordinaryResponse}`);
+      await commentState(sub.short_code_id, subMarker);
+      await commentState(ordinary.short_code_id, ordinaryMarker);
+
+      const subHeader = new RegExp(`Sub note ${escaped(sub.short_code_id)}(?![0-9])`);
+      const readNoteThread = () => readJob({ short_code_id: noteCode, thread_only: true });
+      let noteRead = await pollFor(readNoteThread,
+        (text) => subHeader.test(text) && text.includes(ordinaryMarker));
+      assert(noteRead.includes(mainMarker), `The note read must keep the note body: ${noteRead}`);
+      assert(subHeader.test(noteRead), `The note read must name the sub note by code: ${noteRead}`);
+      assert(!noteRead.includes(subMarker), `The note read must omit the sub note body: ${noteRead}`);
+      assert(noteRead.includes(ordinaryMarker), `An ordinary reply must render in full: ${noteRead}`);
+
+      const readSub = () => readJob({ short_code_id: sub.short_code_id, thread_only: true });
+      const subRead = await pollFor(readSub, (text) => text.includes(subMarker));
+      assert(subRead.includes(subMarker), `A sub note read must return its body: ${subRead}`);
+      const subVersion = Number(subRead.match(/Reply version: (\d+)\./)?.[1]);
+      assert(subVersion >= 1, `A sub note read must return its Reply version: ${subRead}`);
+
+      const revisedMarker = `Revised testing lessons ${marker}`;
+      const revisedResponse = await pollMcp('add_info', {
+        update_info_short_code_id: sub.short_code_id, update_info_version: subVersion, info: revisedMarker, tz
+      });
+      const revised = JSON.parse(revisedResponse).result?.structuredContent;
+      assert.strictEqual(revised?.status, 'updated', `Sub note update failed: ${revisedResponse}`);
+      const revisedRead = await pollFor(readSub, (text) => text.includes(revisedMarker));
+      assert(revisedRead.includes(revisedMarker), `A sub note read must return its current body: ${revisedRead}`);
+      noteRead = await readNoteThread();
+      assert(subHeader.test(noteRead), `The note read must still name the sub note: ${noteRead}`);
+      assert(!noteRead.includes(revisedMarker) && !noteRead.includes(subMarker),
+        `The note read must omit the revised sub note body: ${noteRead}`);
+      assert(noteRead.includes(ordinaryMarker), `An ordinary reply must still render in full: ${noteRead}`);
+
+      const inventory = new RegExp(`${escaped(noteCode)} v[0-9]+`);
+      const jobMarkdown = await pollFor(() => readJob({ short_code_id: jobTicketCode }),
+        (markdown) => inventory.test(markdown));
+      assert(inventory.test(jobMarkdown), `The standing-note list must carry the main note: ${jobMarkdown}`);
+      assert(!new RegExp(`${escaped(sub.short_code_id)}(?![0-9])`).test(jobMarkdown),
+        `The standing-note list must not carry the sub note: ${jobMarkdown}`);
+
+      const jobTarget = await pollMcp('add_info', {
+        short_code_id: jobTicketCode, is_sub_note: true, info: `Never a sub note ${marker}`, tz
+      });
+      assert.strictEqual(JSON.parse(jobTarget).result?.isError, true, `Expected a target refusal: ${jobTarget}`);
+      assert(mcpText(jobTarget).includes('is_sub_note needs the R- code of an active AI-authored view note.'),
+        `Expected the target refusal message: ${jobTarget}`);
+      const updateTarget = await pollMcp('add_info', {
+        update_info_short_code_id: sub.short_code_id, update_info_version: revised.version, is_sub_note: true,
+        info: `Never an update ${marker}`, tz
+      });
+      assert.strictEqual(JSON.parse(updateTarget).result?.isError, true, `Expected an update refusal: ${updateTarget}`);
+      assert(mcpText(updateTarget).includes('is_sub_note applies only when creating a reply.'),
+        `Expected the update refusal message: ${updateTarget}`);
+    }).timeout(600000);
   });
 }
