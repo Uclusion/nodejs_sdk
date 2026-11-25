@@ -145,7 +145,12 @@ export default function (adminConfiguration) {
       const proposedAction = 'Decide whether to resolve the open bug';
       const finding = `1. **${openBug.short_code_id}**, Open bug ${marker}: **obsolete**. ` +
         `Evidence: ${resolvedBug.short_code_id}, ${reason}. Proposed action: ${proposedAction}.`;
-      const report = `1. [Open bug ${marker} (${openBug.short_code_id})](#${openBug.short_code_id}). ${reason}.`;
+      const report = [
+        '| Open work | Completed work | What may change |',
+        '| --- | --- | --- |',
+        `| [Open bug ${marker} (${openBug.short_code_id})](#${openBug.short_code_id}) ` +
+          `| [Fixed bug ${marker} (${resolvedBug.short_code_id})](#${resolvedBug.short_code_id}) | ${reason}. |`
+      ].join('\n');
       const contextualWrite = toolResult(await mcpCall(adminConfiguration, workspace.uclusionToken,
         'add_info', {
           short_code_id: openBug.short_code_id, info: finding,
@@ -212,6 +217,10 @@ export default function (adminConfiguration) {
       const openBugLink = new RegExp(
         `<a href="[^"]*#c${openBug.comment_id}"[^>]*>Open bug ${marker} \\(${openBug.short_code_id}\\)</a>`);
       assert.match(row.text || '', openBugLink, 'The report text links the open bug it names');
+      assert((row.text || '').includes('<table'), 'The report reaches the inbox as a table');
+      const fixedBugLink = new RegExp(
+        `<a href="[^"]*#c${resolvedBug.comment_id}"[^>]*>Fixed bug ${marker} \\(${resolvedBug.short_code_id}\\)</a>`);
+      assert.match(row.text || '', fixedBugLink, 'The report text links the completed work that may change it');
       const after = await findWork(workspace);
       assert(!('backlog_maintenance' in after), `Recording clears the notice: ${JSON.stringify(after)}`);
     });
